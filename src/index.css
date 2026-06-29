@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Playfair+Display:ital,wght@0,600;1,400;1,600&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    background: #E8E8E8;
+    color: #111111;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  input, textarea, button {
+    font-family: inherit;
+  }
+
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    scrollbar-width: none;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100svh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px 0 48px;
+    background: #E8E8E8;
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0.9; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes fadeInScale {
+    0% { opacity: 0; transform: scale(0.82); }
+    12% { opacity: 1; transform: scale(1.04); }
+    20% { opacity: 1; transform: scale(1); }
+    78% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.94); }
+  }
+
+  @keyframes popIn {
+    0% { transform: scale(0); }
+    55% { transform: scale(1.15); }
+    80% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes welcomeAnim {
+    0% { opacity: 0; transform: scale(0.96); }
+    12% { opacity: 1; transform: scale(1); }
+    75% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.02); }
+  }
+}

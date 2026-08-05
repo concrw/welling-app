@@ -451,7 +451,7 @@ export const useAppStore = create<AppState>()(
   myFollowersCount: 0,
   myFollowingCount: 0,
 
-  activeCommunityTab: 'morning-runners',
+  activeCommunityTab: 'all',
   communityTabOrder: ['morning-runners', 'clean-eaters', 'book-club', 'office-workout'],
   mypageTab: 'dashboard',
   rankingTab: 'All',

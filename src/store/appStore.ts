@@ -222,6 +222,8 @@ interface AppState {
   communities: Community[]
   suggestedUsers: User[]
   notifications: Notification[]
+  myFollowersCount: number
+  myFollowingCount: number
 
   activeCommunityTab: string
   communityTabOrder: string[]
@@ -446,6 +448,8 @@ export const useAppStore = create<AppState>()(
   communities: SAMPLE_COMMUNITIES,
   suggestedUsers: SAMPLE_USERS,
   notifications: SAMPLE_NOTIFS,
+  myFollowersCount: 0,
+  myFollowingCount: 0,
 
   activeCommunityTab: 'morning-runners',
   communityTabOrder: ['morning-runners', 'clean-eaters', 'book-club', 'office-workout'],
@@ -701,6 +705,7 @@ export const useAppStore = create<AppState>()(
       return { followedUsers: next }
     })
     if (isDemo || !myUserId) return
+    set((s) => ({ myFollowingCount: Math.max(0, s.myFollowingCount + (nextFollowed ? 1 : -1)) }))
     if (nextFollowed) {
       await supabase.from('follows').insert({ follower_id: myUserId, followee_id: userId })
     } else {
@@ -772,7 +777,12 @@ export const useAppStore = create<AppState>()(
       routines: routinesByUser.get(p.id) ?? [],
       routineGoals: groupsByUser.get(p.id) ?? [],
     }))
-    set({ suggestedUsers, followedUsers: followedIds })
+    set({
+      suggestedUsers,
+      followedUsers: followedIds,
+      myFollowersCount: countsById.get(userId)?.followers ?? 0,
+      myFollowingCount: countsById.get(userId)?.following ?? 0,
+    })
   },
 
   toggleJoinCommunity: async (communityId) => {
@@ -1276,7 +1286,17 @@ export const useAppStore = create<AppState>()(
       .eq('user_id', userId)
       .eq('is_current', true)
       .order('sort_order', { ascending: true })
-    if (!groupRows || groupRows.length === 0) return
+    if (!groupRows || groupRows.length === 0) {
+      set({
+        routineGroups: [],
+        routineHistory: [],
+        currentRoutineStartDate: Date.now(),
+        currentRoutineGroupIds: [],
+        routinePrivacy: [],
+        routineItemIdByName: new Map(),
+      })
+      return
+    }
     const itemIdByName = new Map<string, string>()
     const routineGroups: RoutineGroupData[] = groupRows.map((g) => ({
       id: g.id,

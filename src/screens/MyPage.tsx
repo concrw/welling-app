@@ -59,9 +59,8 @@ export default function MyPage() {
   const togglePrivacyGroup = (gi: number) => saveRoutinePrivacy(routinePrivacy.map((g, i) => i === gi ? { ...g, on: !g.on } : g))
   const togglePrivacyItem = (gi: number, ii: number) => saveRoutinePrivacy(routinePrivacy.map((g, i) => i === gi ? { ...g, items: g.items.map((item, j) => j === ii ? { ...item, on: !item.on } : item) } : g))
 
-  // TODO: store/API에서 실제 팔로워·팔로잉 수를 가져오도록 교체 필요
-  const followersCount = 47
-  const followingCount = 23
+  const followersCount = useAppStore((s) => (s.isDemo ? 47 : s.myFollowersCount))
+  const followingCount = useAppStore((s) => (s.isDemo ? 23 : s.myFollowingCount))
 
   const hasUnread = notifications.some((n) => !n.read)
   const unreadCount = notifications.filter((n) => !n.read).length

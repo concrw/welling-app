@@ -28,8 +28,8 @@ export function ProfileHeader({
   return (
     <div style={{ background: '#FFFFFF', padding: 'calc(24px + env(safe-area-inset-top)) 20px 20px', borderBottom: '1px solid #EBEBEB' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 20 }}>
-        <div style={{ width: 70, height: 70, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: '#222' }}>
-          <img src="/uploads/agns_cat_4.png" alt={M.myPage.profileAlt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <div style={{ width: 70, height: 70, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 26, fontWeight: 700, color: '#fff' }}>{nickname[0]?.toUpperCase() ?? '?'}</span>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ margin: '0 0 5px', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 20, fontWeight: 700, color: '#111111', letterSpacing: '-.3px', lineHeight: 1 }}>{nickname.toUpperCase()}</p>

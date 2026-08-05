@@ -2,23 +2,16 @@ import { useState, useEffect } from 'react'
 import { useAppStore, type RoutineSuggestion } from '../store/appStore'
 import { useMessages } from '../i18n'
 import { isConnected } from '../lib/googleCalendar'
-import { computeAchievement, computeAchievementForRange } from '../lib/achievement'
+import { computeAchievementForRange } from '../lib/achievement'
 import { matchScheduleKeywords, type ScheduleKeyword } from '../lib/calendarInsights'
 import { InsightsHeader } from '../components/insights/InsightsHeader'
 import { CalendarStatusCard } from '../components/insights/CalendarStatusCard'
 import { RoutineInsightsList } from '../components/insights/RoutineInsightsList'
 import { CalendarKeywordInsightsList } from '../components/insights/CalendarKeywordInsightsList'
 import { RoutineSuggestionCard } from '../components/insights/RoutineSuggestionCard'
+import { useRoutineInsights } from '../components/insights/useRoutineInsights'
 
-const PERIOD_TO_DAYS: Record<string, number> = { 'This week': 7, 'This month': 30, 'All time': 365 }
 const MIN_SNAPSHOT_DAYS_FOR_KEYWORD = 3
-
-// Community conditions mapped to community ids for filtering posts
-const COMMUNITY_CONDITIONS: { communityName: string; communityId: string; routine: string }[] = [
-  { communityName: 'Morning Runners', communityId: 'morning-runners', routine: 'Morning' },
-  { communityName: 'Clean Eaters', communityId: 'clean-eaters', routine: 'Meals' },
-  { communityName: 'Book Club', communityId: 'book-club', routine: 'Evening' },
-]
 
 export default function Insights() {
   const M = useMessages()
@@ -32,26 +25,12 @@ export default function Insights() {
   const saveRoutineGroups = useAppStore((s) => s.saveRoutineGroups)
 
   const calendarConnected = isConnected()
-  const windowDays = PERIOD_TO_DAYS[dashboardPeriod] ?? 30
   const userName = nickname || 'Min'
 
-  // Overall achievement per routine group over the selected period (real calculation, matches MyPage)
-  const overallByGroup = computeAchievement(routineGroups, posts, userName, windowDays).groups
+  const { insights, overallByGroup } = useRoutineInsights()
   const overallRate = overallByGroup.length
     ? Math.round(overallByGroup.reduce((sum, g) => sum + g.achievement, 0) / overallByGroup.length)
     : 0
-
-  // Achievement per routine group, restricted to days the user was active in the condition's community
-  const insights = COMMUNITY_CONDITIONS.map(({ communityName, communityId, routine }) => {
-    const communityDays = new Set(
-      posts.filter((p) => p.community === communityId).map((p) => new Date(p.createdAt).toDateString())
-    )
-    const postsOnCommunityDays = posts.filter((p) => communityDays.has(new Date(p.createdAt).toDateString()))
-    const conditionalGroup = computeAchievement(routineGroups, postsOnCommunityDays, userName, windowDays).groups
-      .find((g) => g.name === routine)
-    const avgGroup = overallByGroup.find((g) => g.name === routine)
-    return { condition: M.insights.communityActivityDay(communityName), routine, lowRate: conditionalGroup?.achievement ?? 0, avgRate: avgGroup?.achievement ?? 0 }
-  })
 
   const displayInsights = insights
 

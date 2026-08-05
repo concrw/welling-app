@@ -1,37 +1,12 @@
 import { useAppStore } from '../store/appStore'
 import { useMessages } from '../i18n'
-import { computeAchievementForRange } from '../lib/achievement'
+import { useRoutineHistorySummary } from '../components/mypage/useRoutineHistorySummary'
 
 export default function RoutineHistory() {
   const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const navigate = useAppStore((s) => s.navigate)
-  const routineGroups = useAppStore((s) => s.routineGroups)
-  const routineHistory = useAppStore((s) => s.routineHistory)
-  const currentRoutineStartDate = useAppStore((s) => s.currentRoutineStartDate)
-  const posts = useAppStore((s) => s.posts)
-  const nickname = useAppStore((s) => s.nickname)
-  const userName = nickname || 'Min'
-
-  // Current routine summary from routineGroups
-  const allItems = routineGroups.flatMap((g) => g.items)
-  const itemNames = allItems.map((i) => i.name)
-
-  const now = Date.now()
-  const currentAchievement = computeAchievementForRange(routineGroups, posts, userName, currentRoutineStartDate, now)
-  const currentCompletion = currentAchievement.overall
-  const currentPeriodLabel = `${M.routineHistory.periodRange(currentRoutineStartDate, now)}`
-
-  // Build a label summary for current routine items
-  const displayNames = itemNames.slice(0, 2).join(', ')
-  const extraCount = itemNames.length > 2 ? itemNames.length - 2 : 0
-  const itemSummary = M.routineHistory.itemSummary(displayNames, extraCount)
-
-  const priorPeriods = routineHistory.map((entry) => ({
-    id: entry.id,
-    period: M.routineHistory.periodRange(entry.startDate, entry.endDate),
-    achievement: computeAchievementForRange(entry.groups, posts, userName, entry.startDate, entry.endDate).overall,
-  }))
+  const { currentPeriodLabel, currentCompletion, itemSummary, priorPeriods } = useRoutineHistorySummary()
 
   return (
     <div>

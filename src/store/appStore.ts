@@ -1631,3 +1631,7 @@ export const useAppStore = create<AppState>()(
     }
   )
 )
+
+if (import.meta.env.DEV) {
+  ;(window as unknown as { __store?: typeof useAppStore }).__store = useAppStore
+}

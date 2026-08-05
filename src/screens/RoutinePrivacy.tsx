@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -9,22 +10,17 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   )
 }
 
-const INIT_GROUPS = [
-  {
-    name: 'Morning Routine',
-    on: true,
-    items: [{ name: 'Morning Walk', on: true }, { name: 'Cold Shower', on: true }, { name: 'Meditation', on: false }, { name: 'Journaling', on: false }],
-  },
-  {
-    name: 'Evening Routine',
-    on: true,
-    items: [{ name: 'Running 5km', on: true }, { name: 'Stretching', on: true }, { name: 'Reading', on: true }],
-  },
-]
-
 export default function RoutinePrivacy() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
-  const [groups, setGroups] = useState(INIT_GROUPS)
+  const storedPrivacy = useAppStore((s) => s.routinePrivacy)
+  const saveRoutinePrivacy = useAppStore((s) => s.saveRoutinePrivacy)
+  const [groups, setGroups] = useState(storedPrivacy)
+
+  const handleSave = () => {
+    saveRoutinePrivacy(groups)
+    goBack()
+  }
 
   const toggleGroup = (gi: number) =>
     setGroups((prev) => prev.map((g, i) => i === gi ? { ...g, on: !g.on } : g))
@@ -38,11 +34,12 @@ export default function RoutinePrivacy() {
         <button onClick={goBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#111111' }}>Routine Privacy</span>
+        <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>{M.routinePrivacy.title}</span>
+        <button onClick={handleSave} style={{ padding: '7px 16px', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', letterSpacing: '.02em' }}>{M.common.save}</button>
       </div>
 
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <p style={{ margin: 0, fontSize: 12, color: '#AAAAAA', lineHeight: 1.7, fontWeight: 300 }}>Control visibility per item. Hidden items won't appear on your profile.</p>
+        <p style={{ margin: 0, fontSize: 12, color: '#AAAAAA', lineHeight: 1.7, fontWeight: 300 }}>{M.routinePrivacy.desc}</p>
         {groups.map((pg, gi) => (
           <div key={pg.name} style={{ borderRadius: 12, background: '#FAFAFA', border: '1px solid #EBEBEB', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #EBEBEB' }}>

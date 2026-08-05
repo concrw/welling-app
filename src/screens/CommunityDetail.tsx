@@ -1,6 +1,8 @@
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
 
 export default function CommunityDetail() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const selectedCommunity = useAppStore((s) => s.selectedCommunity)
   const toggleJoinCommunity = useAppStore((s) => s.toggleJoinCommunity)
@@ -10,7 +12,20 @@ export default function CommunityDetail() {
   const selectUser = useAppStore((s) => s.selectUser)
   const suggestedUsers = useAppStore((s) => s.suggestedUsers)
 
-  if (!selectedCommunity) return null
+  if (!selectedCommunity) {
+    return (
+      <div>
+        <div style={{ padding: 'calc(14px + env(safe-area-inset-top)) 20px 14px', background: '#FFFFFF', borderBottom: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 10 }}>
+          <button onClick={goBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+        </div>
+        <div style={{ padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <p style={{ margin: 0, fontSize: 13, color: '#AAAAAA', fontWeight: 300 }}>{M.communityDetail.notFound}</p>
+        </div>
+      </div>
+    )
+  }
 
   const c = selectedCommunity
   const communityPosts = posts.filter((p) => p.community === c.id)
@@ -27,7 +42,7 @@ export default function CommunityDetail() {
         </button>
         <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>{c.name}</span>
         <button onClick={() => toggleJoinCommunity(c.id)} style={joinBtnStyle}>
-          {c.joined ? 'Joined' : 'Join'}
+          {c.joined ? M.communityDetail.joined : M.communityDetail.join}
         </button>
       </div>
 
@@ -37,19 +52,19 @@ export default function CommunityDetail() {
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ margin: '0 0 3px', fontSize: 15, fontWeight: 800, color: '#111111' }}>{c.name}</p>
-          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#AAAAAA', fontWeight: 300 }}>{c.members.toLocaleString()}명 · {c.focus}</p>
+          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#AAAAAA', fontWeight: 300 }}>{M.communityDetail.memberAndFocus(c.members, c.focus)}</p>
           <p style={{ margin: 0, fontSize: 12, color: '#666666', lineHeight: 1.65, fontWeight: 300, wordBreak: 'keep-all', overflowWrap: 'break-word', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.desc}</p>
         </div>
       </div>
 
       <div style={{ padding: '12px 20px', borderBottom: '1px solid #F0F0F0' }}>
-        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: '#AAAAAA', letterSpacing: '.08em', textTransform: 'uppercase' }}>최근 게시물</p>
+        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: '#AAAAAA', letterSpacing: '.08em', textTransform: 'uppercase' }}>{M.communityDetail.recentPosts}</p>
       </div>
 
       {communityPosts.length === 0 ? (
         <div style={{ padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-          <p style={{ margin: 0, fontSize: 13, color: '#AAAAAA', fontWeight: 300 }}>아직 게시물이 없어요.</p>
-          <p style={{ margin: 0, fontSize: 12, color: '#CCCCCC', fontWeight: 300 }}>첫 번째 기록을 남겨보세요!</p>
+          <p style={{ margin: 0, fontSize: 13, color: '#AAAAAA', fontWeight: 300 }}>{M.communityDetail.emptyTitle}</p>
+          <p style={{ margin: 0, fontSize: 12, color: '#CCCCCC', fontWeight: 300 }}>{M.communityDetail.emptyBody}</p>
         </div>
       ) : (
         communityPosts.map((post) => (

@@ -1,15 +1,11 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
 
-const INIT_MESSAGES = [
-  { id: 'm1', me: false, text: '오늘 루틴 어떻게 됐어?', time: '10:28', justify: 'flex-start', radius: '14px 14px 14px 4px', bg: '#F0F0F0', textColor: '#111111' },
-  { id: 'm2', me: true, text: '4/5 완료했어! Running만 못했네', time: '10:30', justify: 'flex-end', radius: '14px 14px 4px 14px', bg: '#111111', textColor: '#fff' },
-  { id: 'm3', me: false, text: '나도 비슷해. 내일은 같이 뛰자!', time: '10:31', justify: 'flex-start', radius: '14px 14px 14px 4px', bg: '#F0F0F0', textColor: '#111111' },
-  { id: 'm4', me: true, text: '좋아! 몇 시에?', time: '10:31', justify: 'flex-end', radius: '14px 14px 4px 14px', bg: '#111111', textColor: '#fff' },
-  { id: 'm5', me: false, text: '오전 7시 어때? 한강에서 만나자', time: '10:32', justify: 'flex-start', radius: '14px 14px 14px 4px', bg: '#F0F0F0', textColor: '#111111' },
-]
+import { MOCK_CHAT_MESSAGES as INIT_MESSAGES } from '../data/mock'
 
 export default function ChatThread() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const chatUser = useAppStore((s) => s.chatUser)
   const [messages, setMessages] = useState(INIT_MESSAGES)
@@ -17,7 +13,7 @@ export default function ChatThread() {
 
   const send = () => {
     if (!input.trim()) return
-    const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+    const time = M.chat.messageTime(new Date())
     setMessages((prev) => [...prev, { id: `m${Date.now()}`, me: true, text: input.trim(), time, justify: 'flex-end', radius: '14px 14px 4px 14px', bg: '#111111', textColor: '#fff' }])
     setInput('')
   }
@@ -47,7 +43,7 @@ export default function ChatThread() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
-          placeholder="메시지를 입력하세요"
+          placeholder={M.chat.inputPlaceholder}
           style={{ flex: 1, padding: '10px 14px', borderRadius: 22, border: '1px solid #EBEBEB', fontSize: 14, background: '#FAFAFA', outline: 'none', color: '#111111', fontFamily: "'Noto Sans KR',sans-serif" }}
         />
         <button onClick={send} style={{ width: 38, height: 38, borderRadius: '50%', background: '#111111', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

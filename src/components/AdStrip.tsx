@@ -1,19 +1,21 @@
-import { useAppStore } from '../store/appStore'
+import { useAppStore, type AdSlotKey } from '../store/appStore'
+import { useMessages } from '../i18n'
 
-export default function AdStrip() {
+export default function AdStrip({ slotKey }: { slotKey: AdSlotKey }) {
+  const M = useMessages()
   const navigate = useAppStore((s) => s.navigate)
   const openAdModal = useAppStore((s) => s.openAdModal)
   const setAdPageData = useAppStore((s) => s.setAdPageData)
   const adSlots = useAppStore((s) => s.adSlots)
-  const mypageAd = adSlots.mypage
+  const ad = adSlots[slotKey]
 
   const handleClick = () => {
-    if (mypageAd.clickAction === 'link') {
-      window.open(mypageAd.url, '_blank')
-    } else if (mypageAd.clickAction === 'modal') {
-      openAdModal({ brand: mypageAd.brand, desc: mypageAd.desc, modalTitle: mypageAd.modalTitle, modalBody: mypageAd.modalBody })
+    if (ad.clickAction === 'link') {
+      window.open(ad.url, '_blank')
+    } else if (ad.clickAction === 'modal') {
+      openAdModal({ brand: ad.brand, desc: ad.desc, modalTitle: ad.modalTitle, modalBody: ad.modalBody })
     } else {
-      setAdPageData({ brand: mypageAd.brand, desc: mypageAd.desc, slotKey: 'mypage' })
+      setAdPageData({ brand: ad.brand, desc: ad.desc, slotKey })
       navigate('ad-page')
     }
   }
@@ -39,16 +41,16 @@ export default function AdStrip() {
         </svg>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: '0 0 1px', fontSize: 12, fontWeight: 700, color: '#111111' }}>{mypageAd.brand}</p>
-        <p style={{ margin: 0, fontSize: 11, color: '#AAAAAA', fontWeight: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mypageAd.desc}</p>
+        <p style={{ margin: '0 0 1px', fontSize: 12, fontWeight: 700, color: '#111111' }}>{ad.brand}</p>
+        <p style={{ margin: 0, fontSize: 11, color: '#AAAAAA', fontWeight: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ad.desc}</p>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 9, color: '#CCCCCC', letterSpacing: '.06em', textTransform: 'uppercase', border: '1px solid #EBEBEB', padding: '2px 5px', borderRadius: 3 }}>광고</span>
+        <span style={{ fontSize: 9, color: '#CCCCCC', letterSpacing: '.06em', textTransform: 'uppercase', border: '1px solid #EBEBEB', padding: '2px 5px', borderRadius: 3 }}>{M.ads.adLabel}</span>
         <button
           onClick={(e) => { e.stopPropagation(); handleClick() }}
           style={{ padding: '5px 10px', borderRadius: 6, background: '#111111', color: '#fff', fontSize: 10, fontWeight: 600, border: 'none', cursor: 'pointer' }}
         >
-          보기
+          {M.ads.view}
         </button>
       </div>
     </div>

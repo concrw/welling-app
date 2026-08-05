@@ -1,4 +1,5 @@
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
 
 const PALETTE = ['#374151', '#0984E3', '#00B894', '#6C5CE7', '#B45309', '#047857', '#0369A1', '#7C3AED']
 
@@ -11,6 +12,7 @@ function getInitials(name: string) {
 }
 
 export default function Notifications() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const notifications = useAppStore((s) => s.notifications)
   const markAllRead = useAppStore((s) => s.markAllRead)
@@ -22,8 +24,15 @@ export default function Notifications() {
         <button onClick={goBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>알림</span>
-        <button onClick={markAllRead} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#AAAAAA', padding: 0, letterSpacing: '.02em' }}>모두 읽음</button>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#111111' }}>{M.notifications.title}</span>
+          {notifications.filter((n) => !n.read).length > 0 && (
+            <div style={{ minWidth: 18, height: 18, borderRadius: 9, background: '#E53535', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', boxSizing: 'border-box' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{notifications.filter((n) => !n.read).length > 99 ? '99+' : notifications.filter((n) => !n.read).length}</span>
+            </div>
+          )}
+        </div>
+        <button onClick={markAllRead} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#AAAAAA', padding: 0, letterSpacing: '.02em' }}>{M.notifications.markAllRead}</button>
       </div>
 
       <div>
@@ -45,8 +54,8 @@ export default function Notifications() {
 
         {notifications.length === 0 && (
           <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-            <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: '#111111' }}>알림 없음</p>
-            <p style={{ margin: 0, fontSize: 13, color: '#AAAAAA', fontWeight: 300 }}>누군가 나에게 반응하면 여기서 확인할 수 있어요.</p>
+            <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: '#111111' }}>{M.notifications.emptyTitle}</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#AAAAAA', fontWeight: 300 }}>{M.notifications.emptyDesc}</p>
           </div>
         )}
       </div>

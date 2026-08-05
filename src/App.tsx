@@ -21,6 +21,12 @@ import ChatThread from './screens/ChatThread'
 import AdminUsers from './screens/AdminUsers'
 import AdminAds from './screens/AdminAds'
 import AdPage from './screens/AdPage'
+import EveningReflection from './screens/EveningReflection'
+import SettingsHomeScreen from './screens/SettingsHomeScreen'
+import SettingsDefaultVisibility from './screens/SettingsDefaultVisibility'
+import SettingsProfileVisibility from './screens/SettingsProfileVisibility'
+import SettingsGoogleCalendar from './screens/SettingsGoogleCalendar'
+import SettingsChangeUsername from './screens/SettingsChangeUsername'
 import BottomNav from './components/BottomNav'
 import AdStrip from './components/AdStrip'
 import RecordModal from './overlays/RecordModal'
@@ -36,17 +42,19 @@ const NAV_SCREENS = ['feed', 'explore', 'ranking', 'mypage']
 
 export default function App() {
   const screen = useAppStore((s) => s.screen)
+  const authInitializing = useAppStore((s) => s.authInitializing)
+  const isDemo = useAppStore((s) => s.isDemo)
 
   const isOnboarding = ONBOARDING_SCREENS.includes(screen)
   const showNav = NAV_SCREENS.includes(screen)
-  const showAdStrip = !isOnboarding && (screen === 'mypage' || screen === 'other-profile')
+  const showAdStrip = !isOnboarding && (screen === 'mypage' || screen === 'other-profile' || screen === 'community-detail')
+
+  if (authInitializing && !isDemo) {
+    return <div style={{ minHeight: '100svh', background: '#FFFFFF' }} />
+  }
 
   return (
-    <div style={{
-      width: 390,
-      minHeight: 844,
-      borderRadius: 20,
-      boxShadow: '0 16px 48px rgba(0,0,0,.14)',
+    <div className="app-shell" style={{
       overflow: 'hidden',
       position: 'relative',
       display: 'flex',
@@ -79,10 +87,22 @@ export default function App() {
           {screen === 'admin-users' && <AdminUsers />}
           {screen === 'admin-ads' && <AdminAds />}
           {screen === 'ad-page' && <AdPage />}
+          {screen === 'evening-reflection' && <EveningReflection />}
+          {screen === 'settings-home-screen' && <SettingsHomeScreen />}
+          {screen === 'settings-default-visibility' && <SettingsDefaultVisibility />}
+          {screen === 'settings-profile-visibility' && <SettingsProfileVisibility />}
+          {screen === 'settings-google-calendar' && <SettingsGoogleCalendar />}
+          {screen === 'settings-change-username' && <SettingsChangeUsername />}
         </div>
-        {showAdStrip && <AdStrip />}
-        {showNav && <BottomNav />}
+        {showAdStrip && (
+          <AdStrip
+            slotKey={
+              screen === 'mypage' ? 'mypage' : screen === 'community-detail' ? 'community-detail' : 'otherProfile'
+            }
+          />
+        )}
       </div>
+      {showNav && <BottomNav />}
       <RecordModal />
       <PostDetailSheet />
       <SyncConfirmSheet />

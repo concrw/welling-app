@@ -1,6 +1,8 @@
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
 
 export default function SyncConfirmSheet() {
+  const M = useMessages()
   const showSyncConfirm = useAppStore((s) => s.showSyncConfirm)
   const syncSheetUserName = useAppStore((s) => s.syncSheetUserName)
   const syncSheetAlarms = useAppStore((s) => s.syncSheetAlarms)
@@ -18,8 +20,8 @@ export default function SyncConfirmSheet() {
             <img src="/uploads/welling-black.png" alt="welling" style={{ height: 20, width: 'auto', filter: 'invert(1)' }} />
           </div>
           <div>
-            <p style={{ margin: '0 0 2px', fontSize: 16, fontWeight: 900, color: '#111111', letterSpacing: '-.3px' }}>루틴싱크</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#AAAAAA', fontWeight: 300 }}>{syncSheetUserName}님의 루틴 시간에 알림을 받아요</p>
+            <p style={{ margin: '0 0 2px', fontSize: 16, fontWeight: 900, color: '#111111', letterSpacing: '-.3px' }}>{M.overlays.routineSync}</p>
+            <p style={{ margin: 0, fontSize: 12, color: '#AAAAAA', fontWeight: 300 }}>{M.overlays.syncDesc(syncSheetUserName)}</p>
           </div>
         </div>
         <div style={{ height: 1, background: '#EBEBEB', margin: '16px 0' }} />
@@ -38,8 +40,8 @@ export default function SyncConfirmSheet() {
             </div>
           ))}
         </div>
-        <button onClick={confirmSync} style={{ width: '100%', padding: 14, borderRadius: 10, background: '#111111', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', letterSpacing: '.02em', marginBottom: 6 }}>싱크 시작하기</button>
-        <button onClick={closeSyncConfirm} style={{ width: '100%', padding: 12, borderRadius: 10, background: 'transparent', color: '#AAAAAA', fontSize: 13, border: 'none', cursor: 'pointer', fontWeight: 300 }}>취소</button>
+        <button onClick={confirmSync} style={{ width: '100%', padding: 14, borderRadius: 10, background: '#111111', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', letterSpacing: '.02em', marginBottom: 6 }}>{M.overlays.startSync}</button>
+        <button onClick={closeSyncConfirm} style={{ width: '100%', padding: 12, borderRadius: 10, background: 'transparent', color: '#AAAAAA', fontSize: 13, border: 'none', cursor: 'pointer', fontWeight: 300 }}>{M.common.cancel}</button>
       </div>
     </div>
   )

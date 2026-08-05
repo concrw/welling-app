@@ -1,34 +1,75 @@
-import { useState, useRef } from 'react'
-import { useAppStore } from '../store/appStore'
+import { useState, useRef, useEffect } from 'react'
+import { useAppStore, type PostCategory, type PostVisibility } from '../store/appStore'
+import { looksUnrelatedToCategory } from '../lib/contentGuideline'
+import { useMessages } from '../i18n'
 
-const DEFAULT_BUTTONS = [
-  { id: 'b1', num: 1, label: 'Squat 20' },
-  { id: 'b2', num: 2, label: 'Water' },
-  { id: 'b3', num: 3, label: 'Stretch 10m' },
-  { id: 'b4', num: 4, label: 'Meditate 5m' },
-  { id: 'b5', num: 5, label: 'Stairs' },
-  { id: 'b6', num: 6, label: 'Read 30m' },
-  { id: 'b7', num: 7, label: 'Run 20m' },
-  { id: 'b8', num: 8, label: 'Plank 1m' },
-]
+interface QuickBtn { id: string; num: number; label: string; isCustom: boolean }
 
-interface QuickBtn { id: string; num: number; label: string }
+const TIMER_PRESETS = [1, 3, 5, 10]
+
+const CATEGORY_KEYS: PostCategory[] = ['habit', 'diet', 'reflection', 'routine']
+
+const VISIBILITY_KEYS: PostVisibility[] = ['public', 'followers', 'private']
 
 export default function RecordModal() {
+  const M = useMessages()
   const showRecordModal = useAppStore((s) => s.showRecordModal)
   const closeRecordModal = useAppStore((s) => s.closeRecordModal)
-  const [buttons, setButtons] = useState<QuickBtn[]>(DEFAULT_BUTTONS)
+  const addPost = useAppStore((s) => s.addPost)
+  const routineGroups = useAppStore((s) => s.routineGroups)
+  const customQuickButtons = useAppStore((s) => s.customQuickButtons)
+  const addCustomQuickButton = useAppStore((s) => s.addCustomQuickButton)
+  const updateCustomQuickButton = useAppStore((s) => s.updateCustomQuickButton)
+  const removeCustomQuickButton = useAppStore((s) => s.removeCustomQuickButton)
+  const communities = useAppStore((s) => s.communities)
+  const defaultVisibility = useAppStore((s) => s.defaultVisibility)
+
+  const routineButtons: QuickBtn[] = routineGroups.flatMap((g) => g.items).map((item) => ({
+    id: `routine-${item.id}`, num: 0, label: item.name, isCustom: false,
+  }))
+  const customButtons: QuickBtn[] = customQuickButtons.map((b) => ({
+    id: b.id, num: 0, label: b.label, isCustom: true,
+  }))
+  const buttons: QuickBtn[] = [...routineButtons, ...customButtons].map((b, i) => ({ ...b, num: i + 1 }))
+
   const [toast, setToast] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [recordText, setRecordText] = useState('')
+  const [recordCategory, setRecordCategory] = useState<PostCategory>('habit')
+  const [recordVisibility, setRecordVisibility] = useState<PostVisibility>(defaultVisibility)
+  const [recordCommunityId, setRecordCommunityId] = useState<string>('')
+  const [recordInstaUrl, setRecordInstaUrl] = useState('')
+  const [showGuidelineWarning, setShowGuidelineWarning] = useState(false)
   const [longPressTarget, setLongPressTarget] = useState<QuickBtn | null>(null)
   const [editingBtn, setEditingBtn] = useState<QuickBtn | null>(null)
   const [editLabel, setEditLabel] = useState('')
   const [addingBtn, setAddingBtn] = useState(false)
   const [newBtnLabel, setNewBtnLabel] = useState('')
+  const [timerTarget, setTimerTarget] = useState<QuickBtn | null>(null)
+  const [activeTimer, setActiveTimer] = useState<{ btn: QuickBtn; endsAt: number; totalMs: number } | null>(null)
+  const [timerRemainingMs, setTimerRemainingMs] = useState(0)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!activeTimer) return
+    const tick = () => {
+      const remaining = activeTimer.endsAt - Date.now()
+      if (remaining <= 0) {
+        addPost(activeTimer.btn.label, undefined, 'habit', defaultVisibility, null)
+        showToast(M.overlays.recordDoneWithLabel(activeTimer.btn.label))
+        setActiveTimer(null)
+        setTimerRemainingMs(0)
+      } else {
+        setTimerRemainingMs(remaining)
+      }
+    }
+    tick()
+    const id = setInterval(tick, 250)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTimer])
 
   if (!showRecordModal) return null
 
@@ -38,7 +79,8 @@ export default function RecordModal() {
   }
 
   const handleTap = (btn: QuickBtn) => {
-    showToast(`${btn.label} 기록 완료`)
+    addPost(btn.label, undefined, 'habit', defaultVisibility, null)
+    showToast(M.overlays.recordDoneWithLabel(btn.label))
     setTimeout(() => closeRecordModal(), 400)
   }
 
@@ -46,7 +88,7 @@ export default function RecordModal() {
     didLongPress.current = false
     longPressTimer.current = setTimeout(() => {
       didLongPress.current = true
-      setLongPressTarget(btn)
+      if (btn.isCustom) setLongPressTarget(btn)
     }, 500)
   }
 
@@ -61,7 +103,7 @@ export default function RecordModal() {
   }
 
   const handleDeleteBtn = (id: string) => {
-    setButtons((prev) => prev.filter((b) => b.id !== id))
+    removeCustomQuickButton(id)
     setLongPressTarget(null)
   }
 
@@ -73,26 +115,45 @@ export default function RecordModal() {
 
   const handleSaveEdit = () => {
     if (!editingBtn || !editLabel.trim()) return
-    setButtons((prev) => prev.map((b) => b.id === editingBtn.id ? { ...b, label: editLabel.trim() } : b))
+    updateCustomQuickButton(editingBtn.id, editLabel.trim())
     setEditingBtn(null)
     setEditLabel('')
   }
 
-  const addQuickButton = (label: string) => setButtons((prev) => [...prev, { id: `b${Date.now()}`, num: prev.length + 1, label }])
-
   const handleAddBtn = () => { setAddingBtn(true); setNewBtnLabel('') }
 
   const handleConfirmAdd = () => {
-    if (newBtnLabel.trim()) addQuickButton(newBtnLabel.trim())
+    if (newBtnLabel.trim()) addCustomQuickButton(newBtnLabel.trim())
     setAddingBtn(false)
     setNewBtnLabel('')
   }
 
+  const handleStartTimer = (minutes: number) => {
+    if (!timerTarget) return
+    const totalMs = minutes * 60 * 1000
+    setActiveTimer({ btn: timerTarget, endsAt: Date.now() + totalMs, totalMs })
+    setTimerTarget(null)
+  }
+
+  const submitTextRecord = () => {
+    const trimmedInsta = recordInstaUrl.trim()
+    const validInsta = trimmedInsta.startsWith('https://') ? trimmedInsta : undefined
+    addPost(recordText.trim(), imagePreview ?? undefined, recordCategory, recordVisibility, recordCommunityId || null, validInsta)
+    showToast(M.overlays.recordDone)
+    setRecordText('')
+    setImagePreview(null)
+    setRecordInstaUrl('')
+    setShowGuidelineWarning(false)
+    setTimeout(() => closeRecordModal(), 400)
+  }
+
   const handleTextRecord = () => {
     if (!recordText.trim()) return
-    showToast('기록 완료')
-    setRecordText('')
-    setTimeout(() => closeRecordModal(), 400)
+    if (looksUnrelatedToCategory(recordText, recordCategory)) {
+      setShowGuidelineWarning(true)
+      return
+    }
+    submitTextRecord()
   }
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,14 +163,44 @@ export default function RecordModal() {
     setImagePreview(url)
   }
 
+  const formatRemaining = (ms: number) => {
+    const totalSec = Math.ceil(ms / 1000)
+    const m = Math.floor(totalSec / 60)
+    const s = totalSec % 60
+    return `${m}:${String(s).padStart(2, '0')}`
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      {showGuidelineWarning && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)', padding: 24 }}>
+          <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 20, maxWidth: 320, width: '100%' }}>
+            <p style={{ margin: '0 0 16px', fontSize: 14, color: '#111111', lineHeight: 1.6, wordBreak: 'keep-all' }}>
+              {M.overlays.guidelineWarning}
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setShowGuidelineWarning(false)}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 13, fontWeight: 600, border: '1px solid #EBEBEB', cursor: 'pointer' }}
+              >
+                {M.common.cancel}
+              </button>
+              <button
+                onClick={submitTextRecord}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+              >
+                {M.overlays.continuePosting}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', background: '#111111', color: '#fff', padding: '10px 20px', borderRadius: 30, fontSize: 13, fontWeight: 600, zIndex: 999, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
           {toast}
         </div>
       )}
-
 
       <div onClick={closeRecordModal} style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} />
       <div style={{ background: '#FFFFFF', borderRadius: '20px 20px 0 0', maxHeight: '88%', display: 'flex', flexDirection: 'column' }}>
@@ -118,59 +209,89 @@ export default function RecordModal() {
         </div>
 
         <div style={{ overflowY: 'auto', padding: '16px 20px 40px', minHeight: 0 }}>
-          <p style={{ margin: '0 0 12px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em', textTransform: 'uppercase' }}>탭 한 번으로 즉시 기록</p>
+          <p style={{ margin: '0 0 12px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em', textTransform: 'uppercase' }}>{M.overlays.quickRecordHint}</p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {buttons.map((btn) => (
-              <div key={btn.id} style={{ position: 'relative' }}>
-                {editingBtn?.id === btn.id ? (
-                  <div style={{ padding: 10, borderRadius: 10, background: '#FAFAFA', border: '1.5px solid #111111', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <input
-                      autoFocus
-                      value={editLabel}
-                      onChange={(e) => setEditLabel(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit() }}
-                      style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #EBEBEB', fontSize: 13, outline: 'none', background: '#fff', fontWeight: 600 }}
-                    />
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={handleSaveEdit} style={{ flex: 1, padding: '6px 0', borderRadius: 7, background: '#111111', color: '#fff', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>저장</button>
-                      <button onClick={() => setEditingBtn(null)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, background: 'transparent', color: '#AAAAAA', fontSize: 11, border: '1px solid #EBEBEB', cursor: 'pointer' }}>취소</button>
+            {buttons.map((btn) => {
+              const isTiming = activeTimer?.btn.id === btn.id
+              return (
+                <div key={btn.id} style={{ position: 'relative' }}>
+                  {editingBtn?.id === btn.id ? (
+                    <div style={{ padding: 10, borderRadius: 10, background: '#FAFAFA', border: '1.5px solid #111111', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <input
+                        autoFocus
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit() }}
+                        style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #EBEBEB', fontSize: 13, outline: 'none', background: '#fff', fontWeight: 600 }}
+                      />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={handleSaveEdit} style={{ flex: 1, padding: '6px 0', borderRadius: 7, background: '#111111', color: '#fff', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>{M.common.save}</button>
+                        <button onClick={() => setEditingBtn(null)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, background: 'transparent', color: '#AAAAAA', fontSize: 11, border: '1px solid #EBEBEB', cursor: 'pointer' }}>{M.common.cancel}</button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      onMouseDown={() => handlePressStart(btn)}
-                      onMouseUp={() => handlePressEnd(btn)}
-                      onMouseLeave={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null } }}
-                      onTouchStart={() => handlePressStart(btn)}
-                      onTouchEnd={(e) => { e.preventDefault(); handlePressEnd(btn) }}
-                      style={{ padding: '14px 12px', borderRadius: 10, background: '#FAFAFA', border: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', width: '100%', textAlign: 'left', userSelect: 'none', transition: 'all .15s', boxSizing: 'border-box' }}
-                    >
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#CCCCCC', fontVariantNumeric: 'tabular-nums', minWidth: 20 }}>{String(btn.num).padStart(2, '0')}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#111111', lineHeight: 1.3, flex: 1 }}>{btn.label}</span>
-                    </button>
-                    {longPressTarget?.id === btn.id && (
-                      <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 2 }}>
-                        <button onClick={() => handleEditBtn(btn)} style={{ padding: '7px 14px', borderRadius: 8, background: '#FFFFFF', color: '#111111', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>수정</button>
-                        <button onClick={() => handleDeleteBtn(btn.id)} style={{ padding: '7px 14px', borderRadius: 8, background: '#CC3333', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>삭제</button>
-                        <button onClick={() => setLongPressTarget(null)} style={{ position: 'absolute', top: 4, right: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}>
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <line x1="3" y1="3" x2="11" y2="11" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
-                            <line x1="11" y1="3" x2="3" y2="11" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+                  ) : (
+                    <>
+                      <button
+                        onMouseDown={() => handlePressStart(btn)}
+                        onMouseUp={() => handlePressEnd(btn)}
+                        onMouseLeave={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null } }}
+                        onTouchStart={() => handlePressStart(btn)}
+                        onTouchEnd={(e) => { e.preventDefault(); handlePressEnd(btn) }}
+                        disabled={isTiming}
+                        style={{ padding: '14px 40px 14px 12px', borderRadius: 10, background: isTiming ? '#111111' : '#FAFAFA', border: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', gap: 10, cursor: isTiming ? 'default' : 'pointer', width: '100%', textAlign: 'left', userSelect: 'none', transition: 'all .15s', boxSizing: 'border-box' }}
+                      >
+                        <span style={{ fontSize: 11, fontWeight: 700, color: isTiming ? '#666666' : '#CCCCCC', fontVariantNumeric: 'tabular-nums', minWidth: 20 }}>{String(btn.num).padStart(2, '0')}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: isTiming ? '#FFFFFF' : '#111111', lineHeight: 1.3, flex: 1 }}>
+                          {isTiming ? formatRemaining(timerRemainingMs) : btn.label}
+                        </span>
+                      </button>
+                      {!isTiming && (
+                        <button
+                          onClick={() => setTimerTarget(btn)}
+                          style={{ position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <circle cx="8" cy="9" r="6" stroke="#AAAAAA" strokeWidth="1.4"/>
+                            <path d="M8 6v3l2 1.5" stroke="#AAAAAA" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M6 1.5h4" stroke="#AAAAAA" strokeWidth="1.4" strokeLinecap="round"/>
                           </svg>
                         </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
+                      )}
+                      {longPressTarget?.id === btn.id && (
+                        <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 2 }}>
+                          <button onClick={() => handleEditBtn(btn)} style={{ padding: '7px 14px', borderRadius: 8, background: '#FFFFFF', color: '#111111', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>{M.common.edit}</button>
+                          <button onClick={() => handleDeleteBtn(btn.id)} style={{ padding: '7px 14px', borderRadius: 8, background: '#CC3333', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>{M.common.delete}</button>
+                          <button onClick={() => setLongPressTarget(null)} style={{ position: 'absolute', top: 4, right: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                              <line x1="3" y1="3" x2="11" y2="11" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+                              <line x1="11" y1="3" x2="3" y2="11" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })}
           </div>
+
+          {timerTarget && (
+            <div style={{ marginTop: 10, padding: '12px 14px', borderRadius: 10, background: '#FAFAFA', border: '1px solid #EBEBEB' }}>
+              <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 600, color: '#111111' }}>{M.overlays.pickTimerDuration(timerTarget.label)}</p>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {TIMER_PRESETS.map((min) => (
+                  <button key={min} onClick={() => handleStartTimer(min)} style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>{M.overlays.minutes(min)}</button>
+                ))}
+                <button onClick={() => setTimerTarget(null)} style={{ padding: '8px 12px', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 12, border: '1px solid #EBEBEB', cursor: 'pointer' }}>{M.common.cancel}</button>
+              </div>
+            </div>
+          )}
 
           <div onClick={handleAddBtn} style={{ marginTop: 10, padding: '11px 14px', borderRadius: 10, border: '1px dashed #DDDDDD', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
             <span style={{ fontSize: 16, color: '#AAAAAA', fontWeight: 200, lineHeight: 1 }}>+</span>
-            <span style={{ fontSize: 12, color: '#AAAAAA', letterSpacing: '.02em' }}>버튼 추가</span>
+            <span style={{ fontSize: 12, color: '#AAAAAA', letterSpacing: '.02em' }}>{M.overlays.addButton}</span>
           </div>
 
           {addingBtn && (
@@ -180,18 +301,18 @@ export default function RecordModal() {
                 value={newBtnLabel}
                 onChange={(e) => setNewBtnLabel(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmAdd(); if (e.key === 'Escape') { setAddingBtn(false); setNewBtnLabel('') } }}
-                placeholder="버튼 이름 입력"
+                placeholder={M.overlays.buttonNamePlaceholder}
                 style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #EBEBEB', fontSize: 13, outline: 'none', background: '#FAFAFA' }}
               />
-              <button onClick={handleConfirmAdd} style={{ padding: '9px 14px', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>추가</button>
-              <button onClick={() => { setAddingBtn(false); setNewBtnLabel('') }} style={{ padding: '9px 10px', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 12, border: '1px solid #EBEBEB', cursor: 'pointer' }}>취소</button>
+              <button onClick={handleConfirmAdd} style={{ padding: '9px 14px', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>{M.overlays.add}</button>
+              <button onClick={() => { setAddingBtn(false); setNewBtnLabel('') }} style={{ padding: '9px 10px', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 12, border: '1px solid #EBEBEB', cursor: 'pointer' }}>{M.common.cancel}</button>
             </div>
           )}
 
           <div style={{ marginTop: 16, borderTop: '1px solid #F0F0F0', paddingTop: 14 }}>
             {imagePreview && (
               <div style={{ position: 'relative', marginBottom: 10, borderRadius: 10, overflow: 'hidden' }}>
-                <img src={imagePreview} alt="첨부 이미지" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
+                <img src={imagePreview} alt={M.overlays.attachedImageAlt} style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
                 <button
                   onClick={() => setImagePreview(null)}
                   style={{ position: 'absolute', top: 7, right: 7, width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,.55)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
@@ -203,11 +324,57 @@ export default function RecordModal() {
                 </button>
               </div>
             )}
+            <p style={{ margin: '0 0 6px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em' }}>{M.overlays.recordType}</p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              {CATEGORY_KEYS.map((key) => (
+                <button
+                  key={key}
+                  onClick={() => setRecordCategory(key)}
+                  style={{ padding: '6px 12px', borderRadius: 20, border: `1px solid ${recordCategory === key ? '#111111' : '#EBEBEB'}`, background: recordCategory === key ? '#111111' : '#FAFAFA', color: recordCategory === key ? '#fff' : '#111111', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {M.overlays.categoryLabels[key]}
+                </button>
+              ))}
+            </div>
+
+            <p style={{ margin: '0 0 6px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em' }}>{M.overlays.visibilityScope}</p>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {VISIBILITY_KEYS.map((key) => (
+                <button
+                  key={key}
+                  onClick={() => setRecordVisibility(key)}
+                  style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1px solid ${recordVisibility === key ? '#111111' : '#EBEBEB'}`, background: recordVisibility === key ? '#111111' : '#FAFAFA', color: recordVisibility === key ? '#fff' : '#111111', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {M.overlays.visibilityLabels[key]}
+                </button>
+              ))}
+            </div>
+
+            {communities.some((c) => c.joined) && (
+              <select
+                value={recordCommunityId}
+                onChange={(e) => setRecordCommunityId(e.target.value)}
+                style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #EBEBEB', fontSize: 12, background: '#FAFAFA', color: '#111111', marginBottom: 12, outline: 'none' }}
+              >
+                <option value="">{M.overlays.noCommunitySelected}</option>
+                {communities.filter((c) => c.joined).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+
+            <input
+              value={recordInstaUrl}
+              onChange={(e) => setRecordInstaUrl(e.target.value)}
+              placeholder={M.overlays.instaLinkPlaceholder}
+              style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #EBEBEB', fontSize: 12, background: '#FAFAFA', color: '#111111', marginBottom: 12, outline: 'none', boxSizing: 'border-box' }}
+            />
+
             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageSelect} />
             <textarea
               value={recordText}
               onChange={(e) => setRecordText(e.target.value)}
-              placeholder="오늘 한 것을 자유롭게 입력하세요."
+              placeholder={M.overlays.recordPlaceholder}
               rows={3}
               style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid #EBEBEB', fontSize: 14, background: '#FAFAFA', color: '#111111', resize: 'none', lineHeight: 1.7, marginBottom: 10, outline: 'none', fontWeight: 300, fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", boxSizing: 'border-box', wordBreak: 'keep-all' }}
             />
@@ -219,7 +386,7 @@ export default function RecordModal() {
                 onClick={handleTextRecord}
                 style={{ flex: 1, padding: 13, borderRadius: 10, background: '#111111', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', letterSpacing: '.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
               >
-                기록하기
+                {M.overlays.record}
               </button>
             </div>
           </div>

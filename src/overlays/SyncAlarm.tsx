@@ -1,6 +1,8 @@
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
 
 export default function SyncAlarm() {
+  const M = useMessages()
   const showSyncAlarm = useAppStore((s) => s.showSyncAlarm)
   const syncAlarmStatusTime = useAppStore((s) => s.syncAlarmStatusTime)
   const syncAlarmClockDisplay = useAppStore((s) => s.syncAlarmClockDisplay)
@@ -59,7 +61,7 @@ export default function SyncAlarm() {
             <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{syncAlarmUserInitial ?? 'S'}</span>
           </div>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,.5)' }}>{syncAlarmUserDisplay ?? ''}</span>
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', fontWeight: 300 }}>의 루틴</span>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', fontWeight: 300 }}>{M.overlays.routineSuffix}</span>
         </div>
 
         {/* frosted notification card */}
@@ -68,8 +70,8 @@ export default function SyncAlarm() {
             <div style={{ width: 28, height: 28, borderRadius: 7, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <img src="/uploads/welling-black.png" style={{ height: 14, width: 'auto', filter: 'invert(1)' }} alt="welling" />
             </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', flex: 1 }}>WELLING · 루틴 알림</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.5)' }}>지금</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', flex: 1 }}>{M.overlays.routineNotifTitle}</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.5)' }}>{M.overlays.now}</span>
           </div>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: 'rgba(255,255,255,.9)', fontWeight: 300, lineHeight: 1.6 }}>
             {syncAlarmGroupLabel && `${syncAlarmGroupLabel} · `}{syncAlarmContent ?? ''}
@@ -77,15 +79,15 @@ export default function SyncAlarm() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={(e) => { e.stopPropagation(); completeSyncAlarm() }}
-              style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: '#C9A84C', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}
+              style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: '#0984E3', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}
             >
-              실행완료
+              {M.overlays.markDone}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); closeSyncAlarm() }}
               style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: 'rgba(255,255,255,.18)', color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer' }}
             >
-              닫기
+              {M.common.close}
             </button>
           </div>
         </div>
@@ -94,7 +96,7 @@ export default function SyncAlarm() {
       {/* swipe hint */}
       <div style={{ position: 'relative', textAlign: 'center', padding: '14px 0 22px', flexShrink: 0 }}>
         <div style={{ width: 36, height: 4, borderRadius: 4, background: 'rgba(255,255,255,.28)', margin: '0 auto 10px' }} />
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.06em' }}>탭하여 잠금 해제</span>
+        <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.06em' }}>{M.overlays.tapToUnlock}</span>
       </div>
     </div>
   )

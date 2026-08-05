@@ -1,17 +1,14 @@
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
 
 const PALETTE = ['#374151', '#0984E3', '#00B894', '#6C5CE7', '#B45309', '#047857', '#0369A1', '#7C3AED']
 function getColor(name: string) { return PALETTE[name.charCodeAt(0) % PALETTE.length] }
 function getInitials(name: string) { return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() }
 
-const THREADS = [
-  { id: 't1', name: 'Jay', last: '오늘 루틴 어떻게 됐어?', time: '10:32', unread: true },
-  { id: 't2', name: 'Sora', last: 'Running 같이 해요!', time: '어제', unread: false },
-  { id: 't3', name: 'Tom', last: '잘 자요 :)', time: '월', unread: false },
-  { id: 't4', name: 'Mina', last: 'Morning Sync 참가해요?', time: '일', unread: true },
-]
+import { MOCK_THREADS as THREADS } from '../data/mock'
 
 export default function Messages() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const navigate = useAppStore((s) => s.navigate)
   const setChatUser = useAppStore((s) => s.setChatUser)
@@ -22,7 +19,7 @@ export default function Messages() {
         <button onClick={goBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>메시지</span>
+        <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>{M.chat.messagesTitle}</span>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M16 3H4a1 1 0 00-1 1v10a1 1 0 001 1h3l3 3 3-3h3a1 1 0 001-1V4a1 1 0 00-1-1z" stroke="#111111" strokeWidth="1.5" strokeLinejoin="round"/></svg>
       </div>
 

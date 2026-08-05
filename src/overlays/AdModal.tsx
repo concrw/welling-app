@@ -1,6 +1,8 @@
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
 
 export default function AdModal() {
+  const M = useMessages()
   const showAdModal = useAppStore((s) => s.showAdModal)
   const adModalData = useAppStore((s) => s.adModalData)
   const closeAdModal = useAppStore((s) => s.closeAdModal)
@@ -9,7 +11,7 @@ export default function AdModal() {
 
   const title = (adModalData as any).modalTitle || adModalData.brand
   const body = (adModalData as any).modalBody || adModalData.desc
-  const ctaLabel = (adModalData as any).ctaLabel || '확인'
+  const ctaLabel = (adModalData as any).ctaLabel || M.common.confirm
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>

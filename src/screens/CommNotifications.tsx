@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
-
-const SUB_OPTIONS = ['새 게시물', '새 멤버', '멘션', '주간 요약']
+import { useMessages } from '../i18n'
 
 function Toggle({ on, onToggle, small }: { on: boolean; onToggle: () => void; small?: boolean }) {
   const w = small ? 34 : 40
@@ -16,32 +15,34 @@ function Toggle({ on, onToggle, small }: { on: boolean; onToggle: () => void; sm
 }
 
 export default function CommNotifications() {
+  const M = useMessages()
+  const SUB_OPTIONS = [M.commNotifications.newPosts, M.commNotifications.newMembers, M.commNotifications.mentions, M.commNotifications.weeklyDigest]
   const goBack = useAppStore((s) => s.goBack)
   const communities = useAppStore((s) => s.communities)
-  const [list, setList] = useState(() =>
-    communities.map((c) => ({
-      id: c.id,
-      initial: c.initial,
-      name: c.name,
-      color: c.color,
-      master: c.joined,
-      options: [c.joined, false, false, false],
-    }))
-  )
+  const storedSettings = useAppStore((s) => s.commNotifSettings)
+  const saveCommNotifSettings = useAppStore((s) => s.saveCommNotifSettings)
 
-  useEffect(() => {
-    setList(communities.map((c) => ({
-      id: c.id,
-      initial: c.initial,
-      name: c.name,
-      color: c.color,
-      master: c.joined,
-      options: [c.joined, false, false, false],
-    })))
-  }, [communities])
+  const [list, setList] = useState(() =>
+    communities.map((c) => {
+      const saved = storedSettings.find((s) => s.id === c.id)
+      return {
+        id: c.id,
+        initial: c.initial,
+        name: c.name,
+        color: c.color,
+        master: saved ? saved.master : c.joined,
+        options: saved ? saved.options : [c.joined, false, false, false],
+      }
+    })
+  )
 
   const toggleMaster = (id: string) => setList((prev) => prev.map((c) => c.id === id ? { ...c, master: !c.master } : c))
   const toggleOption = (id: string, idx: number) => setList((prev) => prev.map((c) => c.id === id ? { ...c, options: c.options.map((v, i) => i === idx ? !v : v) } : c))
+
+  const handleSave = () => {
+    saveCommNotifSettings(list.map((c) => ({ id: c.id, master: c.master, options: c.options })))
+    goBack()
+  }
 
   return (
     <div>
@@ -49,11 +50,12 @@ export default function CommNotifications() {
         <button onClick={goBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#111111' }}>커뮤니티 알림</span>
+        <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>{M.commNotifications.title}</span>
+        <button onClick={handleSave} style={{ padding: '7px 16px', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', letterSpacing: '.02em' }}>{M.common.save}</button>
       </div>
 
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <p style={{ margin: '0 0 4px', fontSize: 12, color: '#AAAAAA', fontWeight: 300, lineHeight: 1.7 }}>커뮤니티별로 알림을 개별 설정할 수 있어요.</p>
+        <p style={{ margin: '0 0 4px', fontSize: 12, color: '#AAAAAA', fontWeight: 300, lineHeight: 1.7 }}>{M.commNotifications.guide}</p>
 
         {list.map((cn) => (
           <div key={cn.id} style={{ borderRadius: 12, background: '#FAFAFA', border: '1px solid #EBEBEB', overflow: 'hidden' }}>

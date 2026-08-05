@@ -1,67 +1,73 @@
 import { useAppStore } from '../store/appStore'
+import { useMessages } from '../i18n'
+import { matchesItem } from '../lib/achievement'
+import { GoalVsActualHeader } from '../components/goal-vs-actual/GoalVsActualHeader'
+import { GoalVsActualLegend } from '../components/goal-vs-actual/GoalVsActualLegend'
+import { GoalVsActualTimeGroups } from '../components/goal-vs-actual/GoalVsActualTimeGroups'
 
-const today = new Date()
-const TODAY_LABEL = `Today, ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-
-const TIME_GROUPS = [
-  {
-    time: '6:00 AM',
-    items: [
-      { statusLabel: 'Done', statusColor: '#16A34A', statusLabelBg: '#DCFCE7', statusBg: '#F0FDF4', statusBorder: '#BBF7D0', name: 'Morning Walk', actual: '32 min', hasActual: true },
-      { statusLabel: 'Done', statusColor: '#16A34A', statusLabelBg: '#DCFCE7', statusBg: '#F0FDF4', statusBorder: '#BBF7D0', name: 'Cold Shower', actual: '5 min', hasActual: true },
-      { statusLabel: 'Done', statusColor: '#16A34A', statusLabelBg: '#DCFCE7', statusBg: '#F0FDF4', statusBorder: '#BBF7D0', name: 'Meditation', actual: '10 min', hasActual: true },
-    ],
-  },
-  {
-    time: '12:00 PM',
-    items: [
-      { statusLabel: 'Alt', statusColor: '#B45309', statusLabelBg: '#FEF3C7', statusBg: '#FFFBEB', statusBorder: '#FDE68A', name: 'Running', actual: '4.2 km (goal 5km)', hasActual: true },
-      { statusLabel: 'Alt', statusColor: '#B45309', statusLabelBg: '#FEF3C7', statusBg: '#FFFBEB', statusBorder: '#FDE68A', name: 'Hydration', actual: '1800 ml (goal 2L)', hasActual: true },
-    ],
-  },
-  {
-    time: '9:00 PM',
-    items: [
-      { statusLabel: 'Missed', statusColor: '#DC2626', statusLabelBg: '#FEE2E2', statusBg: '#FFF5F5', statusBorder: '#FECACA', name: 'Journaling', actual: '', hasActual: false },
-    ],
-  },
-]
+// Map 24h time string (HH:MM) to a display label bucketed by part of day
+function timeToGroupLabel(time: string): string {
+  const [h] = time.split(':').map(Number)
+  if (h < 12) return `${h === 0 ? 12 : h}:${time.split(':')[1]} AM`
+  if (h === 12) return `12:${time.split(':')[1]} PM`
+  return `${h - 12}:${time.split(':')[1]} PM`
+}
 
 export default function GoalVsActual() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
+  const routineGroups = useAppStore((s) => s.routineGroups)
+  const posts = useAppStore((s) => s.posts)
+  const nickname = useAppStore((s) => s.nickname)
+
+  // All routine items from routineGroups are the "goal"
+  const allItems = routineGroups.flatMap((g) =>
+    g.items.map((item) => ({ groupName: g.name, ...item }))
+  )
+
+  // Detect which items appear in today's posts (by the current user)
+  const myPosts = posts.filter((p) => p.user === nickname || p.user === 'Min')
+
+  // Group items by their scheduled time for display
+  const groupMap = new Map<string, typeof allItems>()
+  for (const item of allItems) {
+    const label = item.time ? timeToGroupLabel(item.time) : M.goalVsActual.anytime
+    if (!groupMap.has(label)) groupMap.set(label, [])
+    groupMap.get(label)!.push(item)
+  }
+
+  // Sort time groups chronologically
+  const timeGroups = Array.from(groupMap.entries())
+    .sort(([a], [b]) => {
+      const toMinutes = (label: string) => {
+        const isPM = label.includes('PM')
+        const [timePart] = label.split(' ')
+        const [h, m] = timePart.split(':').map(Number)
+        return (isPM && h !== 12 ? h + 12 : !isPM && h === 12 ? 0 : h) * 60 + m
+      }
+      if (a === M.goalVsActual.anytime) return 1
+      if (b === M.goalVsActual.anytime) return -1
+      return toMinutes(a) - toMinutes(b)
+    })
+    .map(([time, items]) => ({ time, items }))
+
+  // Determine status for each item
+  function getStatus(itemName: string) {
+    const matched = myPosts.some((p) => matchesItem(p.content, itemName))
+    if (matched) return { statusLabel: M.goalVsActual.statusDone, statusColor: '#16A34A', statusLabelBg: '#DCFCE7', statusBg: '#F0FDF4', statusBorder: '#BBF7D0' }
+    return { statusLabel: M.goalVsActual.statusMissed, statusColor: '#DC2626', statusLabelBg: '#FEE2E2', statusBg: '#FFF5F5', statusBorder: '#FECACA' }
+  }
 
   return (
     <div>
-      <div style={{ padding: 'calc(14px + env(safe-area-inset-top)) 20px 14px', background: '#FFFFFF', borderBottom: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 10 }}>
-        <button onClick={goBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </button>
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#111111' }}>Goal vs. Actual</span>
-      </div>
+      <GoalVsActualHeader onBack={goBack} />
 
       <div style={{ padding: 20 }}>
-        <p style={{ margin: '0 0 16px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em' }}>{TODAY_LABEL}</p>
+        <p style={{ margin: '0 0 16px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em' }}>{M.goalVsActual.todayLabel(new Date())}</p>
 
-        {TIME_GROUPS.map((tg, gi) => (
-          <div key={gi} style={{ marginBottom: 20 }}>
-            <p style={{ margin: '0 0 8px', fontSize: 10, fontWeight: 700, color: '#AAAAAA', letterSpacing: '.1em', textTransform: 'uppercase' }}>{tg.time}</p>
-            {tg.items.map((ti, ii) => (
-              <div key={ii} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', borderRadius: 8, background: ti.statusBg, marginBottom: 5, border: `1px solid ${ti.statusBorder}` }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: ti.statusColor, background: ti.statusLabelBg, padding: '2px 6px', borderRadius: 4, flexShrink: 0, marginTop: 1, letterSpacing: '.04em' }}>{ti.statusLabel}</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 600, color: '#111111' }}>{ti.name}</p>
-                  {ti.hasActual && <p style={{ margin: 0, fontSize: 11, color: '#AAAAAA', fontWeight: 300 }}>→ {ti.actual}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        ))}
+        <GoalVsActualTimeGroups timeGroups={timeGroups} getStatus={getStatus} />
 
-        <div style={{ display: 'flex', gap: 16, padding: '10px 14px', borderRadius: 8, background: '#FAFAFA' }}>
-          <span style={{ fontSize: 11, color: '#AAAAAA' }}>Done · green</span>
-          <span style={{ fontSize: 11, color: '#AAAAAA' }}>Alt · amber</span>
-          <span style={{ fontSize: 11, color: '#AAAAAA' }}>Missed · red</span>
-        </div>
+        <GoalVsActualLegend />
       </div>
     </div>
   )

@@ -23,3 +23,19 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+.env*
+
+# one-off audit scripts and outputs
+audit-*/
+audit-results.json
+prod-screens/
+test-results/
+/check-*.mjs
+/run-*.mjs
+/real-audit*.mjs
+/full-audit.mjs
+/nav-check.mjs
+/prod-audit.mjs
+/screen-shots.mjs
+/ss2.mjs
+/compare.mjs

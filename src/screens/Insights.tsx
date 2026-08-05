@@ -1,70 +1,133 @@
-import { useAppStore } from '../store/appStore'
+import { useState, useEffect } from 'react'
+import { useAppStore, type RoutineSuggestion } from '../store/appStore'
+import { useMessages } from '../i18n'
+import { isConnected } from '../lib/googleCalendar'
+import { computeAchievement, computeAchievementForRange } from '../lib/achievement'
+import { matchScheduleKeywords, type ScheduleKeyword } from '../lib/calendarInsights'
+import { InsightsHeader } from '../components/insights/InsightsHeader'
+import { CalendarStatusCard } from '../components/insights/CalendarStatusCard'
+import { RoutineInsightsList } from '../components/insights/RoutineInsightsList'
+import { CalendarKeywordInsightsList } from '../components/insights/CalendarKeywordInsightsList'
+import { RoutineSuggestionCard } from '../components/insights/RoutineSuggestionCard'
 
-const today = new Date()
-const CALENDAR_DATE_LABEL = `Synced ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+const PERIOD_TO_DAYS: Record<string, number> = { 'This week': 7, 'This month': 30, 'All time': 365 }
+const MIN_SNAPSHOT_DAYS_FOR_KEYWORD = 3
 
-const INSIGHTS = [
-  { condition: 'On team meeting days', routine: 'Lunch', lowRate: 38, avgRate: 85 },
-  { condition: 'On external appointment days', routine: 'Evening', lowRate: 22, avgRate: 78 },
-  { condition: 'On work-from-home days', routine: 'Morning', lowRate: 91, avgRate: 72 },
+// Community conditions mapped to community ids for filtering posts
+const COMMUNITY_CONDITIONS: { communityName: string; communityId: string; routine: string }[] = [
+  { communityName: 'Morning Runners', communityId: 'morning-runners', routine: 'Morning' },
+  { communityName: 'Clean Eaters', communityId: 'clean-eaters', routine: 'Meals' },
+  { communityName: 'Book Club', communityId: 'book-club', routine: 'Evening' },
 ]
 
 export default function Insights() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
+  const posts = useAppStore((s) => s.posts)
+  const dashboardPeriod = useAppStore((s) => s.dashboardPeriod)
+  const nickname = useAppStore((s) => s.nickname)
+  const routineGroups = useAppStore((s) => s.routineGroups)
+  const calendarSnapshots = useAppStore((s) => s.calendarSnapshots)
+  const fetchRoutineSuggestions = useAppStore((s) => s.fetchRoutineSuggestions)
+  const saveRoutineGroups = useAppStore((s) => s.saveRoutineGroups)
+
+  const calendarConnected = isConnected()
+  const windowDays = PERIOD_TO_DAYS[dashboardPeriod] ?? 30
+  const userName = nickname || 'Min'
+
+  // Overall achievement per routine group over the selected period (real calculation, matches MyPage)
+  const overallByGroup = computeAchievement(routineGroups, posts, userName, windowDays).groups
+  const overallRate = overallByGroup.length
+    ? Math.round(overallByGroup.reduce((sum, g) => sum + g.achievement, 0) / overallByGroup.length)
+    : 0
+
+  // Achievement per routine group, restricted to days the user was active in the condition's community
+  const insights = COMMUNITY_CONDITIONS.map(({ communityName, communityId, routine }) => {
+    const communityDays = new Set(
+      posts.filter((p) => p.community === communityId).map((p) => new Date(p.createdAt).toDateString())
+    )
+    const postsOnCommunityDays = posts.filter((p) => communityDays.has(new Date(p.createdAt).toDateString()))
+    const conditionalGroup = computeAchievement(routineGroups, postsOnCommunityDays, userName, windowDays).groups
+      .find((g) => g.name === routine)
+    const avgGroup = overallByGroup.find((g) => g.name === routine)
+    return { condition: M.insights.communityActivityDay(communityName), routine, lowRate: conditionalGroup?.achievement ?? 0, avgRate: avgGroup?.achievement ?? 0 }
+  })
+
+  const displayInsights = insights
+
+  // Calendar keyword insights: group snapshot days by matched keyword, compare that day's
+  // overall achievement against the user's average. Requires several days of accumulated
+  // snapshots (past-day calendar data isn't available via the read-only-today API).
+  const daysByKeyword = new Map<ScheduleKeyword, string[]>()
+  for (const snapshot of calendarSnapshots) {
+    for (const keyword of matchScheduleKeywords(snapshot.eventTitles)) {
+      const list = daysByKeyword.get(keyword) ?? []
+      list.push(snapshot.date)
+      daysByKeyword.set(keyword, list)
+    }
+  }
+  const calendarKeywordInsights = [...daysByKeyword.entries()].map(([keyword, dates]) => {
+    const rates = dates.map((dateStr) => {
+      const dayStart = new Date(`${dateStr}T00:00:00`).getTime()
+      const dayEnd = new Date(`${dateStr}T23:59:59`).getTime()
+      return computeAchievementForRange(routineGroups, posts, userName, dayStart, dayEnd).overall
+    })
+    const avgOnDays = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0
+    return { keyword, dayCount: dates.length, avgOnDays }
+  })
+
+  const topKeyword = [...daysByKeyword.entries()].sort((a, b) => b[1].length - a[1].length)[0]?.[0]
+  const [suggestions, setSuggestions] = useState<RoutineSuggestion[]>([])
+  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false)
+  const [savedSuggestion, setSavedSuggestion] = useState(false)
+
+  useEffect(() => {
+    if (!topKeyword) {
+      setSuggestionsLoaded(true)
+      return
+    }
+    fetchRoutineSuggestions(topKeyword).then((result) => {
+      setSuggestions(result)
+      setSuggestionsLoaded(true)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topKeyword])
+
+  const handleSaveSuggestion = () => {
+    const newGroup = {
+      id: `suggested-${Date.now()}`,
+      name: M.insights.suggestedGroupName(topKeyword ?? ''),
+      items: suggestions.map((s, i) => ({ id: `sg-item-${i}`, name: s.itemName, time: '', desc: '' })),
+    }
+    saveRoutineGroups([...routineGroups, newGroup])
+    setSavedSuggestion(true)
+  }
 
   return (
     <div>
-      <div style={{ padding: 'calc(14px + env(safe-area-inset-top)) 20px 14px', background: '#FFFFFF', borderBottom: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 10 }}>
-        <button onClick={goBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </button>
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#111111' }}>Insights</span>
-      </div>
+      <InsightsHeader onBack={goBack} />
 
       <div style={{ padding: 20 }}>
-        <div style={{ padding: '12px 14px', borderRadius: 10, background: '#F5F5F5', border: '1px solid #EBEBEB', marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#111111', flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#111111' }}>Google Calendar connected</p>
-            <p style={{ margin: 0, fontSize: 11, color: '#AAAAAA', fontWeight: 300 }}>{CALENDAR_DATE_LABEL}</p>
-          </div>
-          <span style={{ fontSize: 11, color: '#111111', fontWeight: 600, cursor: 'pointer', letterSpacing: '.04em' }}>Edit</span>
-        </div>
+        <CalendarStatusCard calendarConnected={calendarConnected} calendarDateLabel={M.insights.syncedLabel(new Date())} />
 
-        <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 700, color: '#AAAAAA', letterSpacing: '.08em', textTransform: 'uppercase' }}>Routine Insights</p>
+        <RoutineInsightsList dashboardPeriod={dashboardPeriod} insights={displayInsights} />
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-          {INSIGHTS.map((ins, i) => (
-            <div key={i} style={{ padding: '13px 14px', borderRadius: 10, background: '#FAFAFA', border: '1px solid #EBEBEB' }}>
-              <p style={{ margin: '0 0 10px', fontSize: 12, fontWeight: 700, color: '#111111' }}>{ins.condition}</p>
-              <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end' }}>
-                <div>
-                  <p style={{ margin: 0, fontSize: 10, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em', textTransform: 'uppercase' }}>{ins.routine}</p>
-                  <p style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 900, color: '#DC2626', letterSpacing: '-.5px' }}>{ins.lowRate}%</p>
-                </div>
-                <p style={{ margin: '0 0 4px', fontSize: 11, color: '#CCCCCC' }}>vs avg</p>
-                <div>
-                  <p style={{ margin: 0, fontSize: 10, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em', textTransform: 'uppercase' }}>Avg</p>
-                  <p style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 900, color: '#111111', letterSpacing: '-.5px' }}>{ins.avgRate}%</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {calendarConnected && (
+          <CalendarKeywordInsightsList
+            calendarKeywordInsights={calendarKeywordInsights}
+            overallRate={overallRate}
+            minSnapshotDaysForKeyword={MIN_SNAPSHOT_DAYS_FOR_KEYWORD}
+          />
+        )}
 
-        <div style={{ padding: 14, borderRadius: 10, background: '#FAFAFA', border: '1px solid #EBEBEB' }}>
-          <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: '#111111' }}>Suggested routine for team meeting days</p>
-          <p style={{ margin: '0 0 12px', fontSize: 11, color: '#AAAAAA', fontWeight: 300 }}>75 people with similar schedules do this</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
-            <p style={{ margin: 0, fontSize: 12, color: '#111111' }}>Morning · Stretching 5m after wake-up</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#111111' }}>Lunch · Stairs + water</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#111111' }}>Evening · 10m walk after meeting</p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button style={{ flex: 1, padding: '9px', borderRadius: 8, background: '#F5F5F5', color: '#111111', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer', letterSpacing: '.02em' }}>Today only</button>
-            <button style={{ flex: 1, padding: '9px', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer', letterSpacing: '.02em' }}>Save as routine</button>
-          </div>
-        </div>
+        {calendarConnected && topKeyword && suggestionsLoaded && suggestions.length > 0 && (
+          <RoutineSuggestionCard
+            topKeyword={topKeyword}
+            suggestions={suggestions}
+            savedSuggestion={savedSuggestion}
+            onSave={handleSaveSuggestion}
+          />
+        )}
       </div>
     </div>
   )

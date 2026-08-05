@@ -4,19 +4,28 @@ export default function BottomNav() {
   const navTab = useAppStore((s) => s.navTab)
   const setNavTab = useAppStore((s) => s.setNavTab)
   const openRecordModal = useAppStore((s) => s.openRecordModal)
+  const notifications = useAppStore((s) => s.notifications)
+  const unreadCount = notifications.filter((n) => !n.read).length
 
   const dot = (tab: string) => navTab === tab ? '#111111' : 'transparent'
   const color = (tab: string) => navTab === tab ? '#111111' : '#AAAAAA'
 
   return (
-    <div style={{ flexShrink: 0, height: 60, background: '#FFFFFF', borderTop: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', zIndex: 20, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div style={{ flexShrink: 0, background: '#FFFFFF', borderTop: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', zIndex: 20, paddingTop: 10, paddingBottom: 'calc(10px + env(safe-area-inset-bottom))' }}>
       {/* Feed */}
       <button onClick={() => setNavTab('feed')} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'none', border: 'none', padding: '8px 0', color: color('feed'), cursor: 'pointer' }}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <rect x="2" y="3" width="16" height="2.2" rx="1.1" fill="currentColor" />
-          <rect x="2" y="8.9" width="11" height="2.2" rx="1.1" fill="currentColor" />
-          <rect x="2" y="14.8" width="7" height="2.2" rx="1.1" fill="currentColor" />
-        </svg>
+        <div style={{ position: 'relative' }}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="2" y="3" width="16" height="2.2" rx="1.1" fill="currentColor" />
+            <rect x="2" y="8.9" width="11" height="2.2" rx="1.1" fill="currentColor" />
+            <rect x="2" y="14.8" width="7" height="2.2" rx="1.1" fill="currentColor" />
+          </svg>
+          {unreadCount > 0 && (
+            <div style={{ position: 'absolute', top: -3, right: -4, minWidth: 14, height: 14, borderRadius: 7, background: '#E53535', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', boxSizing: 'border-box' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+            </div>
+          )}
+        </div>
         <div style={{ width: 4, height: 4, borderRadius: '50%', background: dot('feed'), transition: 'background .2s' }} />
       </button>
 

@@ -22,7 +22,7 @@ export function ExploreAdBanner({ brand, desc, onClick }: ExploreAdBannerProps) 
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
         <span style={{ fontSize: 9, color: '#CCCCCC', letterSpacing: '.06em', textTransform: 'uppercase' }}>{M.explore.adLabel}</span>
-        <button onClick={(e) => e.stopPropagation()} style={{ padding: '5px 11px', borderRadius: 6, background: '#111111', color: '#fff', fontSize: 10, fontWeight: 600, border: 'none', cursor: 'pointer', letterSpacing: '.02em' }}>{M.explore.adView}</button>
+        <button onClick={(e) => { e.stopPropagation(); onClick() }} style={{ padding: '5px 11px', borderRadius: 6, background: '#111111', color: '#fff', fontSize: 10, fontWeight: 600, border: 'none', cursor: 'pointer', letterSpacing: '.02em' }}>{M.explore.adView}</button>
       </div>
     </div>
   )

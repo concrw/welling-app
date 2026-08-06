@@ -1,4 +1,5 @@
 import { useMessages } from '../../i18n'
+import { useAppStore } from '../../store/appStore'
 
 interface CalendarStatusCardProps {
   calendarConnected: boolean
@@ -7,6 +8,7 @@ interface CalendarStatusCardProps {
 
 export function CalendarStatusCard({ calendarConnected, calendarDateLabel }: CalendarStatusCardProps) {
   const M = useMessages()
+  const navigate = useAppStore((s) => s.navigate)
   return (
     <div style={{ padding: '12px 14px', borderRadius: 10, background: '#F5F5F5', border: '1px solid #EBEBEB', marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
       <div style={{ width: 6, height: 6, borderRadius: '50%', background: calendarConnected ? '#111111' : '#CCCCCC', flexShrink: 0 }} />
@@ -18,7 +20,7 @@ export function CalendarStatusCard({ calendarConnected, calendarDateLabel }: Cal
           {calendarConnected ? calendarDateLabel : M.insights.connectPrompt}
         </p>
       </div>
-      <span style={{ fontSize: 11, color: '#111111', fontWeight: 600, cursor: 'pointer', letterSpacing: '.04em' }}>{M.insights.editLink}</span>
+      <span onClick={() => navigate('settings-google-calendar')} style={{ fontSize: 11, color: '#111111', fontWeight: 600, cursor: 'pointer', letterSpacing: '.04em' }}>{M.insights.editLink}</span>
     </div>
   )
 }

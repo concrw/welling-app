@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAppStore, type PostCategory, type PostVisibility } from '../store/appStore'
 import { looksUnrelatedToCategory } from '../lib/contentGuideline'
+import { uploadPostImage } from '../lib/supabaseClient'
 import { useMessages } from '../i18n'
 
 interface QuickBtn { id: string; num: number; label: string; isCustom: boolean }
@@ -32,8 +33,13 @@ export default function RecordModal() {
   }))
   const buttons: QuickBtn[] = [...routineButtons, ...customButtons].map((b, i) => ({ ...b, num: i + 1 }))
 
+  const isDemo = useAppStore((s) => s.isDemo)
+  const userId = useAppStore((s) => s.userId)
+
   const [toast, setToast] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [recordText, setRecordText] = useState('')
   const [recordCategory, setRecordCategory] = useState<PostCategory>('habit')
   const [recordVisibility, setRecordVisibility] = useState<PostVisibility>(defaultVisibility)
@@ -135,13 +141,25 @@ export default function RecordModal() {
     setTimerTarget(null)
   }
 
-  const submitTextRecord = () => {
+  const submitTextRecord = async () => {
     const trimmedInsta = recordInstaUrl.trim()
     const validInsta = trimmedInsta.startsWith('https://') ? trimmedInsta : undefined
-    addPost(recordText.trim(), imagePreview ?? undefined, recordCategory, recordVisibility, recordCommunityId || null, validInsta)
+    // 데모 모드는 세션 로컬 blob 미리보기 그대로, 실계정은 Storage에 올려 영구 URL로 저장
+    let finalImgUrl: string | undefined = isDemo ? (imagePreview ?? undefined) : undefined
+    if (!isDemo && imageFile && userId) {
+      setUploading(true)
+      finalImgUrl = (await uploadPostImage(imageFile, userId)) ?? undefined
+      setUploading(false)
+      if (!finalImgUrl) {
+        showToast(M.overlays.imageUploadFailed)
+        return
+      }
+    }
+    addPost(recordText.trim(), finalImgUrl, recordCategory, recordVisibility, recordCommunityId || null, validInsta)
     showToast(M.overlays.recordDone)
     setRecordText('')
     setImagePreview(null)
+    setImageFile(null)
     setRecordInstaUrl('')
     setShowGuidelineWarning(false)
     setTimeout(() => closeRecordModal(), 400)
@@ -159,8 +177,8 @@ export default function RecordModal() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const url = URL.createObjectURL(file)
-    setImagePreview(url)
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
   }
 
   const formatRemaining = (ms: number) => {
@@ -314,7 +332,7 @@ export default function RecordModal() {
               <div style={{ position: 'relative', marginBottom: 10, borderRadius: 10, overflow: 'hidden' }}>
                 <img src={imagePreview} alt={M.overlays.attachedImageAlt} style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
                 <button
-                  onClick={() => setImagePreview(null)}
+                  onClick={() => { setImagePreview(null); setImageFile(null) }}
                   style={{ position: 'absolute', top: 7, right: 7, width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,.55)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -384,9 +402,10 @@ export default function RecordModal() {
               </button>
               <button
                 onClick={handleTextRecord}
-                style={{ flex: 1, padding: 13, borderRadius: 10, background: '#111111', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', letterSpacing: '.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
+                disabled={uploading}
+                style={{ flex: 1, padding: 13, borderRadius: 10, background: uploading ? '#CCCCCC' : '#111111', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: uploading ? 'default' : 'pointer', letterSpacing: '.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
               >
-                {M.overlays.record}
+                {uploading ? M.overlays.imageUploading : M.overlays.record}
               </button>
             </div>
           </div>

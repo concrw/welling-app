@@ -1,5 +1,6 @@
-import { chromium } from 'playwright'
-import { mkdirSync } from 'fs'
+import { chromium, webkit, firefox } from 'playwright'
+import { mkdirSync, writeFileSync } from 'fs'
+import zlib from 'zlib'
 
 const BASE = 'https://welling.today'
 const SHOT = '/private/tmp/claude-501/-Users-brandactivist-Desktop-WELLING/bf16e44f-a74e-4144-9468-36b938e95202/scratchpad/e2e'
@@ -93,7 +94,35 @@ async function recordPost(page, text) {
   await page.waitForTimeout(2500)
 }
 
-const browser = await chromium.launch({ headless: true })
+const ENGINE = process.env.ENGINE || 'chromium'
+const engine = { chromium, webkit, firefox }[ENGINE]
+console.log('ENGINE:', ENGINE)
+const browser = await engine.launch({ headless: true })
+
+// 업로드 검증용 60x40 단색 PNG 생성
+function makePng(path) {
+  const w = 60, h = 40
+  const crcTable = []
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0 }
+  const crc = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0 }
+  const chunk = (type, data) => {
+    const t = Buffer.from(type)
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length)
+    const cv = Buffer.alloc(4); cv.writeUInt32BE(crc(Buffer.concat([t, data])))
+    return Buffer.concat([len, t, data, cv])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(w * 3, 0x40)])
+  const raw = Buffer.concat(Array.from({ length: h }, () => row))
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0)),
+  ])
+  writeFileSync(path, png)
+}
+const PNG_PATH = `${SHOT}/e2e-upload.png`
+makePng(PNG_PATH)
 
 // ============ USER A: signup + onboarding ============
 const { page: pa } = await newPage(browser, 'A')
@@ -347,6 +376,108 @@ await step('20 데모 모드 진입 정상', async () => {
   if (t.length < 50) throw new Error('데모 피드 빈 화면')
   await pd.screenshot({ path: `${SHOT}/20-demo.png` })
   await pd.context().close()
+})
+
+const IMG_POST = '이미지 첨부 검증 게시글'
+
+await step('21 이미지 첨부 게시 → 새로고침 후 Storage 이미지 렌더링', async () => {
+  await pa.goto(BASE, { waitUntil: 'networkidle' })
+  await pa.waitForTimeout(2500)
+  await nav(pa, 'record')
+  await pa.waitForTimeout(1000)
+  await pa.locator('textarea').first().fill(IMG_POST)
+  await pa.locator('input[type="file"]').setInputFiles(PNG_PATH)
+  await pa.waitForTimeout(800)
+  await pa.locator('button', { hasText: /기록하기|^Record$/ }).first().click()
+  await pa.waitForTimeout(1000)
+  const cont = pa.locator('button', { hasText: /계속 올리기|Post anyway/ })
+  if (await cont.count()) await cont.first().click()
+  await pa.waitForTimeout(4000)
+  await pa.reload({ waitUntil: 'networkidle' })
+  await pa.waitForTimeout(3000)
+  await pa.locator(`text=${IMG_POST}`).first().click()
+  await pa.waitForTimeout(1500)
+  const img = await pa.evaluate(() => {
+    const el = [...document.querySelectorAll('img')].find(i => i.src.includes('post-images'))
+    return el ? el.naturalWidth : 0
+  })
+  if (!img) throw new Error('Storage 이미지가 상세에 렌더링되지 않음')
+  await pa.mouse.click(20, 30)
+})
+
+await step('22 타계정(B)에서 이미지 글 상세 이미지 확인', async () => {
+  await pb.goto(BASE, { waitUntil: 'networkidle' })
+  await pb.waitForTimeout(2500)
+  await pb.locator(`text=${IMG_POST}`).first().click()
+  await pb.waitForTimeout(1500)
+  const img = await pb.evaluate(() => {
+    const el = [...document.querySelectorAll('img')].find(i => i.src.includes('post-images'))
+    return el ? el.naturalWidth : 0
+  })
+  if (!img) throw new Error('B에게 Storage 이미지가 렌더링되지 않음')
+  await pb.mouse.click(20, 30)
+})
+
+await step('23 비밀번호 재설정 요청 UI (forgot 모드)', async () => {
+  const { page: pf } = await newPage(browser, 'forgot')
+  await pf.goto(BASE, { waitUntil: 'networkidle' })
+  await pf.waitForTimeout(1500)
+  await pf.locator('button', { hasText: /^(Log in|로그인)$/ }).first().click()
+  await pf.waitForTimeout(300)
+  await pf.locator('button', { hasText: /Forgot password/ }).first().click()
+  await pf.waitForTimeout(300)
+  if (await pf.locator('input[type="password"]').count()) throw new Error('forgot 모드에 비밀번호칸 잔존')
+  await pf.locator('input[type="email"]').fill(A.email)
+  await pf.locator('button', { hasText: /Send reset link/ }).first().click()
+  // 실메일이면 성공 안내, 테스트 도메인이면 invalid 에러 — 어느 쪽이든 API 왕복 결과가 표시될 때까지 폴링
+  let shown = false, last = ''
+  for (let i = 0; i < 10; i++) {
+    await pf.waitForTimeout(1000)
+    last = await pf.evaluate(() => document.body.innerText)
+    if (/재설정 링크를 이메일로|sent a reset link|invalid/i.test(last)) { shown = true; break }
+  }
+  if (!shown) throw new Error('발송 결과 표시 없음: ' + last.slice(0, 100))
+  await pf.locator('button', { hasText: /Back to log in/ }).first().click()
+  await pf.waitForTimeout(300)
+  if (!(await pf.locator('input[type="password"]').count())) throw new Error('로그인 모드 복귀 실패')
+  await pf.context().close()
+})
+
+await step('24 수정된 버튼 3종: insights Edit / ranking 광고카드 / explore 광고 보기', async () => {
+  // A는 로그인 상태. insights 진입 경로: mypage → Insights 전체보기
+  await pa.goto(BASE, { waitUntil: 'networkidle' })
+  await pa.waitForTimeout(2500)
+  await nav(pa, 'mypage')
+  await pa.waitForTimeout(1500)
+  const viewAlls = pa.getByText(/^(전체보기|View all)$/)
+  // Insights 섹션의 전체보기는 마지막에서 두 번째쯤 — Insights 헤더 옆 버튼을 텍스트 인접으로 찾기
+  await pa.getByText('Insights', { exact: true }).first().scrollIntoViewIfNeeded()
+  const insightsRow = pa.locator('div', { has: pa.getByText('Insights', { exact: true }) }).locator('button', { hasText: /전체보기|View all/ }).last()
+  await insightsRow.click()
+  await pa.waitForTimeout(1200)
+  await pa.getByText(/^(Edit|편집)$/).first().click()
+  await pa.waitForTimeout(1000)
+  const t1 = await pa.evaluate(() => document.body.innerText)
+  if (!/Google 캘린더|Google Calendar/.test(t1)) throw new Error('insights Edit → 캘린더 설정 화면 미진입')
+  // ranking 광고 카드 본체 → 모달
+  await pa.goto(BASE, { waitUntil: 'networkidle' })
+  await pa.waitForTimeout(2500)
+  await nav(pa, 'ranking')
+  await pa.waitForTimeout(1500)
+  await pa.getByText('마이프로틴 Korea').first().click()
+  await pa.waitForTimeout(1000)
+  const t2 = await pa.evaluate(() => document.body.innerText)
+  if (!t2.includes('WELLING20')) throw new Error('ranking 광고카드 → 모달 미표시')
+  await pa.locator('button', { hasText: /닫기|Close|확인/ }).first().click().catch(() => pa.mouse.click(20, 30))
+  await pa.waitForTimeout(500)
+  // explore 광고 보기 버튼 → 새 탭(link 슬롯)
+  await nav(pa, 'explore')
+  await pa.waitForTimeout(1500)
+  const popupP = pa.context().waitForEvent('page', { timeout: 5000 }).catch(() => null)
+  await pa.locator('button', { hasText: /^(보기|View)$/ }).first().click()
+  const popup = await popupP
+  if (!popup) throw new Error('explore 보기 버튼 → 새 탭 안 열림')
+  await popup.close().catch(() => {})
 })
 
 console.log('\n===== RESULTS =====')

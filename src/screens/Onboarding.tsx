@@ -16,9 +16,11 @@ export default function Onboarding() {
   const authMode = useAppStore((s) => s.authMode)
   const setAuthMode = useAppStore((s) => s.setAuthMode)
   const authError = useAppStore((s) => s.authError)
+  const authNotice = useAppStore((s) => s.authNotice)
   const authLoading = useAppStore((s) => s.authLoading)
   const submitNickname = useAppStore((s) => s.submitNickname)
   const submitLogin = useAppStore((s) => s.submitLogin)
+  const requestPasswordReset = useAppStore((s) => s.requestPasswordReset)
   const goFeedDemo = useAppStore((s) => s.goFeedDemo)
   const navigate = useAppStore((s) => s.navigate)
   const toggleFollowOnboard = useAppStore((s) => s.toggleFollowOnboard)
@@ -41,9 +43,11 @@ export default function Onboarding() {
         authMode={authMode}
         setAuthMode={setAuthMode}
         authError={authError}
+        authNotice={authNotice}
         authLoading={authLoading}
         submitNickname={submitNickname}
         submitLogin={submitLogin}
+        requestPasswordReset={requestPasswordReset}
         goFeedDemo={goFeedDemo}
       />
     )

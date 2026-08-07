@@ -26,6 +26,15 @@ const ko = {
   firstRecordSubtitle: 'Anything counts. Start small.',
   recordNow: 'Record now',
   later: 'Later',
+  forgotPassword: 'Forgot password?',
+  sendResetLink: 'Send reset link',
+  backToLogin: 'Back to log in',
+  resetTitle: 'Reset password',
+  resetDesc: 'Enter a new password for your account.',
+  newPasswordLabel: 'New password',
+  confirmPasswordLabel: 'Confirm password',
+  resetSubmit: 'Update password',
+  resetMismatch: 'Passwords do not match.',
 }
 
 const en: typeof ko = {
@@ -56,6 +65,15 @@ const en: typeof ko = {
   firstRecordSubtitle: 'Anything counts. Start small.',
   recordNow: 'Record now',
   later: 'Later',
+  forgotPassword: 'Forgot password?',
+  sendResetLink: 'Send reset link',
+  backToLogin: 'Back to log in',
+  resetTitle: 'Reset password',
+  resetDesc: 'Enter a new password for your account.',
+  newPasswordLabel: 'New password',
+  confirmPasswordLabel: 'Confirm password',
+  resetSubmit: 'Update password',
+  resetMismatch: 'Passwords do not match.',
 }
 
 export const onboarding = { ko, en }

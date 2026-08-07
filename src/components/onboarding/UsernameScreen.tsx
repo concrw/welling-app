@@ -1,6 +1,6 @@
 import { useMessages } from '../../i18n'
 
-type AuthMode = 'signup' | 'login'
+type AuthMode = 'signup' | 'login' | 'forgot'
 
 interface UsernameScreenProps {
   nicknameInput: string
@@ -12,9 +12,11 @@ interface UsernameScreenProps {
   authMode: AuthMode
   setAuthMode: (mode: AuthMode) => void
   authError: string | null
+  authNotice: string
   authLoading: boolean
   submitNickname: () => void
   submitLogin: () => void
+  requestPasswordReset: () => void
   goFeedDemo: () => void
 }
 
@@ -28,9 +30,11 @@ export function UsernameScreen({
   authMode,
   setAuthMode,
   authError,
+  authNotice,
   authLoading,
   submitNickname,
   submitLogin,
+  requestPasswordReset,
   goFeedDemo,
 }: UsernameScreenProps) {
   const M = useMessages()
@@ -77,27 +81,42 @@ export function UsernameScreen({
           style={{ width: '100%', padding: '13px 16px', borderRadius: 10, border: '1px solid #EBEBEB', fontSize: 16, background: '#FAFAFA', color: '#111111', outline: 'none', boxSizing: 'border-box' }}
         />
       </div>
-      <div style={{ width: '100%', marginBottom: 14 }}>
-        <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#AAAAAA', letterSpacing: '.1em', textTransform: 'uppercase' }}>{M.onboarding.passwordLabel}</p>
-        <input
-          type="password"
-          value={passwordInput}
-          onChange={(e) => setPasswordInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') (authMode === 'signup' ? submitNickname() : submitLogin()) }}
-          placeholder={M.onboarding.passwordPlaceholder}
-          style={{ width: '100%', padding: '13px 16px', borderRadius: 10, border: '1px solid #EBEBEB', fontSize: 16, background: '#FAFAFA', color: '#111111', outline: 'none', boxSizing: 'border-box' }}
-        />
-      </div>
+      {authMode !== 'forgot' && (
+        <div style={{ width: '100%', marginBottom: 14 }}>
+          <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#AAAAAA', letterSpacing: '.1em', textTransform: 'uppercase' }}>{M.onboarding.passwordLabel}</p>
+          <input
+            type="password"
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') (authMode === 'signup' ? submitNickname() : submitLogin()) }}
+            placeholder={M.onboarding.passwordPlaceholder}
+            style={{ width: '100%', padding: '13px 16px', borderRadius: 10, border: '1px solid #EBEBEB', fontSize: 16, background: '#FAFAFA', color: '#111111', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+      )}
       {authError && (
         <p style={{ margin: '0 0 14px', fontSize: 12, color: '#C23030', width: '100%' }}>{authError}</p>
       )}
+      {authNotice && (
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: '#16A34A', width: '100%' }}>{authNotice}</p>
+      )}
       <button
-        onClick={() => (authMode === 'signup' ? submitNickname() : submitLogin())}
-        disabled={authLoading || (authMode === 'signup' ? nicknameInput.trim().length < 2 : false) || emailInput.trim().length < 3 || passwordInput.length < 6}
+        onClick={() => (authMode === 'signup' ? submitNickname() : authMode === 'login' ? submitLogin() : requestPasswordReset())}
+        disabled={authLoading || (authMode === 'signup' ? nicknameInput.trim().length < 2 : false) || emailInput.trim().length < 3 || (authMode !== 'forgot' && passwordInput.length < 6)}
         style={{ width: '100%', padding: 15, borderRadius: 10, background: authLoading ? '#CCCCCC' : '#111111', color: '#FFFFFF', fontSize: 15, fontWeight: 700, border: 'none', cursor: authLoading ? 'default' : 'pointer', letterSpacing: '.02em' }}
       >
-        {authLoading ? M.onboarding.pleaseWait : authMode === 'signup' ? M.onboarding.getStarted : M.onboarding.logIn}
+        {authLoading ? M.onboarding.pleaseWait : authMode === 'signup' ? M.onboarding.getStarted : authMode === 'login' ? M.onboarding.logIn : M.onboarding.sendResetLink}
       </button>
+      {authMode === 'login' && (
+        <button onClick={() => setAuthMode('forgot')} style={{ marginTop: 14, background: 'none', border: 'none', fontSize: 12, color: '#AAAAAA', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+          {M.onboarding.forgotPassword}
+        </button>
+      )}
+      {authMode === 'forgot' && (
+        <button onClick={() => setAuthMode('login')} style={{ marginTop: 14, background: 'none', border: 'none', fontSize: 12, color: '#AAAAAA', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+          {M.onboarding.backToLogin}
+        </button>
+      )}
       <p style={{ marginTop: 20, fontSize: 11, color: '#CCCCCC', textAlign: 'center', lineHeight: 1.7, fontWeight: 300 }}>
         {M.onboarding.termsNotice}
       </p>

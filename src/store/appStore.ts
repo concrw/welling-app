@@ -11,6 +11,7 @@ export type Screen =
   | 'onboarding-preview'
   | 'onboarding-follow'
   | 'onboarding-firstrecord'
+  | 'reset-password'
   | 'feed'
   | 'explore'
   | 'mypage'
@@ -210,7 +211,9 @@ interface AppState {
   userId: string | null
   emailInput: string
   passwordInput: string
-  authMode: 'signup' | 'login'
+  authMode: 'signup' | 'login' | 'forgot'
+  authNotice: string
+  isPasswordRecovery: boolean
   authError: string
   authLoading: boolean
   authInitializing: boolean
@@ -301,7 +304,9 @@ interface AppState {
   setNicknameInput: (v: string) => void
   setEmailInput: (v: string) => void
   setPasswordInput: (v: string) => void
-  setAuthMode: (m: 'signup' | 'login') => void
+  setAuthMode: (m: 'signup' | 'login' | 'forgot') => void
+  requestPasswordReset: () => Promise<void>
+  updatePassword: (newPassword: string) => Promise<boolean>
   submitNickname: () => Promise<void>
   submitLogin: () => Promise<void>
   restoreSession: () => Promise<void>
@@ -437,6 +442,8 @@ export const useAppStore = create<AppState>()(
   emailInput: '',
   passwordInput: '',
   authMode: 'signup',
+  authNotice: '',
+  isPasswordRecovery: false,
   authError: '',
   authLoading: false,
   authInitializing: true,
@@ -562,7 +569,32 @@ export const useAppStore = create<AppState>()(
   setNicknameInput: (v) => set({ nicknameInput: v }),
   setEmailInput: (v) => set({ emailInput: v }),
   setPasswordInput: (v) => set({ passwordInput: v }),
-  setAuthMode: (m) => set({ authMode: m, authError: '' }),
+  setAuthMode: (m) => set({ authMode: m, authError: '', authNotice: '' }),
+
+  requestPasswordReset: async () => {
+    const { emailInput } = get()
+    const email = emailInput.trim()
+    if (email.length < 3) return
+    set({ authLoading: true, authError: '', authNotice: '' })
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
+    if (error) {
+      set({ authLoading: false, authError: error.message })
+      return
+    }
+    set({ authLoading: false, authNotice: getMessages().store.resetEmailSent })
+  },
+
+  updatePassword: async (newPassword) => {
+    set({ authLoading: true, authError: '' })
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) {
+      set({ authLoading: false, authError: error.message })
+      return false
+    }
+    set({ authLoading: false, isPasswordRecovery: false, authMode: 'login', emailInput: '', passwordInput: '' })
+    await get().restoreSession()
+    return true
+  },
 
   submitNickname: async () => {
     const { nicknameInput, emailInput, passwordInput } = get()
@@ -638,13 +670,15 @@ export const useAppStore = create<AppState>()(
       return
     }
     const { data: profile } = await supabase.from('profiles').select('nickname, is_admin').eq('id', user.id).single()
+    // 비밀번호 복구 링크로 진입한 세션이면 피드 대신 재설정 화면을 유지한다
+    const recovering = get().isPasswordRecovery
     set({
       nickname: profile?.nickname ?? '',
       userId: user.id,
       isDemo: false,
       isAdmin: profile?.is_admin ?? false,
       authInitializing: false,
-      screen: 'feed',
+      screen: recovering ? 'reset-password' : 'feed',
       navTab: 'feed',
     })
     get().loadFeedData()
@@ -1631,6 +1665,18 @@ export const useAppStore = create<AppState>()(
     }
   )
 )
+
+// 비밀번호 복구 링크(#...type=recovery)로 진입한 경우: rehydrate/restoreSession과의
+// 순서 경쟁을 피하기 위해 모듈 로드 시점에 동기적으로 플래그를 세운다.
+if (typeof window !== 'undefined' && window.location.hash.includes('type=recovery')) {
+  useAppStore.setState({ isPasswordRecovery: true, screen: 'reset-password' })
+}
+
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    useAppStore.setState({ isPasswordRecovery: true, screen: 'reset-password', authInitializing: false })
+  }
+})
 
 if (import.meta.env.DEV) {
   ;(window as unknown as { __store?: typeof useAppStore }).__store = useAppStore

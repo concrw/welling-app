@@ -1,6 +1,7 @@
 import { useAppStore } from './store/appStore'
 import Onboarding from './screens/Onboarding'
 import ResetPassword from './screens/ResetPassword'
+import SocialNickname from './screens/SocialNickname'
 import Feed from './screens/Feed'
 import Explore from './screens/Explore'
 import MyPage from './screens/MyPage'
@@ -68,6 +69,7 @@ export default function App() {
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, overscrollBehavior: 'none' }}>
           {isOnboarding && <Onboarding />}
           {screen === 'reset-password' && <ResetPassword />}
+          {screen === 'social-nickname' && <SocialNickname />}
           {screen === 'feed' && <Feed />}
           {screen === 'explore' && <Explore />}
           {screen === 'mypage' && <MyPage />}

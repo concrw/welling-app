@@ -35,6 +35,11 @@ const ko = {
   confirmPasswordLabel: 'Confirm password',
   resetSubmit: 'Update password',
   resetMismatch: 'Passwords do not match.',
+  orDivider: 'or',
+  continueWithGoogle: 'Continue with Google',
+  continueWithKakao: 'Continue with Kakao',
+  socialNicknameTitle: 'Choose your username',
+  socialNicknameDesc: 'This name is shown to other members.',
 }
 
 const en: typeof ko = {
@@ -74,6 +79,11 @@ const en: typeof ko = {
   confirmPasswordLabel: 'Confirm password',
   resetSubmit: 'Update password',
   resetMismatch: 'Passwords do not match.',
+  orDivider: 'or',
+  continueWithGoogle: 'Continue with Google',
+  continueWithKakao: 'Continue with Kakao',
+  socialNicknameTitle: 'Choose your username',
+  socialNicknameDesc: 'This name is shown to other members.',
 }
 
 export const onboarding = { ko, en }

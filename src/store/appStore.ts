@@ -12,6 +12,7 @@ export type Screen =
   | 'onboarding-follow'
   | 'onboarding-firstrecord'
   | 'reset-password'
+  | 'social-nickname'
   | 'feed'
   | 'explore'
   | 'mypage'
@@ -307,6 +308,8 @@ interface AppState {
   setAuthMode: (m: 'signup' | 'login' | 'forgot') => void
   requestPasswordReset: () => Promise<void>
   updatePassword: (newPassword: string) => Promise<boolean>
+  signInWithProvider: (provider: 'google' | 'kakao') => Promise<void>
+  submitSocialNickname: () => Promise<void>
   submitNickname: () => Promise<void>
   submitLogin: () => Promise<void>
   restoreSession: () => Promise<void>
@@ -584,6 +587,43 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: false, authNotice: getMessages().store.resetEmailSent })
   },
 
+  signInWithProvider: async (provider) => {
+    set({ authError: '', authNotice: '' })
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin },
+    })
+    if (error) set({ authError: error.message })
+  },
+
+  submitSocialNickname: async () => {
+    const { nicknameInput, userId } = get()
+    const trimmed = nicknameInput.trim()
+    if (trimmed.length < 2 || !userId) return
+    set({ authLoading: true, authError: '' })
+    const { error } = await supabase.from('profiles').insert({ id: userId, nickname: trimmed })
+    if (error) {
+      set({ authLoading: false, authError: error.message })
+      return
+    }
+    set({
+      nickname: trimmed,
+      authLoading: false,
+      screen: 'onboarding-preview',
+      prevScreen: 'social-nickname',
+    })
+    get().loadFeedData()
+    get().loadSuggestedUsers()
+    get().loadNotifications()
+    get().loadRoutineData()
+    get().loadEveningReflections()
+    get().loadCalendarSnapshots()
+    get().syncTodayCalendarSnapshot()
+    get().loadNotificationSettings()
+    get().loadAdminData()
+    get().loadCustomQuickButtons()
+  },
+
   updatePassword: async (newPassword) => {
     set({ authLoading: true, authError: '' })
     const { error } = await supabase.auth.updateUser({ password: newPassword })
@@ -672,6 +712,11 @@ export const useAppStore = create<AppState>()(
     const { data: profile } = await supabase.from('profiles').select('nickname, is_admin').eq('id', user.id).single()
     // 비밀번호 복구 링크로 진입한 세션이면 피드 대신 재설정 화면을 유지한다
     const recovering = get().isPasswordRecovery
+    // 소셜 로그인 첫 진입: 세션은 있지만 프로필이 없음 → 닉네임 설정 화면으로
+    if (!profile && !recovering) {
+      set({ userId: user.id, isDemo: false, authInitializing: false, screen: 'social-nickname', navTab: 'feed' })
+      return
+    }
     set({
       nickname: profile?.nickname ?? '',
       userId: user.id,

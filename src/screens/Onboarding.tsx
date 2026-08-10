@@ -21,6 +21,7 @@ export default function Onboarding() {
   const submitNickname = useAppStore((s) => s.submitNickname)
   const submitLogin = useAppStore((s) => s.submitLogin)
   const requestPasswordReset = useAppStore((s) => s.requestPasswordReset)
+  const signInWithProvider = useAppStore((s) => s.signInWithProvider)
   const goFeedDemo = useAppStore((s) => s.goFeedDemo)
   const navigate = useAppStore((s) => s.navigate)
   const toggleFollowOnboard = useAppStore((s) => s.toggleFollowOnboard)
@@ -48,6 +49,7 @@ export default function Onboarding() {
         submitNickname={submitNickname}
         submitLogin={submitLogin}
         requestPasswordReset={requestPasswordReset}
+        signInWithProvider={signInWithProvider}
         goFeedDemo={goFeedDemo}
       />
     )

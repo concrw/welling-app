@@ -150,7 +150,11 @@ export function UsernameScreen({
         </>
       )}
       <p style={{ marginTop: 20, fontSize: 11, color: '#CCCCCC', textAlign: 'center', lineHeight: 1.7, fontWeight: 300 }}>
-        {M.onboarding.termsNotice}
+        {M.onboarding.termsNoticePrefix}
+        <a href="/terms.html" target="_blank" rel="noopener" style={{ color: '#AAAAAA' }}>{M.onboarding.termsLinkLabel}</a>
+        {M.onboarding.termsNoticeAnd}
+        <a href="/privacy.html" target="_blank" rel="noopener" style={{ color: '#AAAAAA' }}>{M.onboarding.privacyLinkLabel}</a>
+        {M.onboarding.termsNoticeSuffix}
       </p>
       <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #EBEBEB', width: '100%', textAlign: 'center' }}>
         <button onClick={goFeedDemo} style={{ background: 'none', border: 'none', fontSize: 11, color: '#CCCCCC', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, letterSpacing: '.04em', textTransform: 'uppercase' }}>

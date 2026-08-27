@@ -40,6 +40,11 @@ const ko = {
   continueWithKakao: 'Continue with Kakao',
   socialNicknameTitle: 'Choose your username',
   socialNicknameDesc: 'This name is shown to other members.',
+  termsNoticePrefix: 'By signing up, you agree to our ',
+  termsLinkLabel: 'Terms',
+  termsNoticeAnd: ' & ',
+  privacyLinkLabel: 'Privacy Policy',
+  termsNoticeSuffix: '.',
 }
 
 const en: typeof ko = {
@@ -84,6 +89,11 @@ const en: typeof ko = {
   continueWithKakao: 'Continue with Kakao',
   socialNicknameTitle: 'Choose your username',
   socialNicknameDesc: 'This name is shown to other members.',
+  termsNoticePrefix: 'By signing up, you agree to our ',
+  termsLinkLabel: 'Terms',
+  termsNoticeAnd: ' & ',
+  privacyLinkLabel: 'Privacy Policy',
+  termsNoticeSuffix: '.',
 }
 
 export const onboarding = { ko, en }

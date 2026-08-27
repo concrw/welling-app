@@ -189,7 +189,7 @@ export default function RecordModal() {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+    <div data-testid="record-modal" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       {showGuidelineWarning && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)', padding: 24 }}>
           <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 20, maxWidth: 320, width: '100%' }}>
@@ -220,7 +220,7 @@ export default function RecordModal() {
         </div>
       )}
 
-      <div onClick={closeRecordModal} style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} />
+      <div data-testid="record-modal-backdrop" onClick={closeRecordModal} style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} />
       <div style={{ background: '#FFFFFF', borderRadius: '20px 20px 0 0', maxHeight: '88%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px', flexShrink: 0 }}>
           <div style={{ width: 28, height: 3, borderRadius: 2, background: '#EBEBEB' }} />
@@ -251,6 +251,7 @@ export default function RecordModal() {
                   ) : (
                     <>
                       <button
+                        data-testid="record-quick-button"
                         onMouseDown={() => handlePressStart(btn)}
                         onMouseUp={() => handlePressEnd(btn)}
                         onMouseLeave={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null } }}

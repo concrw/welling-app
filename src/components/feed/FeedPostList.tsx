@@ -14,14 +14,14 @@ export function FeedPostList({
   return (
     <>
       {posts.map((post) => (
-        <div key={post.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', borderBottom: '1px solid #F5F5F5' }}>
-          <div onClick={() => onTapUser(post.user, post)} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, cursor: 'pointer' }}>
+        <div key={post.id} data-testid="feed-post" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', borderBottom: '1px solid #F5F5F5' }}>
+          <div data-testid="feed-post-user" data-user-name={post.user} onClick={() => onTapUser(post.user, post)} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, cursor: 'pointer' }}>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: post.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{post.initials}</span>
             </div>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#111111' }}>{post.user}</span>
           </div>
-          <div onClick={() => onTapPost(post)} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>
+          <div data-testid="feed-post-content" onClick={() => onTapPost(post)} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>
             <span style={{ fontSize: 13, color: '#555555' }}>{post.content}</span>
           </div>
           <button

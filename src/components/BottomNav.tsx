@@ -11,7 +11,7 @@ export default function BottomNav() {
   const color = (tab: string) => navTab === tab ? '#111111' : '#AAAAAA'
 
   return (
-    <div style={{ flexShrink: 0, background: '#FFFFFF', borderTop: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', zIndex: 20, paddingTop: 10, paddingBottom: 'calc(10px + env(safe-area-inset-bottom))' }}>
+    <div data-testid="bottom-nav" style={{ flexShrink: 0, background: '#FFFFFF', borderTop: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', zIndex: 20, paddingTop: 10, paddingBottom: 'calc(10px + env(safe-area-inset-bottom))' }}>
       {/* Feed */}
       <button onClick={() => setNavTab('feed')} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'none', border: 'none', padding: '8px 0', color: color('feed'), cursor: 'pointer' }}>
         <div style={{ position: 'relative' }}>

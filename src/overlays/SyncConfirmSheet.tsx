@@ -12,7 +12,7 @@ export default function SyncConfirmSheet() {
   if (!showSyncConfirm) return null
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+    <div data-testid="sync-confirm-sheet" style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       <div onClick={closeSyncConfirm} style={{ flex: 1 }} />
       <div style={{ background: '#FFFFFF', borderRadius: '20px 20px 0 0', padding: '24px 24px 44px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>

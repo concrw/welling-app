@@ -12,7 +12,7 @@ interface OtherProfileCardProps {
 export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, onOpenSync }: OtherProfileCardProps) {
   const M = useMessages()
   return (
-    <div style={{ background: '#FFFFFF', padding: '16px 20px 22px' }}>
+    <div data-testid="other-profile-card" style={{ background: '#FFFFFF', padding: '16px 20px 22px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 18 }}>
         <div style={{ width: 70, height: 70, borderRadius: '50%', flexShrink: 0, background: user.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: 26, fontWeight: 700, color: '#fff' }}>{user.initials}</span>
@@ -28,6 +28,8 @@ export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, o
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <button
+          data-testid="other-profile-follow"
+          aria-pressed={isFollowed}
           onClick={onToggleFollow}
           style={{
             flex: 1, padding: '9px 0', borderRadius: 24,
@@ -40,6 +42,8 @@ export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, o
           {isFollowed ? M.otherProfile.following : M.otherProfile.follow}
         </button>
         <button
+          data-testid="other-profile-sync"
+          aria-pressed={isSynced}
           onClick={onOpenSync}
           style={{
             flex: 1, padding: '9px 0', borderRadius: 24,

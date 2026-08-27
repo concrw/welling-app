@@ -119,7 +119,7 @@ export default function RoutineEdit() {
   }
 
   return (
-    <div>
+    <div data-testid="routine-edit-screen">
       <RoutineEditHeader onBack={goBack} onCalendarSync={handleCalendarSync} onSave={handleSave} syncState={syncState} />
 
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>

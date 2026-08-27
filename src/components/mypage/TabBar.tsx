@@ -9,6 +9,8 @@ export function TabBar({ active, onChange }: { active: 'dashboard' | 'routine'; 
       {TABS.map((tab) => (
         <button
           key={tab}
+          data-testid={`mypage-tab-${tab}`}
+          aria-pressed={active === tab}
           onClick={() => onChange(tab)}
           style={{
             flex: 1, padding: '12px 0', fontSize: 13, fontWeight: active === tab ? 700 : 400,

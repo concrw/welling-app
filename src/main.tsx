@@ -4,7 +4,9 @@ import './index.css'
 import App from './App.tsx'
 import { useAppStore } from './store/appStore'
 
-;(window as any).__store = useAppStore
+if (import.meta.env.DEV) {
+  ;(window as any).__store = useAppStore
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

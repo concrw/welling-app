@@ -111,6 +111,9 @@ export function FeedHeader({
       <div style={{ display: 'flex', gap: 6, padding: '0 20px 12px', overflowX: 'auto', alignItems: 'center' }}>
         {/* ALL 버튼 */}
         <div
+          data-testid="feed-community-tab"
+          data-community-id="all"
+          aria-pressed={activeCommunityTab === 'all'}
           onClick={() => setActiveCommunityTab('all')}
           style={{
             flexShrink: 0, cursor: 'pointer', padding: '5px 14px', borderRadius: 20,
@@ -128,6 +131,9 @@ export function FeedHeader({
           return (
             <div
               key={ct.id}
+              data-testid="feed-community-tab"
+              data-community-id={ct.id}
+              aria-pressed={active}
               ref={(el) => { tabEls.current[i] = el }}
               draggable
               onDragStart={() => handleDragStart(i)}

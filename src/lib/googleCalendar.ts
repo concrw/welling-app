@@ -78,14 +78,13 @@ function toRFC3339(time: string): { start: string; end: string } {
   start.setHours(h, m, 0, 0)
   const end = new Date(start)
   end.setMinutes(end.getMinutes() + 30)
-  // Google Calendar API requires RFC3339 with timezone offset
+  // Google Calendar API requires RFC3339 with timezone offset.
+  // 날짜까지 각 Date에서 직렬화해야 자정을 넘기는 일정의 종료일이 다음 날로 넘어간다.
   const pad = (n: number) => String(n).padStart(2, '0')
-  const dateStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
-  const startStr = `${dateStr}T${pad(h)}:${pad(m)}:00+09:00`
-  const endH = Math.floor((h * 60 + m + 30) / 60) % 24
-  const endM = (m + 30) % 60
-  const endStr = `${dateStr}T${pad(endH)}:${pad(endM)}:00+09:00`
-  return { start: startStr, end: endStr }
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:00+09:00`
+  return { start: fmt(start), end: fmt(end) }
 }
 
 async function createEvent(token: string, event: RoutineEvent): Promise<void> {

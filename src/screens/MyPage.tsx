@@ -67,7 +67,7 @@ export default function MyPage() {
   const latestNotif = notifications.find((n) => !n.read)
 
   return (
-    <div>
+    <div data-testid="mypage-screen">
       {showSignOutConfirm && (
         <SignOutConfirmSheet onConfirm={() => signOut()} onCancel={() => setShowSignOutConfirm(false)} />
       )}

@@ -6,6 +6,7 @@ const ko = {
   followingLabel: 'following',
   editRoutine: '루틴편집',
   share: '공유',
+  shareCopied: '링크 복사됨',
   messages: '메시지',
   shareText: (nickname: string) => `${nickname}님의 루틴을 확인해보세요`,
   // tabs
@@ -79,6 +80,7 @@ const en: typeof ko = {
   followingLabel: 'following',
   editRoutine: 'Edit routine',
   share: 'Share',
+  shareCopied: 'Link copied',
   messages: 'Messages',
   shareText: (nickname: string) => `Check out ${nickname}'s routines`,
   tabDashboard: 'Dashboard',

@@ -58,8 +58,32 @@ export default function PostDetailSheet() {
     }
   }
 
+  const handleTapCommentUser = (cmtUser: string, cmtUserId?: string) => {
+    if (cmtUser === nickname) return
+    const user = suggestedUsers.find((u) => (cmtUserId && u.id === cmtUserId) || u.name === cmtUser)
+    closePostDetail()
+    if (user) {
+      selectUser(user)
+      return
+    }
+    selectUser({
+      id: cmtUserId ?? cmtUser,
+      name: cmtUser,
+      handle: cmtUser,
+      initials: cmtUser.slice(0, 2).toUpperCase(),
+      color: '#E0E0E0',
+      bio: '',
+      followers: 0,
+      following: 0,
+      followed: false,
+      synced: false,
+      routines: [],
+      routineGoals: [],
+    })
+  }
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+    <div data-testid="post-detail-sheet" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
       <div onClick={closePostDetail} style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} />
       <div style={{ background: '#FFFFFF', borderRadius: '18px 18px 0 0', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '12px 0 0', display: 'flex', justifyContent: 'center' }}>
@@ -93,7 +117,7 @@ export default function PostDetailSheet() {
               {M.overlays.report}
             </button>
           )}
-          <button onClick={closePostDetail} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button data-testid="post-detail-close" onClick={closePostDetail} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <line x1="4" y1="4" x2="14" y2="14" stroke="#AAAAAA" strokeWidth="1.8" strokeLinecap="round"/>
               <line x1="14" y1="4" x2="4" y2="14" stroke="#AAAAAA" strokeWidth="1.8" strokeLinecap="round"/>
@@ -159,11 +183,11 @@ export default function PostDetailSheet() {
           <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {(selectedPost.comments ?? []).map((cmt, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#E0E0E0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
+                <div onClick={() => handleTapCommentUser(cmt.user, cmt.userId)} style={{ width: 28, height: 28, borderRadius: '50%', background: '#E0E0E0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: '#888888' }}>{cmt.user}</span>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#111111', cursor: 'pointer' }}>{cmt.user}</p>
+                  <p data-testid="comment-author" onClick={() => handleTapCommentUser(cmt.user, cmt.userId)} style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 700, color: '#111111', cursor: 'pointer' }}>{cmt.user}</p>
                   <p style={{ margin: 0, fontSize: 13, color: '#333333', lineHeight: 1.55, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>{cmt.text}</p>
                 </div>
               </div>

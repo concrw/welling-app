@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import type { User } from '../../store/appStore'
 import { useMessages } from '../../i18n'
+
+const COLLAPSED_COUNT = 5
 
 interface ExplorePeopleListProps {
   people: User[]
@@ -10,15 +13,22 @@ interface ExplorePeopleListProps {
 
 export function ExplorePeopleList({ people, followedUsers, onSelectUser, onToggleFollow }: ExplorePeopleListProps) {
   const M = useMessages()
+  const [expanded, setExpanded] = useState(false)
+  const canExpand = people.length > COLLAPSED_COUNT
+  const visible = expanded || !canExpand ? people : people.slice(0, COLLAPSED_COUNT)
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#AAAAAA', letterSpacing: '.08em', textTransform: 'uppercase' }}>{M.explore.peopleHeading}</p>
-        <span style={{ fontSize: 12, color: '#111111', cursor: 'pointer', fontWeight: 500 }}>{M.explore.seeAll}</span>
+        {canExpand && (
+          <span data-testid="explore-see-all" onClick={() => setExpanded((v) => !v)} style={{ fontSize: 12, color: '#111111', cursor: 'pointer', fontWeight: 500 }}>
+            {expanded ? M.explore.showLess : M.explore.seeAll}
+          </span>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 24 }}>
-        {people.map((su) => {
+        {visible.map((su) => {
           const isFollowed = followedUsers.has(su.id)
           return (
             <div key={su.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid #F5F5F5' }}>

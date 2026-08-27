@@ -13,7 +13,7 @@ export default function AdStrip({ slotKey }: { slotKey: AdSlotKey }) {
     if (ad.clickAction === 'link') {
       window.open(ad.url, '_blank')
     } else if (ad.clickAction === 'modal') {
-      openAdModal({ brand: ad.brand, desc: ad.desc, modalTitle: ad.modalTitle, modalBody: ad.modalBody })
+      openAdModal({ brand: ad.brand, desc: ad.desc, modalTitle: ad.modalTitle, modalBody: ad.modalBody, ctaUrl: ad.url })
     } else {
       setAdPageData({ brand: ad.brand, desc: ad.desc, slotKey })
       navigate('ad-page')

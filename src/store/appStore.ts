@@ -59,7 +59,7 @@ export interface Post {
   createdAt: number
   liked: boolean
   reactions: Record<string, number>
-  comments?: Array<{ user: string; text: string }>
+  comments?: Array<{ user: string; text: string; userId?: string }>
   userId?: string
   hasInsta?: boolean
   instaUrl?: string
@@ -253,7 +253,7 @@ interface AppState {
   showPostDetail: boolean
   selectedPost: Post | null
   showAdModal: boolean
-  adModalData: { brand: string; desc: string; modalTitle?: string; modalBody?: string; ctaLabel?: string; slotKey?: AdSlotKey } | null
+  adModalData: { brand: string; desc: string; modalTitle?: string; modalBody?: string; ctaLabel?: string; ctaUrl?: string; slotKey?: AdSlotKey } | null
   showHomePrompt: boolean
   hasPromptedHome: boolean
   homeScreenIsRecord: boolean
@@ -354,7 +354,7 @@ interface AppState {
   completeSyncAlarm: () => void
   openPostDetail: (post: Post) => void
   closePostDetail: () => void
-  openAdModal: (data: { brand: string; desc: string; modalTitle?: string; modalBody?: string; ctaLabel?: string; slotKey?: AdSlotKey }) => void
+  openAdModal: (data: { brand: string; desc: string; modalTitle?: string; modalBody?: string; ctaLabel?: string; ctaUrl?: string; slotKey?: AdSlotKey }) => void
   closeAdModal: () => void
   setAdPageData: (data: { brand: string; desc: string; slotKey: AdSlotKey }) => void
   acceptHomePrompt: () => void
@@ -365,9 +365,9 @@ interface AppState {
   setAdSlot: (key: AdSlotKey, data: Partial<AppState['adSlots']['explore']>) => void
   closeSyncConfirm: () => void
   setDefaultVisibility: (v: 'public' | 'followers' | 'private') => void
-  setProfileVisibility: (v: 'public' | 'followers' | 'private') => void
+  setProfileVisibility: (v: 'public' | 'followers' | 'private') => Promise<void>
   setNicknameEditInput: (v: string) => void
-  submitNicknameEdit: () => void
+  submitNicknameEdit: () => Promise<void>
   signOut: () => void
 
   saveRoutineGroups: (groups: RoutineGroupData[]) => Promise<void>
@@ -679,16 +679,18 @@ export const useAppStore = create<AppState>()(
       set({ authLoading: false, authError: error?.message ?? getMessages().store.loginFailed })
       return
     }
-    const { data: profile } = await supabase.from('profiles').select('nickname, is_admin').eq('id', data.user.id).single()
+    const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', data.user.id).single()
     set({
       nickname: profile?.nickname ?? '',
       userId: data.user.id,
       isDemo: false,
       isAdmin: profile?.is_admin ?? false,
+      profileVisibility: (profile?.profile_visibility as 'public' | 'followers' | 'private') ?? 'public',
       authLoading: false,
       screen: 'feed',
       navTab: 'feed',
       prevScreen: null,
+      showRecordModal: get().homeScreenIsRecord,
     })
     get().loadFeedData()
     get().loadSuggestedUsers()
@@ -709,7 +711,7 @@ export const useAppStore = create<AppState>()(
       set({ authInitializing: false })
       return
     }
-    const { data: profile } = await supabase.from('profiles').select('nickname, is_admin').eq('id', user.id).single()
+    const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', user.id).single()
     // 비밀번호 복구 링크로 진입한 세션이면 피드 대신 재설정 화면을 유지한다
     const recovering = get().isPasswordRecovery
     // 소셜 로그인 첫 진입: 세션은 있지만 프로필이 없음 → 닉네임 설정 화면으로
@@ -722,9 +724,12 @@ export const useAppStore = create<AppState>()(
       userId: user.id,
       isDemo: false,
       isAdmin: profile?.is_admin ?? false,
+      profileVisibility: (profile?.profile_visibility as 'public' | 'followers' | 'private') ?? 'public',
       authInitializing: false,
       screen: recovering ? 'reset-password' : 'feed',
       navTab: 'feed',
+      // 홈 화면 설정이 record면 피드 위에 기록 모달을 띄운다(비밀번호 재설정 중에는 제외)
+      showRecordModal: !recovering && get().homeScreenIsRecord,
     })
     get().loadFeedData()
     get().loadSuggestedUsers()
@@ -946,7 +951,7 @@ export const useAppStore = create<AppState>()(
     const { userId, isDemo, nickname } = get()
     const displayName = nickname || 'Min'
     if (isDemo || !userId) {
-      const newComment = { user: displayName, text }
+      const newComment = { user: displayName, text, userId: userId ?? undefined }
       set((s) => ({
         posts: s.posts.map((p) => p.id === postId ? { ...p, comments: [...(p.comments ?? []), newComment] } : p),
         selectedPost: s.selectedPost?.id === postId ? { ...s.selectedPost, comments: [...(s.selectedPost.comments ?? []), newComment] } : s.selectedPost,
@@ -959,7 +964,7 @@ export const useAppStore = create<AppState>()(
       .select()
       .single()
     if (error || !data) return
-    const newComment = { user: displayName, text: data.text }
+    const newComment = { user: displayName, text: data.text, userId }
     set((s) => ({
       posts: s.posts.map((p) => p.id === postId ? { ...p, comments: [...(p.comments ?? []), newComment] } : p),
       selectedPost: s.selectedPost?.id === postId ? { ...s.selectedPost, comments: [...(s.selectedPost.comments ?? []), newComment] } : s.selectedPost,
@@ -1066,11 +1071,11 @@ export const useAppStore = create<AppState>()(
         myReactionsByPost.set(r.post_id, mine)
       }
     }
-    const commentsByPost = new Map<string, Array<{ user: string; text: string }>>()
+    const commentsByPost = new Map<string, Array<{ user: string; text: string; userId?: string }>>()
     for (const c of commentRows ?? []) {
       const authorNickname = nicknameById.get(c.user_id) ?? getMessages().store.deletedUser
       const list = commentsByPost.get(c.post_id) ?? []
-      list.push({ user: authorNickname, text: c.text })
+      list.push({ user: authorNickname, text: c.text, userId: c.user_id })
       commentsByPost.set(c.post_id, list)
     }
     const communities: Community[] = (communityRows ?? []).map((c) => ({
@@ -1306,13 +1311,23 @@ export const useAppStore = create<AppState>()(
   closeSyncConfirm: () => set({ showSyncConfirm: false }),
 
   setDefaultVisibility: (v) => set({ defaultVisibility: v }),
-  setProfileVisibility: (v) => set({ profileVisibility: v }),
+  setProfileVisibility: async (v) => {
+    const { userId, isDemo, profileVisibility: prev } = get()
+    set({ profileVisibility: v })
+    if (isDemo || !userId) return
+    const { error } = await supabase.from('profiles').update({ profile_visibility: v }).eq('id', userId)
+    if (error) set({ profileVisibility: prev })
+  },
   setNicknameEditInput: (v) => set({ nicknameEditInput: v }),
-  submitNicknameEdit: () => {
-    const { nicknameEditInput } = get()
+  submitNicknameEdit: async () => {
+    const { nicknameEditInput, userId, isDemo, nickname: prevNickname } = get()
     const trimmed = nicknameEditInput.trim()
     if (!trimmed) return
     set({ nickname: trimmed, nicknameEditInput: '' })
+    if (isDemo || !userId) return
+    // 로컬만 바꾸면 restoreSession()이 DB의 옛 닉네임으로 되돌리므로 profiles까지 갱신한다
+    const { error } = await supabase.from('profiles').update({ nickname: trimmed }).eq('id', userId)
+    if (error) set({ nickname: prevNickname })
   },
   saveRoutineGroups: async (groups) => {
     const { userId, isDemo, currentRoutineGroupIds } = get()
@@ -1694,6 +1709,7 @@ export const useAppStore = create<AppState>()(
           updates.screen = 'feed'
           updates.navTab = 'feed'
           updates.authInitializing = false
+          updates.showRecordModal = state.homeScreenIsRecord
         } else {
           updates.screen = 'onboarding-username'
         }

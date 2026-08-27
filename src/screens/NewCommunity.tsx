@@ -31,6 +31,7 @@ export default function NewCommunity() {
         <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>{M.newCommunity.title}</span>
         <button
           onClick={() => { if (newCommName.trim().length >= 1) { createCommunity(); goBack() } }}
+          disabled={newCommName.trim().length < 1}
           style={{ padding: '7px 16px', borderRadius: 8, background: newCommName.trim().length >= 1 ? '#111111' : '#CCCCCC', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: newCommName.trim().length >= 1 ? 'pointer' : 'default', letterSpacing: '.02em' }}
         >
           {M.newCommunity.create}

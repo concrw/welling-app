@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Screen } from '../../store/appStore'
 import { useMessages } from '../../i18n'
 
@@ -23,6 +24,27 @@ export function ProfileHeader({
   onDashToggle: () => void
 }) {
   const M = useMessages()
+  const [shareCopied, setShareCopied] = useState(false)
+
+  // navigator.share 미지원(데스크톱 브라우저 등)에서는 링크를 클립보드로 복사한다
+  const handleShare = async () => {
+    const shareData = { title: 'WELLING', text: M.myPage.shareText(nickname), url: window.location.href }
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData)
+        return
+      } catch {
+        return
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    } catch {
+      setShareCopied(false)
+    }
+  }
   const dashBtnLabel = mypageTab === 'routine' ? M.myPage.tabDashboard : M.myPage.tabRoutine
 
   return (
@@ -49,10 +71,10 @@ export function ProfileHeader({
       )}
 
       <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={() => onNavigate('routine-edit')} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: '#0984E3', color: '#fff', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{M.myPage.editRoutine}</button>
-        <button onClick={() => { if (navigator.share) { navigator.share({ title: 'WELLING', text: M.myPage.shareText(nickname), url: window.location.href }) } }} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: 'transparent', color: '#111111', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 600, border: '1.5px solid #DDDDDD', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{M.myPage.share}</button>
-        <button onClick={onDashToggle} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: 'transparent', color: '#AAAAAA', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 600, border: '1.5px solid #EBEBEB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{dashBtnLabel}</button>
-        <button onClick={() => onNavigate('messages')} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: 'transparent', color: '#111111', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 600, border: '1.5px solid #DDDDDD', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{M.myPage.messages}</button>
+        <button data-testid="mypage-routine-edit" onClick={() => onNavigate('routine-edit')} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: '#0984E3', color: '#fff', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{M.myPage.editRoutine}</button>
+        <button data-testid="mypage-share" onClick={handleShare} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: 'transparent', color: '#111111', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 600, border: '1.5px solid #DDDDDD', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{shareCopied ? M.myPage.shareCopied : M.myPage.share}</button>
+        <button data-testid="mypage-dashboard-toggle" onClick={onDashToggle} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: 'transparent', color: '#AAAAAA', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 600, border: '1.5px solid #EBEBEB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{dashBtnLabel}</button>
+        <button data-testid="mypage-messages" onClick={() => onNavigate('messages')} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: 'transparent', color: '#111111', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 600, border: '1.5px solid #DDDDDD', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{M.myPage.messages}</button>
       </div>
     </div>
   )

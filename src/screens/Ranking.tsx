@@ -58,7 +58,7 @@ export default function Ranking() {
     if (rankingAd.clickAction === 'link') {
       window.open(rankingAd.url, '_blank')
     } else if (rankingAd.clickAction === 'modal') {
-      openAdModal({ brand: rankingAd.brand, desc: rankingAd.desc, modalTitle: rankingAd.modalTitle, modalBody: rankingAd.modalBody })
+      openAdModal({ brand: rankingAd.brand, desc: rankingAd.desc, modalTitle: rankingAd.modalTitle, modalBody: rankingAd.modalBody, ctaUrl: rankingAd.url })
     } else {
       setAdPageData({ brand: rankingAd.brand, desc: rankingAd.desc, slotKey: 'ranking' })
       navigate('ad-page')
@@ -71,7 +71,7 @@ export default function Ranking() {
   }
 
   return (
-    <div>
+    <div data-testid="ranking-screen">
       <RankingTabs tabs={RANKING_TABS} active={rankingTab} onChange={setRankingTab} />
 
       <RankingPodium top3={TOP3} onTapProfile={handleTapProfile} />

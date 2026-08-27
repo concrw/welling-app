@@ -35,6 +35,7 @@ export default function SettingsHomeScreen() {
           return (
             <div
               key={opt.value}
+              data-testid={`home-screen-option-${opt.value}`}
               onClick={() => select(opt.value)}
               style={{ padding: '14px 16px', borderRadius: 12, border: `1.5px solid ${active ? '#111111' : '#EBEBEB'}`, background: active ? '#F8F8F8' : '#FFFFFF', marginBottom: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
             >

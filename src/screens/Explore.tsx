@@ -26,7 +26,7 @@ export default function Explore() {
     if (exploreAd.clickAction === 'link') {
       window.open(exploreAd.url, '_blank')
     } else if (exploreAd.clickAction === 'modal') {
-      openAdModal({ brand: exploreAd.brand, desc: exploreAd.desc, modalTitle: exploreAd.modalTitle, modalBody: exploreAd.modalBody })
+      openAdModal({ brand: exploreAd.brand, desc: exploreAd.desc, modalTitle: exploreAd.modalTitle, modalBody: exploreAd.modalBody, ctaUrl: exploreAd.url })
     } else {
       setAdPageData({ brand: exploreAd.brand, desc: exploreAd.desc, slotKey: 'explore' })
       navigate('ad-page')
@@ -43,7 +43,7 @@ export default function Explore() {
   const noResults = q && filteredCommunities.length === 0 && filteredPeople.length === 0
 
   return (
-    <div>
+    <div data-testid="explore-screen">
       <ExploreSearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       <div style={{ padding: 20 }}>

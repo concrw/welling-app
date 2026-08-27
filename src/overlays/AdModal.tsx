@@ -12,6 +12,12 @@ export default function AdModal() {
   const title = (adModalData as any).modalTitle || adModalData.brand
   const body = (adModalData as any).modalBody || adModalData.desc
   const ctaLabel = (adModalData as any).ctaLabel || M.common.confirm
+  const ctaUrl = (adModalData as any).ctaUrl as string | undefined
+
+  const handleCta = () => {
+    if (ctaUrl) window.open(ctaUrl, '_blank', 'noopener,noreferrer')
+    closeAdModal()
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -27,7 +33,7 @@ export default function AdModal() {
           </button>
         </div>
         <p style={{ margin: '0 0 24px', fontSize: 13, color: '#555555', lineHeight: 1.7, fontWeight: 300 }}>{body}</p>
-        <button onClick={closeAdModal} style={{ width: '100%', padding: 14, borderRadius: 12, background: '#111111', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+        <button data-testid="ad-modal-cta" onClick={handleCta} style={{ width: '100%', padding: 14, borderRadius: 12, background: '#111111', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
           {ctaLabel}
         </button>
       </div>

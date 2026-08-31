@@ -96,7 +96,6 @@ export default function Feed() {
         onTapPost={openPostDetail}
         onToggleLike={toggleLikePost}
       />
-      <div style={{ height: 24 }} />
     </div>
   )
 }

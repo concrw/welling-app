@@ -11,7 +11,10 @@ export default function BottomNav() {
   const color = (tab: string) => navTab === tab ? '#111111' : '#AAAAAA'
 
   return (
-    <div data-testid="bottom-nav" style={{ flexShrink: 0, background: '#FFFFFF', borderTop: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', zIndex: 20, paddingTop: 10, paddingBottom: 'calc(10px + env(safe-area-inset-bottom))' }}>
+    // 홈 인디케이터 영역(env(safe-area-inset-bottom))만큼의 하단 패딩은 유지하되,
+    // 그 절반을 위쪽에도 나눠 아이콘이 바 안에서 시각적으로 가운데 오게 한다.
+    // 패딩 전체를 아래에만 주면 아이콘이 위로 붙고 그 아래가 빈 흰 띠로 보인다.
+    <div data-testid="bottom-nav" style={{ flexShrink: 0, background: '#FFFFFF', borderTop: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', zIndex: 20, paddingTop: 'calc(10px + env(safe-area-inset-bottom) / 2)', paddingBottom: 'calc(10px + env(safe-area-inset-bottom) / 2)' }}>
       {/* Feed */}
       <button onClick={() => setNavTab('feed')} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, background: 'none', border: 'none', padding: '8px 0', color: color('feed'), cursor: 'pointer' }}>
         <div style={{ position: 'relative' }}>

@@ -19,7 +19,7 @@ interface PreviewScreenProps {
 export function PreviewScreen({ posts, onContinue }: PreviewScreenProps) {
   const M = useMessages()
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFFFFF', minHeight: '100svh' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFFFFF', minHeight: '100dvh' }}>
       <div style={{ padding: 'calc(22px + env(safe-area-inset-top)) 20px 14px', borderBottom: '1px solid #EBEBEB', flexShrink: 0 }}>
         <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#111111', letterSpacing: '.1em', textTransform: 'uppercase' }}>WELLING</p>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#111111', letterSpacing: '-.5px' }}>{M.onboarding.previewTitle}</h2>

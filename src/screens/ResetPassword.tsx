@@ -25,7 +25,7 @@ export default function ResetPassword() {
   const labelStyle = { margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#AAAAAA', letterSpacing: '.1em', textTransform: 'uppercase' as const }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100svh' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100dvh' }}>
       <h1 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 900, color: '#111111', letterSpacing: '-.5px' }}>{M.onboarding.resetTitle}</h1>
       <p style={{ margin: '0 0 36px', fontSize: 13, color: '#AAAAAA', textAlign: 'center', lineHeight: 1.8, fontWeight: 300 }}>{M.onboarding.resetDesc}</p>
       <div style={{ width: '100%', marginBottom: 14 }}>

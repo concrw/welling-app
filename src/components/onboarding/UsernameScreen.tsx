@@ -41,7 +41,7 @@ export function UsernameScreen({
 }: UsernameScreenProps) {
   const M = useMessages()
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100svh' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100dvh' }}>
       <img src="/uploads/welling-black.png" style={{ height: 58, width: 'auto', marginBottom: 20 }} alt={M.onboarding.logoAlt} />
       <h1 style={{ margin: '0 0 8px', fontSize: 26, fontWeight: 900, color: '#111111', letterSpacing: -1 }}>WELLING</h1>
       <p style={{ margin: '0 0 48px', fontSize: 14, color: '#AAAAAA', textAlign: 'center', lineHeight: 1.8, fontWeight: 300 }}>

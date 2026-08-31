@@ -12,7 +12,7 @@ export default function SocialNickname() {
   const valid = nicknameInput.trim().length >= 2
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100svh' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100dvh' }}>
       <h1 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 900, color: '#111111', letterSpacing: '-.5px' }}>{M.onboarding.socialNicknameTitle}</h1>
       <p style={{ margin: '0 0 36px', fontSize: 13, color: '#AAAAAA', textAlign: 'center', lineHeight: 1.8, fontWeight: 300 }}>{M.onboarding.socialNicknameDesc}</p>
       <div style={{ width: '100%', marginBottom: 14 }}>

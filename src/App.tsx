@@ -52,7 +52,7 @@ export default function App() {
   const showAdStrip = !isOnboarding && (screen === 'mypage' || screen === 'other-profile' || screen === 'community-detail')
 
   if (authInitializing && !isDemo) {
-    return <div style={{ minHeight: '100svh', background: '#FFFFFF' }} />
+    return <div style={{ minHeight: '100dvh', background: '#FFFFFF' }} />
   }
 
   return (

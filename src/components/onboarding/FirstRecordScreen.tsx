@@ -8,7 +8,7 @@ interface FirstRecordScreenProps {
 export function FirstRecordScreen({ goToMainWithRecord, goToMain }: FirstRecordScreenProps) {
   const M = useMessages()
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100svh' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100dvh' }}>
       <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F5F5F5', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, border: '1px solid #EBEBEB' }}>
         <span style={{ fontSize: 32, color: '#111111', fontWeight: 200, lineHeight: 1 }}>+</span>
       </div>

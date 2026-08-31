@@ -19,7 +19,7 @@ interface FollowScreenProps {
 export function FollowScreen({ suggestedUsers, onboardingFollowed, toggleFollowOnboard, onContinue, onSkip }: FollowScreenProps) {
   const M = useMessages()
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFFFFF', minHeight: '100svh' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFFFFF', minHeight: '100dvh' }}>
       <div style={{ padding: 'calc(22px + env(safe-area-inset-top)) 20px 14px', flexShrink: 0 }}>
         <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 600, color: '#AAAAAA', letterSpacing: '.06em' }}>{M.onboarding.followStep}</p>
         <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 900, color: '#111111', letterSpacing: '-.5px' }}>{M.onboarding.followTitle}</h2>

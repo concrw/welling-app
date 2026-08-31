@@ -20,6 +20,14 @@
     font-family: inherit;
   }
 
+  /* iOS Safari는 포커스된 입력란의 글자가 16px 미만이면 페이지를 자동 확대한다.
+     각 컴포넌트가 inline style로 fontSize를 지정하므로 !important로 덮어쓴다.
+     사용자가 직접 하는 확대/축소는 그대로 두고(viewport에 maximum-scale을 걸지 않음)
+     의도치 않은 자동 확대만 막는다. */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+
   ::-webkit-scrollbar {
     display: none;
   }

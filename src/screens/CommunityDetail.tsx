@@ -13,6 +13,7 @@ export default function CommunityDetail() {
   const suggestedUsers = useAppStore((s) => s.suggestedUsers)
   const userId = useAppStore((s) => s.userId)
   const isDemo = useAppStore((s) => s.isDemo)
+  const isAdmin = useAppStore((s) => s.isAdmin)
   const navigate = useAppStore((s) => s.navigate)
   const openRecordModal = useAppStore((s) => s.openRecordModal)
   const setPendingRecordCommunityId = useAppStore((s) => s.setPendingRecordCommunityId)
@@ -34,7 +35,8 @@ export default function CommunityDetail() {
 
   const c = selectedCommunity
   const communityPosts = posts.filter((p) => p.community === c.id)
-  const isOwner = !isDemo && !!userId && c.ownerId === userId
+  // 관리자는 소유자가 없는 커뮤니티(시드 등)도 수정할 수 있어야 한다. 서버 RLS도 동일 조건.
+  const canEdit = !isDemo && !!userId && (c.ownerId === userId || isAdmin)
 
   // 이 커뮤니티를 미리 선택한 상태로 기록 모달을 연다.
   const handleWrite = () => {
@@ -53,15 +55,14 @@ export default function CommunityDetail() {
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
         <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>{c.name}</span>
-        {isOwner ? (
-          <button data-testid="community-edit-entry" onClick={() => navigate('community-edit')} style={{ padding: '7px 16px', borderRadius: 8, background: '#F5F5F5', color: '#111111', border: '1px solid #EBEBEB', fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '.02em' }}>
+        {canEdit && (
+          <button data-testid="community-edit-entry" onClick={() => navigate('community-edit')} style={{ padding: '7px 12px', borderRadius: 8, background: '#F5F5F5', color: '#111111', border: '1px solid #EBEBEB', fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '.02em' }}>
             {M.communityEdit.edit}
           </button>
-        ) : (
-          <button onClick={() => toggleJoinCommunity(c.id)} style={joinBtnStyle}>
-            {c.joined ? M.communityDetail.joined : M.communityDetail.join}
-          </button>
         )}
+        <button onClick={() => toggleJoinCommunity(c.id)} style={joinBtnStyle}>
+          {c.joined ? M.communityDetail.joined : M.communityDetail.join}
+        </button>
       </div>
 
       <div style={{ padding: '16px 20px', borderBottom: '1px solid #EBEBEB', display: 'flex', gap: 14, alignItems: 'flex-start' }}>

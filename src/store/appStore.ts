@@ -20,6 +20,7 @@ export type Screen =
   | 'other-profile'
   | 'community-detail'
   | 'new-community'
+  | 'community-edit'
   | 'routine-edit'
   | 'routine-history'
   | 'routine-privacy'
@@ -79,6 +80,8 @@ export interface Community {
   focus: string
   desc: string
   joined: boolean
+  ownerId?: string | null
+  visibility?: 'public' | 'private'
 }
 
 export interface User {
@@ -239,6 +242,8 @@ interface AppState {
   newCommName: string
   newCommDesc: string
   commVisibility: 'public' | 'private'
+  // 커뮤니티 상세에서 글쓰기를 누르면 그 커뮤니티를 미리 선택한 채 기록 모달을 연다.
+  pendingRecordCommunityId: string | null
 
   selectedCommunity: Community | null
   selectedUser: User | null
@@ -338,7 +343,9 @@ interface AppState {
   setNewCommName: (v: string) => void
   setNewCommDesc: (v: string) => void
   setCommVisibility: (v: 'public' | 'private') => void
+  setPendingRecordCommunityId: (v: string | null) => void
   createCommunity: () => Promise<void>
+  updateCommunity: (id: string, patch: { name?: string; desc?: string; visibility?: 'public' | 'private' }) => Promise<string | null>
   markNotificationsRead: () => void
   markAllRead: () => Promise<void>
   markSingleRead: (id: string) => Promise<void>
@@ -471,6 +478,7 @@ export const useAppStore = create<AppState>()(
   newCommName: '',
   newCommDesc: '',
   commVisibility: 'public',
+  pendingRecordCommunityId: null,
 
   selectedCommunity: null,
   selectedUser: null,
@@ -1043,7 +1051,7 @@ export const useAppStore = create<AppState>()(
     if (isDemo || !userId) return
     const [{ data: communityRows }, { data: memberRows }, { data: postRows }, { data: likeRows }] = await Promise.all([
       supabase.from('communities').select('*'),
-      supabase.from('community_members').select('community_id').eq('user_id', userId),
+      supabase.from('community_members').select('community_id, user_id'),
       supabase.from('posts').select('*, profiles(nickname)').order('created_at', { ascending: false }),
       supabase.from('post_likes').select('post_id').eq('user_id', userId),
     ])
@@ -1057,7 +1065,10 @@ export const useAppStore = create<AppState>()(
       ? await supabase.from('profiles').select('id, nickname').in('id', commentAuthorIds)
       : { data: [] as { id: string; nickname: string }[] }
     const nicknameById = new Map((commentAuthorRows ?? []).map((p) => [p.id, p.nickname]))
-    const joinedIds = new Set((memberRows ?? []).map((m) => m.community_id))
+    const joinedIds = new Set((memberRows ?? []).filter((m) => m.user_id === userId).map((m) => m.community_id))
+    // members 컬럼은 생성 시점 값에 고정돼 갱신되지 않으므로 실제 멤버 행으로 집계한다.
+    const memberCountById = new Map<string, number>()
+    for (const m of memberRows ?? []) memberCountById.set(m.community_id, (memberCountById.get(m.community_id) ?? 0) + 1)
     const likedIds = new Set((likeRows ?? []).map((l) => l.post_id))
     const reactionsByPost = new Map<string, Record<string, number>>()
     const myReactionsByPost = new Map<string, Set<string>>()
@@ -1083,10 +1094,12 @@ export const useAppStore = create<AppState>()(
       name: c.name,
       initial: c.initial,
       color: c.color,
-      members: c.members,
+      members: memberCountById.get(c.id) ?? c.members,
       focus: c.focus,
       desc: c.desc,
       joined: joinedIds.has(c.id),
+      ownerId: c.owner_id ?? null,
+      visibility: c.visibility ?? 'public',
     }))
     const posts: Post[] = (postRows ?? []).map((p) => {
       const authorNickname = (p as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.deletedUser
@@ -1120,6 +1133,7 @@ export const useAppStore = create<AppState>()(
   setNewCommName: (v) => set({ newCommName: v }),
   setNewCommDesc: (v) => set({ newCommDesc: v }),
   setCommVisibility: (v) => set({ commVisibility: v }),
+  setPendingRecordCommunityId: (v) => set({ pendingRecordCommunityId: v }),
 
   createCommunity: async () => {
     const { newCommName, newCommDesc, communities, userId, isDemo } = get()
@@ -1132,9 +1146,13 @@ export const useAppStore = create<AppState>()(
       initial: name[0].toUpperCase(),
       color: palette[communities.length % palette.length],
       members: 1,
-      focus: newCommDesc.trim(),
+      // focus는 목록의 한 줄 요약, desc는 본문 설명이다. 같은 값을 넣으면
+      // 상세 화면에서 같은 문구가 두 번 나온다.
+      focus: '',
       desc: newCommDesc.trim(),
       joined: true,
+      ownerId: userId ?? null,
+      visibility: get().commVisibility,
     }
     if (!isDemo && userId) {
       const { error } = await supabase.from('communities').insert({
@@ -1145,6 +1163,8 @@ export const useAppStore = create<AppState>()(
         members: community.members,
         focus: community.focus,
         desc: community.desc,
+        owner_id: userId,
+        visibility: community.visibility,
       })
       if (!error) {
         await supabase.from('community_members').insert({ user_id: userId, community_id: community.id })
@@ -1156,6 +1176,37 @@ export const useAppStore = create<AppState>()(
       newCommDesc: '',
       commVisibility: 'public',
     })
+  },
+
+  // 만든 사람만 수정할 수 있다(서버 RLS가 최종 판정). 실패하면 이전 값으로 되돌린다.
+  updateCommunity: async (id, patch) => {
+    const { userId, isDemo, communities } = get()
+    const prev = communities.find((c) => c.id === id)
+    if (!prev) return getMessages().communityEdit.notFound
+    const next = {
+      ...prev,
+      ...(patch.name !== undefined ? { name: patch.name, initial: patch.name[0]?.toUpperCase() ?? prev.initial } : {}),
+      ...(patch.desc !== undefined ? { desc: patch.desc } : {}),
+      ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
+    }
+    set((s) => ({
+      communities: s.communities.map((c) => (c.id === id ? next : c)),
+      selectedCommunity: s.selectedCommunity?.id === id ? next : s.selectedCommunity,
+    }))
+    if (isDemo || !userId) return null
+    const { error } = await supabase.from('communities').update({
+      ...(patch.name !== undefined ? { name: patch.name, initial: next.initial } : {}),
+      ...(patch.desc !== undefined ? { desc: patch.desc } : {}),
+      ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
+    }).eq('id', id)
+    if (error) {
+      set((s) => ({
+        communities: s.communities.map((c) => (c.id === id ? prev : c)),
+        selectedCommunity: s.selectedCommunity?.id === id ? prev : s.selectedCommunity,
+      }))
+      return error.message
+    }
+    return null
   },
 
   markNotificationsRead: () =>

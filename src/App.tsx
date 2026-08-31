@@ -9,6 +9,7 @@ import Ranking from './screens/Ranking'
 import OtherProfile from './screens/OtherProfile'
 import CommunityDetail from './screens/CommunityDetail'
 import NewCommunity from './screens/NewCommunity'
+import CommunityEdit from './screens/CommunityEdit'
 import RoutineEdit from './screens/RoutineEdit'
 import RoutineHistory from './screens/RoutineHistory'
 import RoutinePrivacy from './screens/RoutinePrivacy'
@@ -77,6 +78,7 @@ export default function App() {
           {screen === 'other-profile' && <OtherProfile />}
           {screen === 'community-detail' && <CommunityDetail />}
           {screen === 'new-community' && <NewCommunity />}
+          {screen === 'community-edit' && <CommunityEdit />}
           {screen === 'routine-edit' && <RoutineEdit />}
           {screen === 'routine-history' && <RoutineHistory />}
           {screen === 'routine-privacy' && <RoutinePrivacy />}

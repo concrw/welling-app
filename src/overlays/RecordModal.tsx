@@ -15,6 +15,8 @@ const VISIBILITY_KEYS: PostVisibility[] = ['public', 'followers', 'private']
 export default function RecordModal() {
   const M = useMessages()
   const showRecordModal = useAppStore((s) => s.showRecordModal)
+  const pendingRecordCommunityId = useAppStore((s) => s.pendingRecordCommunityId)
+  const setPendingRecordCommunityId = useAppStore((s) => s.setPendingRecordCommunityId)
   const closeRecordModal = useAppStore((s) => s.closeRecordModal)
   const addPost = useAppStore((s) => s.addPost)
   const routineGroups = useAppStore((s) => s.routineGroups)
@@ -76,6 +78,14 @@ export default function RecordModal() {
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTimer])
+
+  // 커뮤니티 상세에서 "기록 남기기"로 열었으면 그 커뮤니티를 미리 선택해 둔다.
+  useEffect(() => {
+    if (!showRecordModal) return
+    if (!pendingRecordCommunityId) return
+    setRecordCommunityId(pendingRecordCommunityId)
+    setPendingRecordCommunityId(null)
+  }, [showRecordModal, pendingRecordCommunityId, setPendingRecordCommunityId])
 
   if (!showRecordModal) return null
 

@@ -100,7 +100,7 @@ export default function CommunityDetail() {
               <div style={{ width: 30, height: 30, borderRadius: '50%', background: post.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{post.initials}</span>
               </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#111111' }}>{post.user}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#111111', maxWidth: 92, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.user}</span>
             </div>
             <div onClick={() => openPostDetail(post)} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>
               <span style={{ fontSize: 13, color: '#555555' }}>{post.content}</span>

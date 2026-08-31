@@ -22,7 +22,7 @@ export default function SocialNickname() {
           onChange={(e) => setNicknameInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && valid) submitSocialNickname() }}
           placeholder={M.onboarding.usernamePlaceholder}
-          maxLength={10}
+          maxLength={20}
           style={{ width: '100%', padding: '13px 16px', borderRadius: 10, border: '1px solid #EBEBEB', fontSize: 16, background: '#FAFAFA', color: '#111111', outline: 'none', boxSizing: 'border-box' }}
         />
       </div>

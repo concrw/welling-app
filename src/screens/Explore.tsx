@@ -35,7 +35,7 @@ export default function Explore() {
 
   const q = searchQuery.toLowerCase()
   const filteredCommunities = q
-    ? communities.filter((c) => c.name.toLowerCase().includes(q) || c.focus.toLowerCase().includes(q))
+    ? communities.filter((c) => c.name.toLowerCase().includes(q) || c.focus.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q))
     : communities
   const filteredPeople = q
     ? suggestedUsers.filter((u) => u.name.toLowerCase().includes(q) || u.bio.toLowerCase().includes(q))

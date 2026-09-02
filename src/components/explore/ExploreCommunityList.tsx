@@ -23,7 +23,7 @@ export function ExploreCommunityList({ communities, onSelect, onToggleJoin }: Ex
             <div style={{ flex: 1 }}>
               <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700, color: '#111111' }}>{c.name}</p>
               <p style={{ margin: '0 0 2px', fontSize: 11, color: '#AAAAAA' }}>{M.explore.memberCount(c.members)}</p>
-              <p style={{ margin: 0, fontSize: 10, color: '#CCCCCC', letterSpacing: '.04em', textTransform: 'uppercase' }}>{c.focus}</p>
+              <p style={{ margin: 0, fontSize: 10, color: '#CCCCCC', letterSpacing: '.04em', textTransform: 'uppercase' }}>{c.focus || c.desc}</p>
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); onToggleJoin(c.id) }}

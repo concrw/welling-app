@@ -18,4 +18,5 @@ export interface RoutineGroup {
   items: RoutineItem[]
   isAdding: boolean
   newItemText: string
+  isConfirmingGroupDelete: boolean
 }

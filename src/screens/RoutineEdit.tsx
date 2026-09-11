@@ -16,6 +16,7 @@ function toEditGroups(stored: RoutineGroupData[]): RoutineGroup[] {
     name: g.name,
     isAdding: false,
     newItemText: '',
+    isConfirmingGroupDelete: false,
     items: g.items.map((item) => ({
       ...item,
       imgUrl: item.imgUrl,
@@ -29,18 +30,23 @@ function toEditGroups(stored: RoutineGroupData[]): RoutineGroup[] {
   }))
 }
 
+// 이름이 비어 있는 그룹/항목은 달성률 매칭 기준이 없으므로 저장 대상에서 제외한다.
 function toStoredGroups(groups: RoutineGroup[]): RoutineGroupData[] {
-  return groups.map((g) => ({
-    id: g.id,
-    name: g.name,
-    items: g.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      time: item.time,
-      desc: item.desc,
-      imgUrl: item.imgUrl,
-    })),
-  }))
+  return groups
+    .filter((g) => g.name.trim() !== '')
+    .map((g) => ({
+      id: g.id,
+      name: g.name.trim(),
+      items: g.items
+        .filter((item) => item.name.trim() !== '')
+        .map((item) => ({
+          id: item.id,
+          name: item.name.trim(),
+          time: item.time,
+          desc: item.desc,
+          imgUrl: item.imgUrl,
+        })),
+    }))
 }
 
 export default function RoutineEdit() {
@@ -59,6 +65,12 @@ export default function RoutineEdit() {
     const nextGroups = toStoredGroups(groups)
     const hasChanged = JSON.stringify(nextGroups) !== JSON.stringify(storedGroups)
     if (!hasChanged) {
+      goBack()
+      return
+    }
+    // 기존 루틴이 없으면 보존할 구간도 없으므로 구간 선택 없이 바로 저장한다.
+    if (storedGroups.length === 0) {
+      saveRoutineGroups(nextGroups)
       goBack()
       return
     }
@@ -111,6 +123,20 @@ export default function RoutineEdit() {
   const deleteItem = (gid: string, iid: string) =>
     setGroups((prev) => prev.map((g) => g.id !== gid ? g : { ...g, items: g.items.filter((i) => i.id !== iid) }))
 
+  const addGroup = () => {
+    const newGroup: RoutineGroup = {
+      id: `g${Date.now()}`,
+      name: '',
+      items: [],
+      isAdding: false,
+      newItemText: '',
+      isConfirmingGroupDelete: false,
+    }
+    setGroups((prev) => [...prev, newGroup])
+  }
+
+  const deleteGroup = (gid: string) => setGroups((prev) => prev.filter((g) => g.id !== gid))
+
   const confirmAdd = (gid: string) => {
     const group = groups.find((g) => g.id === gid)!
     if (!group.newItemText.trim()) return
@@ -131,11 +157,19 @@ export default function RoutineEdit() {
             onUpdateItem={(iid, patch) => updateItem(group.id, iid, patch)}
             onDeleteItem={(iid) => deleteItem(group.id, iid)}
             onConfirmAdd={() => confirmAdd(group.id)}
+            onDeleteGroup={() => deleteGroup(group.id)}
           />
         ))}
 
-        <div onClick={() => setGroups(toEditGroups(storedGroups))} style={{ marginTop: 4, padding: 14, borderRadius: 10, border: '1px dashed #CCCCCC', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#AAAAAA' }}>{M.routineEdit.resetToNew}</span>
+        {groups.length === 0 && (
+          <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: '#111111' }}>{M.routineEdit.emptyTitle}</p>
+            <p style={{ margin: 0, fontSize: 12, color: '#AAAAAA', fontWeight: 300, lineHeight: 1.7 }}>{M.routineEdit.emptyDesc}</p>
+          </div>
+        )}
+
+        <div data-testid="routine-add-group" onClick={addGroup} style={{ marginTop: 4, padding: 14, borderRadius: 10, border: '1px dashed #CCCCCC', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#111111' }}>{M.routineEdit.addGroup}</span>
         </div>
       </div>
 

@@ -30,6 +30,7 @@ import SettingsDefaultVisibility from './screens/SettingsDefaultVisibility'
 import SettingsProfileVisibility from './screens/SettingsProfileVisibility'
 import SettingsGoogleCalendar from './screens/SettingsGoogleCalendar'
 import SettingsChangeUsername from './screens/SettingsChangeUsername'
+import SettingsDeleteAccount from './screens/SettingsDeleteAccount'
 import BottomNav from './components/BottomNav'
 import AdStrip from './components/AdStrip'
 import RecordModal from './overlays/RecordModal'
@@ -99,6 +100,7 @@ export default function App() {
           {screen === 'settings-profile-visibility' && <SettingsProfileVisibility />}
           {screen === 'settings-google-calendar' && <SettingsGoogleCalendar />}
           {screen === 'settings-change-username' && <SettingsChangeUsername />}
+          {screen === 'settings-delete-account' && <SettingsDeleteAccount />}
         </div>
         {showAdStrip && (
           <AdStrip

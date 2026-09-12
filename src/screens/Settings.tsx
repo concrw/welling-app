@@ -5,13 +5,14 @@ import { LANG_LABELS } from '../i18n/langStore'
 
 const LANG_OPTIONS: { value: Lang; label: string }[] = (['ko', 'en'] as Lang[]).map((value) => ({ value, label: LANG_LABELS[value] }))
 
-const STATIC_ITEMS: { labelKey: 'notifications' | 'googleCalendar' | 'homeScreen' | 'defaultVisibility' | 'profileVisibility' | 'changeUsername' | 'signOut'; hasArrow: boolean; color: string; nav?: Screen; action?: 'signOut' }[] = [
+const STATIC_ITEMS: { labelKey: 'notifications' | 'googleCalendar' | 'homeScreen' | 'defaultVisibility' | 'profileVisibility' | 'changeUsername' | 'deleteAccount' | 'signOut'; hasArrow: boolean; color: string; nav?: Screen; action?: 'signOut' }[] = [
   { labelKey: 'notifications', hasArrow: true, color: '#111111', nav: 'alarm' },
   { labelKey: 'googleCalendar', hasArrow: true, color: '#111111', nav: 'settings-google-calendar' },
   { labelKey: 'homeScreen', hasArrow: true, color: '#111111', nav: 'settings-home-screen' },
   { labelKey: 'defaultVisibility', hasArrow: true, color: '#111111', nav: 'settings-default-visibility' },
   { labelKey: 'profileVisibility', hasArrow: true, color: '#111111', nav: 'settings-profile-visibility' },
   { labelKey: 'changeUsername', hasArrow: true, color: '#111111', nav: 'settings-change-username' },
+  { labelKey: 'deleteAccount', hasArrow: true, color: '#E53535', nav: 'settings-delete-account' },
   { labelKey: 'signOut', hasArrow: false, color: '#E53535', action: 'signOut' },
 ]
 

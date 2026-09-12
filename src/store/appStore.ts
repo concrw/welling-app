@@ -262,6 +262,8 @@ interface AppState {
   showHomePrompt: boolean
   hasPromptedHome: boolean
   homeScreenIsRecord: boolean
+  feedVisitCount: number
+  recordUseCount: number
   showWelcomeAnimation: boolean
   pendingRecordAfterWelcome: boolean
   defaultVisibility: 'public' | 'followers' | 'private'
@@ -497,6 +499,8 @@ export const useAppStore = create<AppState>()(
   showHomePrompt: false,
   hasPromptedHome: false,
   homeScreenIsRecord: false,
+  feedVisitCount: 0,
+  recordUseCount: 0,
   showWelcomeAnimation: false,
   pendingRecordAfterWelcome: false,
   onboardingAnimating: false,
@@ -574,7 +578,12 @@ export const useAppStore = create<AppState>()(
 
   setNavTab: (tab) => {
     const screenMap: Record<NavTab, Screen> = { feed: 'feed', explore: 'explore', ranking: 'ranking', mypage: 'mypage' }
-    set({ navTab: tab, screen: screenMap[tab], prevScreen: null })
+    set((s) => ({ 
+      navTab: tab, 
+      screen: screenMap[tab], 
+      prevScreen: null,
+      feedVisitCount: tab === 'feed' ? s.feedVisitCount + 1 : s.feedVisitCount
+    }))
   },
 
   setNicknameInput: (v) => set({ nicknameInput: v }),
@@ -980,10 +989,11 @@ export const useAppStore = create<AppState>()(
   },
 
   addPost: async (content, imgUrl, category, visibility, communityId, instaUrl) => {
-    const { userId, isDemo, nickname, hasPromptedHome, defaultVisibility } = get()
+    const { userId, isDemo, nickname, hasPromptedHome, defaultVisibility, feedVisitCount, recordUseCount } = get()
     const displayName = nickname || 'Min'
     const finalCategory: PostCategory = category ?? 'habit'
     const finalVisibility: PostVisibility = visibility ?? defaultVisibility
+    const shouldPrompt = !hasPromptedHome && recordUseCount > feedVisitCount
     if (isDemo || !userId) {
       const newPost: Post = {
         id: `p${Date.now()}`,
@@ -1003,7 +1013,7 @@ export const useAppStore = create<AppState>()(
       }
       set((s) => ({
         posts: [newPost, ...s.posts],
-        ...(hasPromptedHome ? {} : { showHomePrompt: true, hasPromptedHome: true }),
+        ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
       }))
       return
     }
@@ -1042,7 +1052,7 @@ export const useAppStore = create<AppState>()(
     }
     set((s) => ({
       posts: [newPost, ...s.posts],
-      ...(hasPromptedHome ? {} : { showHomePrompt: true, hasPromptedHome: true }),
+      ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
     }))
   },
 
@@ -1248,7 +1258,7 @@ export const useAppStore = create<AppState>()(
     set({ notifications })
   },
 
-  openRecordModal: () => set({ showRecordModal: true }),
+  openRecordModal: () => set((s) => ({ showRecordModal: true, recordUseCount: s.recordUseCount + 1 })),
   closeRecordModal: () => set({ showRecordModal: false }),
 
   openSyncSheet: (user) => {
@@ -1727,6 +1737,8 @@ export const useAppStore = create<AppState>()(
       onboardingFollowed: new Set(),
       syncedList: new Set(),
       homeScreenIsRecord: false,
+      feedVisitCount: 0,
+      recordUseCount: 0,
       defaultVisibility: 'public',
       profileVisibility: 'public',
       nicknameEditInput: '',
@@ -1747,6 +1759,8 @@ export const useAppStore = create<AppState>()(
         chatUser: s.chatUser,
         homeScreenIsRecord: s.homeScreenIsRecord,
         hasPromptedHome: s.hasPromptedHome,
+        feedVisitCount: s.feedVisitCount,
+        recordUseCount: s.recordUseCount,
         defaultVisibility: s.defaultVisibility,
         profileVisibility: s.profileVisibility,
       }),

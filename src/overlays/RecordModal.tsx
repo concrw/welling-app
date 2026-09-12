@@ -230,7 +230,7 @@ export default function RecordModal() {
         </div>
       )}
 
-      <div data-testid="record-modal-backdrop" onClick={closeRecordModal} style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} />
+      <div data-testid="record-close" onClick={closeRecordModal} style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} />
       <div style={{ background: '#FFFFFF', borderRadius: '20px 20px 0 0', maxHeight: '88%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px', flexShrink: 0 }}>
           <div style={{ width: 28, height: 3, borderRadius: 2, background: '#EBEBEB' }} />
@@ -401,6 +401,7 @@ export default function RecordModal() {
 
             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageSelect} />
             <textarea
+              data-testid="record-input"
               value={recordText}
               onChange={(e) => setRecordText(e.target.value)}
               placeholder={M.overlays.recordPlaceholder}
@@ -412,6 +413,7 @@ export default function RecordModal() {
                 <svg width="16" height="16" viewBox="0 0 15 15" fill="none"><rect x="1" y="2.5" width="13" height="10" rx="2" stroke="#555" strokeWidth="1.4"/><circle cx="5.2" cy="6.5" r="1.4" stroke="#555" strokeWidth="1.2"/><path d="M1.5 11.5l3.5-3.5 2.5 2.5 2-2 4 3.5" stroke="#555" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
               <button
+                data-testid="record-submit"
                 onClick={handleTextRecord}
                 disabled={uploading}
                 style={{ flex: 1, padding: 13, borderRadius: 10, background: uploading ? '#CCCCCC' : '#111111', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: uploading ? 'default' : 'pointer', letterSpacing: '.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}

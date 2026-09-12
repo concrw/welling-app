@@ -41,6 +41,7 @@ export type Screen =
   | 'settings-profile-visibility'
   | 'settings-google-calendar'
   | 'settings-change-username'
+  | 'settings-delete-account'
 
 export type NavTab = 'feed' | 'explore' | 'ranking' | 'mypage'
 
@@ -377,6 +378,7 @@ interface AppState {
   setProfileVisibility: (v: 'public' | 'followers' | 'private') => Promise<void>
   setNicknameEditInput: (v: string) => void
   submitNicknameEdit: () => Promise<void>
+  deleteAccount: () => Promise<boolean>
   signOut: () => void
 
   saveRoutineGroups: (groups: RoutineGroupData[]) => Promise<void>
@@ -1390,6 +1392,63 @@ export const useAppStore = create<AppState>()(
     const { error } = await supabase.from('profiles').update({ nickname: trimmed }).eq('id', userId)
     if (error) set({ nickname: prevNickname })
   },
+
+  deleteAccount: async () => {
+    const { userId, isDemo } = get()
+    if (isDemo || !userId) {
+      // For demo mode, just sign out
+      get().signOut()
+      return true
+    }
+    
+    try {
+      // Call the Supabase RPC function to delete the account
+      const { error } = await supabase.rpc('delete_account')
+      
+      if (error) {
+        console.error('Account deletion error:', error)
+        return false
+      }
+
+      // Clear all local state
+      set({
+        nickname: '',
+        nicknameInput: '',
+        emailInput: '',
+        passwordInput: '',
+        authError: '',
+        isDemo: false,
+        userId: null,
+        isAdmin: false,
+        posts: [...SAMPLE_POSTS, ...generateHistoricalPosts()],
+        notifications: SAMPLE_NOTIFS,
+        followedUsers: new Set(),
+        onboardingFollowed: new Set(),
+        syncedList: new Set(),
+        homeScreenIsRecord: false,
+        defaultVisibility: 'public',
+        profileVisibility: 'public',
+        nicknameEditInput: '',
+        screen: 'onboarding-username',
+        prevScreen: null,
+        navTab: 'feed',
+      })
+
+      // Clear localStorage
+      try { 
+        localStorage.removeItem('welling_v1') 
+      } catch (_) {}
+
+      // Sign out from Supabase (cleanup session)
+      await supabase.auth.signOut()
+
+      return true
+    } catch (error) {
+      console.error('Unexpected error during account deletion:', error)
+      return false
+    }
+  },
+
   saveRoutineGroups: async (groups) => {
     const { userId, isDemo, currentRoutineGroupIds } = get()
     set({ routineGroups: groups })

@@ -60,7 +60,8 @@ These tests were written before the group-first restructure and expect:
 - Basic group creation flow
 - Share screen rendering
 - Quick post functionality
-- **Runs in demo/mocked mode** - does not require Supabase
+- **Status**: Currently requires Supabase credentials (app initializes with Supabase client)
+- Tests document expected flows but need environment setup to run
 
 ## Running Tests
 

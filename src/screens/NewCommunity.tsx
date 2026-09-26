@@ -1,19 +1,15 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
-import { useMessages } from '../i18n'
 import { supabase } from '../lib/supabaseClient'
 
 export default function NewCommunity() {
-  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const navigate = useAppStore((s) => s.navigate)
-  const userId = useAppStore((s) => s.userId)
   
   const [groupName, setGroupName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [showShareScreen, setShowShareScreen] = useState(false)
-  const [inviteCode, setInviteCode] = useState('')
   const [inviteUrl, setInviteUrl] = useState('')
   const [copied, setCopied] = useState(false)
 
@@ -41,7 +37,6 @@ export default function NewCommunity() {
       if (result.status === 'success') {
         const code = result.invite_code
         const url = `${window.location.origin}/?invite=${code}`
-        setInviteCode(code)
         setInviteUrl(url)
         setShowShareScreen(true)
         setCreating(false)

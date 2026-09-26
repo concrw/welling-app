@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { supabase } from '../lib/supabaseClient'
+import { useMessages } from '../i18n'
 
 export default function SettingsDeleteAccount() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const nickname = useAppStore((s) => s.nickname)
   const signOut = useAppStore((s) => s.signOut)
@@ -24,7 +26,7 @@ export default function SettingsDeleteAccount() {
     try {
       const { error: rpcError } = await supabase.rpc('delete_account')
       if (rpcError) {
-        setError(rpcError.message || messages.deleteAccount.errorGeneric)
+        setError(rpcError.message || M.deleteAccount.errorGeneric)
         setDeleting(false)
         return
       }
@@ -33,7 +35,7 @@ export default function SettingsDeleteAccount() {
       await supabase.auth.signOut()
       signOut()
     } catch (err) {
-      setError(messages.deleteAccount.errorGeneric)
+      setError(M.deleteAccount.errorGeneric)
       setDeleting(false)
     }
   }

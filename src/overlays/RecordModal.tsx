@@ -143,7 +143,7 @@ export default function RecordModal() {
       <div onClick={() => closeRecordModal()} style={{ flex: 1, cursor: 'pointer', background: 'rgba(0,0,0,.5)' }} />
       <div style={{ background: '#FFFFFF', borderRadius: '24px 24px 0 0', paddingTop: 20, paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '0 20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 18, fontWeight: 800, color: '#111111' }}>{M.overlays.recordTitle}</span>
+          <span style={{ fontSize: 18, fontWeight: 800, color: '#111111' }}>기록하기</span>
           <button onClick={() => closeRecordModal()} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
             <svg width="24" height="24" fill="none">
               <path d="M6 6l12 12M18 6L6 18" stroke="#AAAAAA" strokeWidth="2" strokeLinecap="round" />
@@ -269,24 +269,28 @@ export default function RecordModal() {
             <div style={{ marginBottom: 16 }}>
               <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#AAAAAA' }}>카테고리</p>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {(['habit', 'diet', 'exercise', 'reflection', 'routine'] as PostCategory[]).map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setRecordCategory(cat)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 20,
-                      fontSize: 12,
-                      fontWeight: recordCategory === cat ? 700 : 400,
-                      background: recordCategory === cat ? '#111111' : 'transparent',
-                      color: recordCategory === cat ? '#fff' : '#666666',
-                      border: `1px solid ${recordCategory === cat ? '#111111' : '#E0E0E0'}`,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {M.overlays[`category_${cat}` as keyof typeof M.overlays]}
-                  </button>
-                ))}
+                {(['habit', 'diet', 'exercise', 'reflection', 'routine'] as PostCategory[]).map((cat) => {
+                  const key = `category_${cat}` as keyof typeof M.overlays
+                  const label = typeof M.overlays[key] === 'string' ? M.overlays[key] as string : cat
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setRecordCategory(cat)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: recordCategory === cat ? 700 : 400,
+                        background: recordCategory === cat ? '#111111' : 'transparent',
+                        color: recordCategory === cat ? '#fff' : '#666666',
+                        border: `1px solid ${recordCategory === cat ? '#111111' : '#E0E0E0'}`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -294,24 +298,28 @@ export default function RecordModal() {
             <div style={{ marginBottom: 16 }}>
               <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#AAAAAA' }}>공개 범위</p>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {(['group', 'public', 'followers', 'private'] as PostVisibility[]).map((vis) => (
-                  <button
-                    key={vis}
-                    onClick={() => setRecordVisibility(vis)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 20,
-                      fontSize: 12,
-                      fontWeight: recordVisibility === vis ? 700 : 400,
-                      background: recordVisibility === vis ? '#111111' : 'transparent',
-                      color: recordVisibility === vis ? '#fff' : '#666666',
-                      border: `1px solid ${recordVisibility === vis ? '#111111' : '#E0E0E0'}`,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {M.overlays[`visibility_${vis}` as keyof typeof M.overlays]}
-                  </button>
-                ))}
+                {(['group', 'public', 'followers', 'private'] as PostVisibility[]).map((vis) => {
+                  const key = `visibility_${vis}` as keyof typeof M.overlays
+                  const label = typeof M.overlays[key] === 'string' ? M.overlays[key] as string : vis
+                  return (
+                    <button
+                      key={vis}
+                      onClick={() => setRecordVisibility(vis)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: recordVisibility === vis ? 700 : 400,
+                        background: recordVisibility === vis ? '#111111' : 'transparent',
+                        color: recordVisibility === vis ? '#fff' : '#666666',
+                        border: `1px solid ${recordVisibility === vis ? '#111111' : '#E0E0E0'}`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 

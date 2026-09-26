@@ -34,10 +34,16 @@ export default function CommunitySettings() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [showTransferConfirm, setShowTransferConfirm] = useState(false)
   const [transferTarget, setTransferTarget] = useState<Member | null>(null)
+  const [isMuted, setIsMuted] = useState(false)
 
   useEffect(() => {
     if (!selectedCommunity || !userId) return
     loadSettings()
+    
+    // Load mute status from store
+    const store = useAppStore.getState()
+    const muteSettings = store.commNotifSettings.find((s) => s.id === selectedCommunity.id)
+    setIsMuted(!(muteSettings?.master ?? true)) // master=true means unmuted
   }, [selectedCommunity, userId])
 
   const loadSettings = async () => {
@@ -256,6 +262,24 @@ export default function CommunitySettings() {
     setTransferTarget(null)
   }
 
+  const handleToggleMute = () => {
+    if (!selectedCommunity) return
+    
+    const newMuted = !isMuted
+    const { commNotifSettings } = useAppStore.getState()
+    const existing = commNotifSettings.find((s) => s.id === selectedCommunity.id)
+    
+    const updated = commNotifSettings.filter((s) => s.id !== selectedCommunity.id)
+    updated.push({
+      id: selectedCommunity.id,
+      master: !newMuted, // master=true means unmuted
+      options: existing?.options ?? [],
+    })
+    
+    useAppStore.setState({ commNotifSettings: updated })
+    setIsMuted(newMuted)
+  }
+
   if (!selectedCommunity) {
     return null
   }
@@ -394,6 +418,42 @@ export default function CommunitySettings() {
               <p style={{ margin: '8px 0 0', fontSize: 12, color: '#999999' }}>
                 링크가 유출되었다면 재생성하세요. 기존 링크는 무효화됩니다.
               </p>
+            </div>
+
+            {/* Notification mute toggle */}
+            <div style={{ padding: '16px', background: '#F8F9FA', borderRadius: 12, marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111111' }}>알림 끄기</p>
+                  <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>이 그룹의 알림을 받지 않습니다</p>
+                </div>
+                <button
+                  onClick={handleToggleMute}
+                  style={{
+                    width: 48,
+                    height: 28,
+                    borderRadius: 14,
+                    background: isMuted ? '#DC2626' : '#CCCCCC',
+                    border: 'none',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 12,
+                      background: '#FFFFFF',
+                      position: 'absolute',
+                      top: 2,
+                      left: isMuted ? 22 : 2,
+                      transition: 'left 0.2s',
+                    }}
+                  />
+                </button>
+              </div>
             </div>
 
             {myRole === 'owner' && (

@@ -915,6 +915,36 @@ export const useAppStore = create<AppState>()(
       return { onboardingFollowed: next }
     }),
 
+  searchProfiles: async (query) => {
+    const { userId, isDemo } = get()
+    if (isDemo || !userId) return
+    if (!query.trim()) {
+      set({ suggestedUsers: [] })
+      return
+    }
+    const { data, error } = await supabase.rpc('search_profiles', { p_query: query, p_limit: 20 })
+    if (error || !data) {
+      set({ suggestedUsers: [] })
+      return
+    }
+    const palette = ['#0984E3', '#00A389', '#7C3AED', '#B45309', '#1A6B4A', '#C2600A']
+    const suggestedUsers: User[] = data.map((p: any, i: number) => ({
+      id: p.id,
+      name: p.nickname,
+      handle: p.nickname,
+      initials: p.nickname[0]?.toUpperCase() ?? '?',
+      color: palette[i % palette.length],
+      bio: p.bio ?? '',
+      followers: 0,
+      following: 0,
+      followed: false,
+      synced: false,
+      routines: [],
+      routineGoals: [],
+    }))
+    set({ suggestedUsers })
+  },
+
   loadSuggestedUsers: async () => {
     const { userId, isDemo } = get()
     if (isDemo || !userId) return

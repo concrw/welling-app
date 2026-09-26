@@ -19,11 +19,7 @@ import Settings from './screens/Settings'
 import CommNotifications from './screens/CommNotifications'
 import Notifications from './screens/Notifications'
 import Alarm from './screens/Alarm'
-import Messages from './screens/Messages'
-import ChatThread from './screens/ChatThread'
 import AdminUsers from './screens/AdminUsers'
-import AdminAds from './screens/AdminAds'
-import AdPage from './screens/AdPage'
 import EveningReflection from './screens/EveningReflection'
 import SettingsHomeScreen from './screens/SettingsHomeScreen'
 import SettingsDefaultVisibility from './screens/SettingsDefaultVisibility'
@@ -31,12 +27,10 @@ import SettingsProfileVisibility from './screens/SettingsProfileVisibility'
 import SettingsGoogleCalendar from './screens/SettingsGoogleCalendar'
 import SettingsChangeUsername from './screens/SettingsChangeUsername'
 import BottomNav from './components/BottomNav'
-import AdStrip from './components/AdStrip'
 import RecordModal from './overlays/RecordModal'
 import PostDetailSheet from './overlays/PostDetailSheet'
 import SyncConfirmSheet from './overlays/SyncConfirmSheet'
 import SyncAlarm from './overlays/SyncAlarm'
-import AdModal from './overlays/AdModal'
 import HomePrompt from './overlays/HomePrompt'
 import WelcomeAnimation from './overlays/WelcomeAnimation'
 
@@ -50,7 +44,6 @@ export default function App() {
 
   const isOnboarding = ONBOARDING_SCREENS.includes(screen)
   const showNav = NAV_SCREENS.includes(screen)
-  const showAdStrip = !isOnboarding && (screen === 'mypage' || screen === 'other-profile' || screen === 'community-detail')
 
   if (authInitializing && !isDemo) {
     return <div style={{ minHeight: '100dvh', background: '#FFFFFF' }} />
@@ -88,11 +81,7 @@ export default function App() {
           {screen === 'comm-notifications' && <CommNotifications />}
           {screen === 'notifications' && <Notifications />}
           {screen === 'alarm' && <Alarm />}
-          {screen === 'messages' && <Messages />}
-          {screen === 'chat-thread' && <ChatThread />}
           {screen === 'admin-users' && <AdminUsers />}
-          {screen === 'admin-ads' && <AdminAds />}
-          {screen === 'ad-page' && <AdPage />}
           {screen === 'evening-reflection' && <EveningReflection />}
           {screen === 'settings-home-screen' && <SettingsHomeScreen />}
           {screen === 'settings-default-visibility' && <SettingsDefaultVisibility />}
@@ -100,20 +89,12 @@ export default function App() {
           {screen === 'settings-google-calendar' && <SettingsGoogleCalendar />}
           {screen === 'settings-change-username' && <SettingsChangeUsername />}
         </div>
-        {showAdStrip && (
-          <AdStrip
-            slotKey={
-              screen === 'mypage' ? 'mypage' : screen === 'community-detail' ? 'community-detail' : 'otherProfile'
-            }
-          />
-        )}
       </div>
       {showNav && <BottomNav />}
       <RecordModal />
       <PostDetailSheet />
       <SyncConfirmSheet />
       <SyncAlarm />
-      <AdModal />
       <HomePrompt />
       <WelcomeAnimation />
     </div>

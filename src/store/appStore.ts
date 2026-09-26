@@ -335,6 +335,7 @@ interface AppState {
   toggleFollowUser: (userId: string) => Promise<void>
   toggleFollowOnboard: (userId: string) => void
   loadSuggestedUsers: () => Promise<void>
+  searchProfiles: (query: string) => Promise<void>
   toggleJoinCommunity: (communityId: string) => Promise<void>
   toggleLikePost: (postId: string) => Promise<void>
   toggleReaction: (postId: string, reactionType: string) => Promise<void>
@@ -916,8 +917,9 @@ export const useAppStore = create<AppState>()(
   loadSuggestedUsers: async () => {
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
+    // DEPRECATED: Load limited initial set only. Use searchProfiles for search.
     const [{ data: profileRows }, { data: followRows }, { data: countRows }] = await Promise.all([
-      supabase.from('profiles').select('id, nickname, bio').neq('id', userId),
+      supabase.from('profiles').select('id, nickname, bio').neq('id', userId).limit(20),
       supabase.from('follows').select('followee_id').eq('follower_id', userId),
       supabase.from('follow_counts').select('*'),
     ])

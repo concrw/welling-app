@@ -109,6 +109,7 @@ export default function App() {
           {screen === 'settings-profile-visibility' && <SettingsProfileVisibility />}
           {screen === 'settings-google-calendar' && <SettingsGoogleCalendar />}
           {screen === 'settings-change-username' && <SettingsChangeUsername />}
+          {screen === 'settings-delete-account' && <SettingsDeleteAccount />}
         </div>
       </div>
       {showNav && <BottomNav />}

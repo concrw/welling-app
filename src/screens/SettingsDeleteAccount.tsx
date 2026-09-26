@@ -24,7 +24,7 @@ export default function SettingsDeleteAccount() {
     try {
       const { error: rpcError } = await supabase.rpc('delete_account')
       if (rpcError) {
-        setError(rpcError.message || M.deleteAccount.errorGeneric)
+        setError(rpcError.message || messages.deleteAccount.errorGeneric)
         setDeleting(false)
         return
       }
@@ -33,7 +33,7 @@ export default function SettingsDeleteAccount() {
       await supabase.auth.signOut()
       signOut()
     } catch (err) {
-      setError(M.deleteAccount.errorGeneric)
+      setError(messages.deleteAccount.errorGeneric)
       setDeleting(false)
     }
   }

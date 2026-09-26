@@ -17,6 +17,8 @@ ALTER TABLE notifications
   ADD COLUMN IF NOT EXISTS actor_count int DEFAULT 1;
 
 -- type check 제약 확장
+-- PRE-RUN VERIFICATION: Run `SELECT DISTINCT type FROM notifications;` on live DB
+-- to confirm no unknown types exist, as this constraint will fail on existing rows with other types.
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 ALTER TABLE notifications
   ADD CONSTRAINT notifications_type_check
@@ -59,12 +61,14 @@ DELETE FROM notifications n
 USING dupes d
 WHERE n.id = ANY(d.ids[2:]);
 
--- Step 2b: Create unique index backing the ON CONFLICT
-CREATE UNIQUE INDEX IF NOT EXISTS notifications_unread_like_uniq
-  ON notifications (user_id, post_id, type)
-  WHERE read = false AND post_id IS NOT NULL;
+-- Step 2b: Drop old index, create new scoped to likes only
+DROP INDEX IF EXISTS notifications_unread_like_uniq;
 
--- Step 2c: Trigger function with correct ON CONFLICT predicate
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_unread_like_uniq_v2
+  ON notifications (user_id, post_id)
+  WHERE type = 'like' AND read = false AND post_id IS NOT NULL;
+
+-- Step 2c: Trigger function with matching ON CONFLICT predicate
 CREATE OR REPLACE FUNCTION notify_on_post_like()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -95,7 +99,7 @@ BEGIN
     1,
     now()
   )
-  ON CONFLICT (user_id, post_id, type) WHERE read = false AND post_id IS NOT NULL
+  ON CONFLICT (user_id, post_id) WHERE type = 'like' AND read = false AND post_id IS NOT NULL
   DO UPDATE SET
     actor_count = notifications.actor_count + 1,
     actor_id = NEW.user_id, -- 가장 최근 응원한 사람

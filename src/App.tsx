@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useAppStore } from './store/appStore'
 import Onboarding from './screens/Onboarding'
 import ResetPassword from './screens/ResetPassword'
@@ -41,6 +42,25 @@ export default function App() {
   const screen = useAppStore((s) => s.screen)
   const authInitializing = useAppStore((s) => s.authInitializing)
   const isDemo = useAppStore((s) => s.isDemo)
+  const checkPendingInvite = useAppStore((s) => s.checkPendingInvite)
+
+  // Parse invite code from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const inviteCode = params.get('invite')
+    if (inviteCode) {
+      localStorage.setItem('welling_pending_invite', JSON.stringify({
+        code: inviteCode,
+        savedAt: Date.now(),
+      }))
+      // Remove invite from URL without reload
+      const url = new URL(window.location.href)
+      url.searchParams.delete('invite')
+      window.history.replaceState({}, '', url.toString())
+    }
+    // Check for pending invite after URL parsing
+    checkPendingInvite()
+  }, [checkPendingInvite])
 
   const isOnboarding = ONBOARDING_SCREENS.includes(screen)
   const showNav = NAV_SCREENS.includes(screen)

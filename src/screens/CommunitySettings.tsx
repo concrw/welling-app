@@ -22,7 +22,6 @@ export default function CommunitySettings() {
   const userId = useAppStore((s) => s.userId)
   const navigate = useAppStore((s) => s.navigate)
   
-  const [inviteCode, setInviteCode] = useState('')
   const [inviteUrl, setInviteUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [rotating, setRotating] = useState(false)
@@ -54,7 +53,6 @@ export default function CommunitySettings() {
       .single()
     
     if (commData) {
-      setInviteCode(commData.invite_code)
       setInviteUrl(`${window.location.origin}/?invite=${commData.invite_code}`)
       setRequiresApproval(commData.requires_approval ?? false)
     }
@@ -232,7 +230,7 @@ export default function CommunitySettings() {
   const handleLeave = async () => {
     if (!selectedCommunity) return
     
-    const { data, error } = await supabase.rpc('leave_group', {
+    const { error } = await supabase.rpc('leave_group', {
       p_community_id: selectedCommunity.id,
     })
     

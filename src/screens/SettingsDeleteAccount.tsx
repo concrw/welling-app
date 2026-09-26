@@ -14,7 +14,7 @@ export default function SettingsDeleteAccount() {
 
   const handleDelete = async () => {
     if (confirmText !== nickname) {
-      setError('닉네임이 일치하지 않습니다')
+      setError(M.deleteAccount.errorMismatch)
       return
     }
 
@@ -24,7 +24,7 @@ export default function SettingsDeleteAccount() {
     try {
       const { error: rpcError } = await supabase.rpc('delete_account')
       if (rpcError) {
-        setError(rpcError.message || '삭제 중 오류가 발생했습니다')
+        setError(rpcError.message || M.deleteAccount.errorGeneric)
         setDeleting(false)
         return
       }
@@ -33,7 +33,7 @@ export default function SettingsDeleteAccount() {
       await supabase.auth.signOut()
       signOut()
     } catch (err) {
-      setError('삭제 중 오류가 발생했습니다')
+      setError(M.deleteAccount.errorGeneric)
       setDeleting(false)
     }
   }
@@ -46,24 +46,24 @@ export default function SettingsDeleteAccount() {
             <path d="M15 18l-6-6 6-6" stroke="#111111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <span style={{ fontSize: 18, fontWeight: 800, color: '#111111' }}>계정 삭제</span>
+        <span style={{ fontSize: 18, fontWeight: 800, color: '#111111' }}>{M.deleteAccount.title}</span>
       </div>
 
       <div style={{ flex: 1, padding: '20px 20px calc(20px + env(safe-area-inset-bottom))' }}>
         <div style={{ marginBottom: 24, padding: 20, background: '#FFF3CD', borderRadius: 12, border: '1px solid #FFE69C' }}>
           <p style={{ margin: 0, fontSize: 14, color: '#856404', lineHeight: 1.6 }}>
-            <strong>⚠️ 주의:</strong> 계정 삭제는 되돌릴 수 없습니다. 모든 게시물, 댓글, 루틴 데이터가 영구적으로 삭제됩니다.
+            <strong>{M.deleteAccount.warning}</strong> {M.deleteAccount.warningText}
           </p>
         </div>
 
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: '#111111' }}>삭제될 데이터:</h3>
+          <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: '#111111' }}>{M.deleteAccount.deleteTitle}</h3>
           <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: '#666666', lineHeight: 2 }}>
-            <li>프로필 정보 및 닉네임</li>
-            <li>모든 게시물 및 댓글</li>
-            <li>루틴 및 캘린더 데이터</li>
-            <li>알림 설정 및 기록</li>
-            <li>소유한 커뮤니티 (소유권이 다른 멤버에게 이전됩니다)</li>
+            <li>{M.deleteAccount.dataProfile}</li>
+            <li>{M.deleteAccount.dataPosts}</li>
+            <li>{M.deleteAccount.dataRoutine}</li>
+            <li>{M.deleteAccount.dataNotifs}</li>
+            <li>{M.deleteAccount.dataCommunities}</li>
           </ul>
         </div>
 
@@ -82,12 +82,12 @@ export default function SettingsDeleteAccount() {
               cursor: 'pointer',
             }}
           >
-            계정 삭제 진행
+            {M.deleteAccount.btnProceed}
           </button>
         ) : (
           <div style={{ border: '2px solid #DC3545', borderRadius: 12, padding: 20, background: '#FFF5F5' }}>
             <p style={{ margin: '0 0 16px', fontSize: 14, color: '#111111', lineHeight: 1.6 }}>
-              계정 삭제를 확인하려면 닉네임 <strong>{nickname}</strong>을(를) 입력하세요:
+              {M.deleteAccount.confirmPrompt(nickname || '')}
             </p>
             <input
               type="text"
@@ -122,7 +122,7 @@ export default function SettingsDeleteAccount() {
                   cursor: 'pointer',
                 }}
               >
-                취소
+                {M.deleteAccount.cancel}
               </button>
               <button
                 onClick={handleDelete}
@@ -139,7 +139,7 @@ export default function SettingsDeleteAccount() {
                   cursor: confirmText === nickname && !deleting ? 'pointer' : 'not-allowed',
                 }}
               >
-                {deleting ? '삭제 중...' : '영구 삭제'}
+                {deleting ? M.deleteAccount.btnDeleting : M.deleteAccount.btnDelete}
               </button>
             </div>
           </div>

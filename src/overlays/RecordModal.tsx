@@ -59,6 +59,7 @@ export default function RecordModal() {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   useEffect(() => {
     if (!activeTimer) return
@@ -80,12 +81,22 @@ export default function RecordModal() {
   }, [activeTimer])
 
   // 커뮤니티 상세에서 "기록 남기기"로 열었으면 그 커뮤니티를 미리 선택해 둔다.
+  // 없으면 활성 탭 or 첫 번째 가입 그룹을 기본 선택
+  const activeCommunityTab = useAppStore((s) => s.activeCommunityTab)
   useEffect(() => {
     if (!showRecordModal) return
-    if (!pendingRecordCommunityId) return
-    setRecordCommunityId(pendingRecordCommunityId)
-    setPendingRecordCommunityId(null)
-  }, [showRecordModal, pendingRecordCommunityId, setPendingRecordCommunityId])
+    if (pendingRecordCommunityId) {
+      setRecordCommunityId(pendingRecordCommunityId)
+      setPendingRecordCommunityId(null)
+    } else if (!recordCommunityId) {
+      const joinedCommunities = communities.filter((c) => c.joined)
+      if (activeCommunityTab && activeCommunityTab !== 'all') {
+        setRecordCommunityId(activeCommunityTab)
+      } else if (joinedCommunities.length > 0) {
+        setRecordCommunityId(joinedCommunities[0].id)
+      }
+    }
+  }, [showRecordModal, pendingRecordCommunityId, setPendingRecordCommunityId, recordCommunityId, activeCommunityTab, communities])
 
   if (!showRecordModal) return null
 
@@ -177,11 +188,21 @@ export default function RecordModal() {
 
   const handleTextRecord = () => {
     if (!recordText.trim()) return
-    if (looksUnrelatedToCategory(recordText, recordCategory)) {
+    // Show guideline warning only for public posts
+    if (recordVisibility === 'public' && looksUnrelatedToCategory(recordText, recordCategory)) {
       setShowGuidelineWarning(true)
       return
     }
     submitTextRecord()
+  }
+  
+  const handleQuickPost = async (category: 'diet' | 'exercise') => {
+    const label = category === 'diet' ? '먹었어' : '운동했어'
+    const vis = defaultVisibility === 'public' ? 'group' : defaultVisibility
+    const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
+    addPost(label, undefined, category, vis, communityId)
+    showToast(M.overlays.recordDoneWithLabel(label))
+    setTimeout(() => closeRecordModal(), 400)
   }
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

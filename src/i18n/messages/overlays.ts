@@ -24,10 +24,12 @@ const ko = {
   categoryLabels: {
     habit: '습관',
     diet: '식단',
+    exercise: '운동',
     reflection: '저녁 단상',
     routine: '루틴 공유',
   },
   visibilityLabels: {
+    group: '그룹',
     public: '전체공개',
     followers: '친구만',
     private: '비공개',
@@ -94,10 +96,12 @@ const en: typeof ko = {
   categoryLabels: {
     habit: 'Habit',
     diet: 'Diet',
+    exercise: 'Exercise',
     reflection: 'Evening Notes',
     routine: 'Routine Share',
   },
   visibilityLabels: {
+    group: 'Group',
     public: 'Public',
     followers: 'Friends Only',
     private: 'Private',

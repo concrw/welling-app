@@ -1,8 +1,5 @@
-export { adminAds } from './admin-ads'
 export { adminUsers } from './admin-users'
-export { ads } from './ads'
 export { alarm } from './alarm'
-export { chat } from './chat'
 export { commNotifications } from './comm-notifications'
 export { common } from './common'
 export { communityDetail } from './community-detail'

@@ -37,20 +37,9 @@ $$;
 ALTER TABLE communities
   ADD COLUMN IF NOT EXISTS invite_code text UNIQUE,
   ADD COLUMN IF NOT EXISTS invite_expires_at timestamptz,
-  ADD COLUMN IF NOT EXISTS max_members int DEFAULT 30,
   ADD COLUMN IF NOT EXISTS member_count int DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS requires_approval boolean DEFAULT false,
   ADD COLUMN IF NOT EXISTS archived_at timestamptz;
-
--- check 제약: max_members 범위
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'communities_max_members_check' AND conrelid = 'communities'::regclass
-  ) THEN
-    ALTER TABLE communities ADD CONSTRAINT communities_max_members_check CHECK (max_members >= 2 AND max_members <= 50);
-  END IF;
-END
-$$;
 
 -- 기본값 변경: 신규 행부터 visibility = 'private'
 -- 기존 행은 변경하지 않음
@@ -161,6 +150,21 @@ CREATE TABLE IF NOT EXISTS community_bans (
 );
 
 CREATE INDEX IF NOT EXISTS community_bans_user_id_idx ON community_bans (user_id);
+
+-- Join requests table for approval-required groups
+CREATE TABLE IF NOT EXISTS community_join_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  community_id text NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  requested_at timestamptz DEFAULT now(),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewed_by uuid REFERENCES profiles(id),
+  reviewed_at timestamptz,
+  UNIQUE(community_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS community_join_requests_community_id_idx ON community_join_requests (community_id, status);
+CREATE INDEX IF NOT EXISTS community_join_requests_user_id_idx ON community_join_requests (user_id);
 
 -- ============================================================================
 -- 4. 멤버 카운트 트리거

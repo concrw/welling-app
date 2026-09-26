@@ -337,7 +337,7 @@ DECLARE
   v_community RECORD;
   v_is_banned boolean;
   v_is_member boolean;
-  v_user_group_count int;
+  v_has_pending_request boolean;
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
@@ -345,7 +345,7 @@ BEGIN
   END IF;
 
   -- 커뮤니티 조회
-  SELECT id, name, member_count, max_members, invite_expires_at, archived_at
+  SELECT id, name, member_count, invite_expires_at, archived_at, requires_approval
   INTO v_community
   FROM communities
   WHERE invite_code = p_code;

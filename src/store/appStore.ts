@@ -37,6 +37,7 @@ export type Screen =
   | 'settings-profile-visibility'
   | 'settings-google-calendar'
   | 'settings-change-username'
+  | 'settings-delete-account'
 
 export type NavTab = 'feed' | 'explore' | 'ranking' | 'mypage'
 

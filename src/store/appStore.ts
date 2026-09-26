@@ -21,6 +21,7 @@ export type Screen =
   | 'community-detail'
   | 'new-community'
   | 'community-edit'
+  | 'community-settings'
   | 'routine-edit'
   | 'routine-history'
   | 'routine-privacy'

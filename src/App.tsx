@@ -11,6 +11,7 @@ import OtherProfile from './screens/OtherProfile'
 import CommunityDetail from './screens/CommunityDetail'
 import NewCommunity from './screens/NewCommunity'
 import CommunityEdit from './screens/CommunityEdit'
+import CommunitySettings from './screens/CommunitySettings'
 import RoutineEdit from './screens/RoutineEdit'
 import RoutineHistory from './screens/RoutineHistory'
 import RoutinePrivacy from './screens/RoutinePrivacy'
@@ -93,6 +94,7 @@ export default function App() {
           {screen === 'community-detail' && <CommunityDetail />}
           {screen === 'new-community' && <NewCommunity />}
           {screen === 'community-edit' && <CommunityEdit />}
+          {screen === 'community-settings' && <CommunitySettings />}
           {screen === 'routine-edit' && <RoutineEdit />}
           {screen === 'routine-history' && <RoutineHistory />}
           {screen === 'routine-privacy' && <RoutinePrivacy />}

@@ -54,11 +54,15 @@ export default function RecordModal() {
   }
 
   const handleQuickPost = async (category: 'diet' | 'exercise') => {
-    const label = category === 'diet' ? '먹었어' : '운동했어'
+    const now = new Date()
+    const timeLabel = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
+    const content = category === 'diet' 
+      ? `점심 먹었어 · ${timeLabel}` 
+      : `운동했어 · ${timeLabel}`
     const vis = defaultVisibility === 'public' ? 'group' : defaultVisibility
     const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
-    addPost(label, undefined, category, vis, communityId)
-    showToast(M.overlays.recordDoneWithLabel(label))
+    addPost(content, undefined, category, vis, communityId)
+    showToast(content)
     setTimeout(() => closeRecordModal(), 400)
   }
 

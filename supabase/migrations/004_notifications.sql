@@ -29,6 +29,42 @@ CREATE INDEX IF NOT EXISTS notifications_post_id_idx ON notifications (post_id) 
 -- 2. notify_on_post_like 트리거 개선 (응원 묶음)
 -- ============================================================================
 
+-- Step 2a: Dedupe existing unread like notifications (merge duplicates)
+WITH dupes AS (
+  SELECT user_id, post_id, type,
+         ARRAY_AGG(id ORDER BY created_at) as ids,
+         SUM(actor_count) as total_count,
+         MIN(created_at) as earliest_created
+  FROM notifications
+  WHERE type = 'like' AND read = false AND post_id IS NOT NULL
+  GROUP BY user_id, post_id, type
+  HAVING COUNT(*) > 1
+)
+UPDATE notifications n
+SET actor_count = d.total_count,
+    created_at = d.earliest_created
+FROM dupes d
+WHERE n.id = d.ids[1];
+
+-- Delete duplicate rows (keep first one per group)
+WITH dupes AS (
+  SELECT user_id, post_id, type,
+         ARRAY_AGG(id ORDER BY created_at) as ids
+  FROM notifications
+  WHERE type = 'like' AND read = false AND post_id IS NOT NULL
+  GROUP BY user_id, post_id, type
+  HAVING COUNT(*) > 1
+)
+DELETE FROM notifications n
+USING dupes d
+WHERE n.id = ANY(d.ids[2:]);
+
+-- Step 2b: Create unique index backing the ON CONFLICT
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_unread_like_uniq
+  ON notifications (user_id, post_id, type)
+  WHERE read = false AND post_id IS NOT NULL;
+
+-- Step 2c: Trigger function with correct ON CONFLICT predicate
 CREATE OR REPLACE FUNCTION notify_on_post_like()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -59,7 +95,7 @@ BEGIN
     1,
     now()
   )
-  ON CONFLICT (user_id, post_id, type) WHERE read = false
+  ON CONFLICT (user_id, post_id, type) WHERE read = false AND post_id IS NOT NULL
   DO UPDATE SET
     actor_count = notifications.actor_count + 1,
     actor_id = NEW.user_id, -- 가장 최근 응원한 사람

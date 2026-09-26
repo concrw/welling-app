@@ -39,12 +39,22 @@ export default function CommunitySettings() {
   useEffect(() => {
     if (!selectedCommunity || !userId) return
     loadSettings()
-    
-    // Load mute status from store
-    const store = useAppStore.getState()
-    const muteSettings = store.commNotifSettings.find((s) => s.id === selectedCommunity.id)
-    setIsMuted(!(muteSettings?.master ?? true)) // master=true means unmuted
+    loadMuteStatus()
   }, [selectedCommunity, userId])
+
+  const loadMuteStatus = async () => {
+    if (!selectedCommunity || !userId) return
+    
+    // Load server-side mute status
+    const { data } = await supabase
+      .from('community_members')
+      .select('notifications_muted')
+      .eq('community_id', selectedCommunity.id)
+      .eq('user_id', userId)
+      .single()
+    
+    setIsMuted(data?.notifications_muted ?? false)
+  }
 
   const loadSettings = async () => {
     if (!selectedCommunity) return
@@ -262,10 +272,23 @@ export default function CommunitySettings() {
     setTransferTarget(null)
   }
 
-  const handleToggleMute = () => {
+  const handleToggleMute = async () => {
     if (!selectedCommunity) return
     
     const newMuted = !isMuted
+    
+    // Call RPC to update server-side
+    const { data, error } = await supabase.rpc('toggle_community_notifications', {
+      p_community_id: selectedCommunity.id,
+      p_muted: newMuted,
+    })
+    
+    if (error || data?.status !== 'success') {
+      console.error('Failed to toggle notifications:', error || data)
+      return
+    }
+    
+    // Update local state on success
     const { commNotifSettings } = useAppStore.getState()
     const existing = commNotifSettings.find((s) => s.id === selectedCommunity.id)
     

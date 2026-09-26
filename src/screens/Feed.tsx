@@ -21,6 +21,7 @@ export default function Feed() {
   const nickname = useAppStore((s) => s.nickname)
   const openRecordModal = useAppStore((s) => s.openRecordModal)
   const loadFeedData = useAppStore((s) => s.loadFeedData)
+  const selectCommunity = useAppStore((s) => s.selectCommunity)
   
   const [quietBannerDismissed, setQuietBannerDismissed] = useState(false)
   const [communityTabOrder, setCommunityTabOrder] = useState<string[]>([])
@@ -119,6 +120,13 @@ export default function Feed() {
         onNavigateNotifications={() => navigate('notifications')}
         joinedCount={joinedCommunities.length}
         onCreateGroup={() => navigate('new-community')}
+        onOpenGroupSettings={(groupId) => {
+          const group = allTabs.find((t) => t.id === groupId)
+          if (group) {
+            selectCommunity(group)
+            navigate('community-settings')
+          }
+        }}
       />
 
       {showQuietBanner && (

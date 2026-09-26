@@ -12,6 +12,7 @@ export function FeedHeader({
   onNavigateNotifications,
   joinedCount,
   onCreateGroup,
+  onOpenGroupSettings,
 }: {
   activeCommunityTab: string
   setActiveCommunityTab: (id: string) => void
@@ -22,6 +23,7 @@ export function FeedHeader({
   onNavigateNotifications: () => void
   joinedCount?: number
   onCreateGroup?: () => void
+  onOpenGroupSettings?: (groupId: string) => void
 }) {
   const M = useMessages()
   const [logoError, setLogoError] = useState(false)
@@ -102,15 +104,25 @@ export function FeedHeader({
           ? <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: -0.5, color: '#111111' }}>WELLING</span>
           : <img src="/uploads/welling-black.png" style={{ height: 21, width: 'auto' }} alt={M.feed.logoAlt} onError={() => setLogoError(true)} />
         }
-        <button onClick={onNavigateNotifications} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M10 2a6 6 0 016 6v2l1.5 3H2.5L4 10V8a6 6 0 016-6z" stroke="#111111" strokeWidth="1.5" strokeLinejoin="round" />
-            <path d="M8.5 16a1.5 1.5 0 003 0" stroke="#111111" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          {hasUnread && (
-            <div style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: '#E53535', border: '1.5px solid #fff' }} />
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {onOpenGroupSettings && activeCommunityTab && activeCommunityTab !== 'all' && (
+            <button onClick={() => onOpenGroupSettings(activeCommunityTab)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" stroke="#111111" strokeWidth="1.5" />
+                <path d="M16.5 10a6.5 6.5 0 00-.29-1.94l1.31-.76-1-1.73-1.31.76a6.5 6.5 0 00-1.68-.97V4h-2v1.36c-.6.18-1.17.48-1.68.97l-1.31-.76-1 1.73 1.31.76A6.5 6.5 0 008.5 10c0 .68.1 1.33.29 1.94l-1.31.76 1 1.73 1.31-.76c.51.49 1.08.79 1.68.97V16h2v-1.36c.6-.18 1.17-.48 1.68-.97l1.31.76 1-1.73-1.31-.76A6.5 6.5 0 0016.5 10z" stroke="#111111" strokeWidth="1.5" />
+              </svg>
+            </button>
           )}
-        </button>
+          <button onClick={onNavigateNotifications} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M10 2a6 6 0 016 6v2l1.5 3H2.5L4 10V8a6 6 0 016-6z" stroke="#111111" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="M8.5 16a1.5 1.5 0 003 0" stroke="#111111" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            {hasUnread && (
+              <div style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: '#E53535', border: '1.5px solid #fff' }} />
+            )}
+          </button>
+        </div>
       </div>
       <div style={{ padding: '0 20px 14px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {joinedCount && joinedCount > 1 && (

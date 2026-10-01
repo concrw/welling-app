@@ -1,4 +1,9 @@
-# Migration Audit Report - VALIDATED v3 ON SCRATCH FIXTURE (not run on the live DB)
+# Migration Audit Report - v3 APPLIED ON LIVE, v4 (008) PENDING
+
+## Migration Status
+
+- **001-007**: ✅ Applied on live DB 2026-10-01 (after backup schema `backup_20261001`)
+- **008_rls_bans_requests.sql**: ⚠️ PENDING (security fix: RLS on bans/requests + approval RPCs)
 
 ## Critical Bugs Found & Fixed
 
@@ -36,9 +41,19 @@
 
 ## Validation Strategy
 
-**Status: validated v3 on a scratch Postgres 17 fixture built from the live schema (read via SQL editor), not run on the live DB.**
+**Status: 001-007 applied on live DB; 008 pending, UNTESTED (no Postgres in VM)**
 
-- Migrations 001-007 (with fixes in `fixes_v3.patch`) applied twice (`psql -v ON_ERROR_STOP=1 -1`) to a scratch PostgreSQL 17.11 database with tables, FKs (NO ACTION everywhere except CASCADE on post_comments/likes/reactions.post_id), CHECKs, policies, and live triggers recreated from the live schema. Seeded with 11 profiles, 7 communities (5 ownerless/empty), 143 posts (142 with community_id, 125 public posts by non-members), comments/likes/reactions/reports on legacy posts. No real Supabase database was touched.
-- **38 assertions PASS** (0 FAIL): group ops, approval, no member cap, like/comment notifications, RLS (incl. reactions/reports on group posts), owner transfer, delete_account with routines/reports/bans/reviews/legacy posts by non-members in sole-owner groups, search_profiles, mute, anon, live-like seed data, FK actions, exact policy set, old trigger dropped, admin update reports; see `REPORT_v3.md`.
-- 6 mutation checks confirm v3 fixes catch regressions (v2 005 fails with live NO ACTION FKs; missing policy drops leak data).
-- Unverified: live data volume/contents beyond seed pattern, tables/triggers/functions not in fixture, real Supabase auth internals, concurrency. See `REPORT_v3.md` "Remaining unverified items". Run pre-checks against live (read-only) before applying.
+### 001-007 (v3, Applied Live)
+- Validated v3 on scratch PostgreSQL 17.11 with exact live FKs (NO ACTION except 5 CASCADE), policies, triggers
+- Seeded: 11 profiles, 7 communities (5 ownerless/empty), 143 posts (125 public by non-members), legacy data
+- **38 assertions PASS** (0 FAIL): group ops, approval, no member cap, notifications, RLS, delete_account with legacy posts, search, mute, anon, FK actions, policy set, admin ops; see `REPORT_v3.md`
+- 6 mutation checks prove v3 catches v2 regressions
+- Applied on live DB 2026-10-01 after backup schema `backup_20261001`
+
+### 008 (v4, Pending)
+- **UNTESTED** - No Postgres available in VM
+- Security fix: Enables RLS on `community_bans`, `community_join_requests` (001 created without RLS)
+- New RPCs: `approve_join_request`, `reject_join_request`, `set_member_role` (SECURITY DEFINER, owner/admin only)
+- UI fixed: `src/screens/CommunitySettings.tsx` now uses RPCs instead of direct DB writes that violate post-003 RLS
+- Test suite: `supabase/tests/assertions_v4.sql` (6 assertions: RLS enabled, anon blocked, SELECT policy, approve/reject/role RPCs, bans RPC-only)
+- Recommended: Test on staging clone before applying live

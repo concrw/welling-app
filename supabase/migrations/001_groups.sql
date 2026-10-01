@@ -508,7 +508,8 @@ BEGIN
   SELECT role INTO v_caller_role FROM community_members WHERE community_id = p_community_id AND user_id = v_caller_id;
   SELECT is_admin INTO v_is_admin FROM profiles WHERE id = v_caller_id;
   
-  IF v_caller_role NOT IN ('owner', 'admin') AND NOT COALESCE(v_is_admin, false) THEN
+  -- NULL-safe: a non-member caller has v_caller_role = NULL; `NULL NOT IN (...)` is NULL (not true) and would skip this check
+  IF (v_caller_role IS NULL OR v_caller_role NOT IN ('owner', 'admin')) AND NOT COALESCE(v_is_admin, false) THEN
     RETURN json_build_object('status', 'not_authorized');
   END IF;
 
@@ -564,8 +565,14 @@ BEGIN
     RETURN json_build_object('status', 'not_found');
   END IF;
 
-  IF v_owner_id <> v_caller_id THEN
+  -- NULL-safe: ownerless legacy groups have owner_id = NULL; `NULL <> uuid` is NULL (not true) and would skip this check
+  IF v_owner_id IS DISTINCT FROM v_caller_id THEN
     RETURN json_build_object('status', 'not_owner');
+  END IF;
+
+  -- 자기 자신에게 이전 불가 (아래 두 UPDATE가 자기 role을 owner -> member로 덮어써서 owner_id만 남고 role이 member가 됨)
+  IF p_new_owner_id IS NULL OR p_new_owner_id = v_caller_id THEN
+    RETURN json_build_object('status', 'invalid_target');
   END IF;
 
   -- 대상이 멤버인지 확인
@@ -607,7 +614,8 @@ BEGIN
   -- 권한 확인: owner 또는 admin
   SELECT role INTO v_caller_role FROM community_members WHERE community_id = p_community_id AND user_id = v_caller_id;
   
-  IF v_caller_role NOT IN ('owner', 'admin') THEN
+  -- NULL-safe: a non-member caller has v_caller_role = NULL; `NULL NOT IN (...)` is NULL (not true) and would skip this check
+  IF v_caller_role IS NULL OR v_caller_role NOT IN ('owner', 'admin') THEN
     RETURN json_build_object('status', 'not_authorized');
   END IF;
 
@@ -651,7 +659,8 @@ BEGIN
   -- 권한 확인: owner 또는 admin
   SELECT role INTO v_caller_role FROM community_members WHERE community_id = p_community_id AND user_id = v_caller_id;
   
-  IF v_caller_role NOT IN ('owner', 'admin') THEN
+  -- NULL-safe: a non-member caller has v_caller_role = NULL; `NULL NOT IN (...)` is NULL (not true) and would skip this check
+  IF v_caller_role IS NULL OR v_caller_role NOT IN ('owner', 'admin') THEN
     RETURN json_build_object('status', 'not_authorized');
   END IF;
 

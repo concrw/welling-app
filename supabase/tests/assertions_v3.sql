@@ -359,5 +359,231 @@ DO $$ DECLARE trg text; n int; BEGIN
   PERFORM val.rec('x10.triggers_and_type_check', trg='notify_on_post_comment_trigger,notify_on_post_like_trigger' AND n=1 AND NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='on_post_like_notify'), format('triggers=%s type_check=%s old_live_trigger_present=%s', trg, n, EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='on_post_like_notify')));
 END $$;
 
+
+-- ============================================================================
+-- V3 additions: live FK ground truth (NO ACTION except 5 CASCADEs), exact live RLS set, live-like seed data
+-- ============================================================================
+CREATE OR REPLACE FUNCTION val.rows_as(u uuid, q text) RETURNS text LANGUAGE plpgsql AS $$
+DECLARE n bigint; r text;
+BEGIN
+  PERFORM val.as_user(u);
+  BEGIN EXECUTE q; GET DIAGNOSTICS n = ROW_COUNT; r := n::text; EXCEPTION WHEN OTHERS THEN r := 'ERR: '||SQLERRM; END;
+  EXECUTE 'RESET ROLE'; RETURN r;
+END $$;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA val TO PUBLIC;
+
+-- y1: 001-007 applied cleanly on live-like seed (7 communities / 6 ownerless / 5 empty / 2 members / 143 posts / 5 follow notifs)
+DO $$ DECLARE nn int; dup int; mc_bad text; empties text; roles text; nposts int; npl int; nnotif int; badtype int; ncomm int; nullable text; BEGIN
+  SELECT count(*) INTO ncomm FROM communities WHERE id LIKE 'comm-17590000000%';
+  SELECT count(*) INTO nn FROM communities WHERE invite_code IS NULL;
+  SELECT count(*) INTO dup FROM (SELECT invite_code FROM communities GROUP BY 1 HAVING count(*)>1) d;
+  SELECT string_agg(id||':'||member_count||'/'||(SELECT count(*) FROM community_members m WHERE m.community_id=c.id), ', ' ORDER BY id)
+    INTO mc_bad FROM communities c WHERE id LIKE 'comm-17590000000%' AND member_count <> (SELECT count(*) FROM community_members m WHERE m.community_id=c.id);
+  SELECT string_agg(id||'='||member_count, ',' ORDER BY id) INTO empties FROM communities c
+    WHERE id LIKE 'comm-17590000000%' AND owner_id IS NULL AND NOT EXISTS (SELECT 1 FROM community_members m WHERE m.community_id=c.id);
+  SELECT string_agg(right(user_id::text,2)||'='||role, ',' ORDER BY community_id) INTO roles FROM community_members WHERE community_id LIKE 'comm-17590000000%';
+  SELECT count(*) INTO nposts FROM posts WHERE id::text LIKE '10000000-%';
+  SELECT count(*) INTO npl FROM posts WHERE id::text LIKE '10000000-%' AND community_id IS NOT NULL AND visibility='public'
+     AND NOT EXISTS (SELECT 1 FROM community_members m WHERE m.community_id=posts.community_id AND m.user_id=posts.user_id);
+  SELECT count(*) INTO nnotif FROM notifications WHERE text='followed you' AND type='follow';
+  SELECT count(*) INTO badtype FROM notifications WHERE type NOT IN ('like','follow','comment','copy','report','group_join');
+  SELECT is_nullable INTO nullable FROM information_schema.columns WHERE table_name='communities' AND column_name='invite_code';
+  PERFORM val.rec('y1.migrations_on_live_like_seed_data',
+    ncomm=7 AND nn=0 AND dup=0 AND mc_bad IS NULL
+    AND empties = 'comm-1759000000003=0,comm-1759000000004=0,comm-1759000000005=0,comm-1759000000006=0,comm-1759000000007=0'
+    AND roles = '01=owner,02=member' AND nposts=143 AND npl>100 AND nnotif=5 AND badtype=0 AND nullable='NO',
+    format('seed communities=%s invite_code_nulls=%s dup_codes=%s member_count_mismatches=%s | ownerless+empty member_count: %s | roles(user suffix): %s | seed_posts=%s legacy_public_group_posts_by_nonmembers=%s | follow_notifs=%s bad_types=%s invite_code_nullable=%s', ncomm,nn,dup,coalesce(mc_bad,'none'),empties,roles,nposts,npl,nnotif,badtype,nullable));
+END $$;
+
+-- y2: FK delete actions on the pre-existing (live) tables == live ground truth: exactly 5 CASCADEs, everything else NO ACTION
+DO $$ DECLARE casc text; other text; nfk int; BEGIN
+  WITH fk AS (
+    SELECT k.conrelid::regclass::text||'.'||a.attname AS col, k.confdeltype d
+    FROM pg_constraint k JOIN pg_attribute a ON a.attrelid=k.conrelid AND a.attnum=k.conkey[1]
+    WHERE k.contype='f' AND k.connamespace='public'::regnamespace
+      AND k.conrelid::regclass::text NOT IN ('community_bans','community_join_requests')        -- tables created by 001
+      AND (k.conrelid::regclass::text, a.attname) NOT IN (('posts','hidden_by'),('notifications','post_id'))  -- columns added by 002/004
+  )
+  SELECT string_agg(col, ', ' ORDER BY col) FILTER (WHERE d='c'),
+         string_agg(col||'='||d::text, ', ' ORDER BY col) FILTER (WHERE d NOT IN ('a','c')),
+         count(*) INTO casc, other, nfk FROM fk;
+  PERFORM val.rec('y2.fk_actions_match_live',
+    casc = 'post_comments.post_id, post_likes.post_id, post_reactions.post_id, routine_items.group_id, routine_privacy.item_id' AND other IS NULL
+    AND (SELECT confdeltype FROM pg_constraint WHERE conrelid='posts'::regclass AND conname='posts_community_id_fkey')='a'
+    AND (SELECT confdeltype FROM pg_constraint WHERE conrelid='notifications'::regclass AND confrelid='posts'::regclass)='c',
+    format('cascade FKs=[%s] non-(NO ACTION/CASCADE) FKs=%s total_checked=%s posts.community_id=NO ACTION notifications.post_id=CASCADE', casc, coalesce(other,'none'), nfk));
+END $$;
+
+-- y3: exact policy set after 001-007 (live permissive policies on reactions/reports/likes/comments/posts/communities/members gone, only intended ones remain)
+DO $$ DECLARE t text; got text; exp text; bad text := ''; BEGIN
+  FOR t, exp IN VALUES
+    ('post_reactions','post_reactions_delete,post_reactions_insert,post_reactions_select'),
+    ('post_reports','admins can update post reports,post_reports_delete,post_reports_insert,post_reports_select'),
+    ('post_likes','post_likes_delete,post_likes_insert,post_likes_select'),
+    ('post_comments','post_comments_delete,post_comments_insert,post_comments_select,post_comments_update'),
+    ('posts','posts_delete,posts_insert,posts_select,posts_select_anon_public,posts_update'),
+    ('communities','communities_delete,communities_insert,communities_select,communities_update'),
+    ('community_members','community_members_delete,community_members_insert,community_members_select,community_members_update'),
+    ('notifications','users can select their own notifications,users can update their own notifications'),
+    ('profiles','profiles are publicly readable,users can update own profile')
+  LOOP
+    SELECT string_agg(polname, ',' ORDER BY polname) INTO got FROM pg_policy WHERE polrelid=('public.'||t)::regclass;
+    IF got IS DISTINCT FROM exp THEN bad := bad || format(' [%s got=%s]', t, got); END IF;
+  END LOOP;
+  PERFORM val.rec('y3.exact_policy_set_after_migrations', bad='', CASE WHEN bad='' THEN 'policy names match expected set on 9 tables (live "admins can update post reports", notifications+profiles policies kept)' ELSE bad END);
+END $$;
+
+-- y4: group-only post: non-viewer cannot see likes/comments/reactions, cannot insert reaction/like/comment/report; member can
+DO $$ DECLARE g text := (SELECT v FROM val.ctx WHERE k='g1'); pg uuid := gen_random_uuid(); NV uuid := val.u(7); MB uuid := val.u(2); AU uuid := val.u(1);
+  r_nv int; l_nv int; c_nv int; r_mb int; l_mb int; c_mb int; ins_r text; ins_l text; ins_c text; ins_rep text; ok_r text; ok_rep text; BEGIN
+  INSERT INTO posts(id,user_id,content,community_id,category,visibility) VALUES (pg,AU,'group-only y4',g,'habit','group');
+  INSERT INTO post_reactions(post_id,user_id,reaction_type) VALUES (pg,AU,'clap');
+  INSERT INTO post_likes(post_id,user_id) VALUES (pg,AU);
+  INSERT INTO post_comments(post_id,user_id,text) VALUES (pg,AU,'sekret');
+  r_nv := val.cnt_as(NV, format('select 1 from post_reactions where post_id=%L', pg));
+  l_nv := val.cnt_as(NV, format('select 1 from post_likes where post_id=%L', pg));
+  c_nv := val.cnt_as(NV, format('select 1 from post_comments where post_id=%L', pg));
+  r_mb := val.cnt_as(MB, format('select 1 from post_reactions where post_id=%L', pg));
+  l_mb := val.cnt_as(MB, format('select 1 from post_likes where post_id=%L', pg));
+  c_mb := val.cnt_as(MB, format('select 1 from post_comments where post_id=%L', pg));
+  ins_r  := val.try_as(NV, format('insert into post_reactions(post_id,user_id,reaction_type) values (%L,%L,%L)', pg, NV, 'fire'));
+  ins_l  := val.try_as(NV, format('insert into post_likes(post_id,user_id) values (%L,%L)', pg, NV));
+  ins_c  := val.try_as(NV, format('insert into post_comments(post_id,user_id,text) values (%L,%L,%L)', pg, NV, 'x'));
+  ins_rep:= val.try_as(NV, format('insert into post_reports(post_id,reporter_id,reason) values (%L,%L,%L)', pg, NV, 'x'));
+  ok_r   := val.try_as(MB, format('insert into post_reactions(post_id,user_id,reaction_type) values (%L,%L,%L)', pg, MB, 'fire'));
+  ok_rep := val.try_as(MB, format('insert into post_reports(post_id,reporter_id,reason) values (%L,%L,%L)', pg, MB, 'member report'));
+  PERFORM val.rec('y4.group_only_post_reactions_likes_comments_hidden_from_nonviewer',
+    r_nv=0 AND l_nv=0 AND c_nv=0 AND r_mb=1 AND l_mb=1 AND c_mb=1
+    AND ins_r ILIKE 'ERR%row-level security%' AND ins_l ILIKE 'ERR%row-level security%' AND ins_c ILIKE 'ERR%row-level security%' AND ins_rep ILIKE 'ERR%row-level security%'
+    AND ok_r='OK' AND ok_rep='OK',
+    format('non-viewer sees reactions/likes/comments=%s/%s/%s | member sees=%s/%s/%s | non-viewer insert reaction=%s like=%s comment=%s report=%s | member insert reaction=%s report=%s', r_nv,l_nv,c_nv,r_mb,l_mb,c_mb,left(ins_r,60),left(ins_l,40),left(ins_c,40),left(ins_rep,40),ok_r,ok_rep));
+END $$;
+
+-- y5: post_reports: admin can still UPDATE and SEE all; reporter sees own; unrelated user sees none & cannot update; group owner sees
+DO $$ DECLARE g text := (SELECT v FROM val.ctx WHERE k='g1'); p uuid := gen_random_uuid(); AD uuid := val.u(180); RP uuid := val.u(181); OT uuid := val.u(182); OWN uuid := val.u(1); AU uuid := val.u(2);
+  rid uuid; s_ad int; s_rp int; s_ot int; s_own int; up_ad text; up_rp text; up_ot text; st text; BEGIN
+  PERFORM val.mkuser(180,'admin180'); PERFORM val.mkuser(181,'rep181'); PERFORM val.mkuser(182,'other182');
+  UPDATE profiles SET is_admin=true WHERE id=AD;
+  INSERT INTO posts(id,user_id,content,community_id,category,visibility) VALUES (p,AU,'reported y5',g,'habit','group');
+  INSERT INTO community_members(user_id,community_id) VALUES (RP,g);   -- reporter must be able to view the group post
+  INSERT INTO post_reports(id,post_id,reporter_id,reason) VALUES (gen_random_uuid(),p,RP,'y5 reason') RETURNING id INTO rid;
+  s_ad  := val.cnt_as(AD,  format('select 1 from post_reports where id=%L', rid));
+  s_rp  := val.cnt_as(RP,  format('select 1 from post_reports where id=%L', rid));
+  s_ot  := val.cnt_as(OT,  format('select 1 from post_reports where id=%L', rid));
+  s_own := val.cnt_as(OWN, format('select 1 from post_reports where id=%L', rid));
+  up_ot := val.rows_as(OT, format('update post_reports set status=%L where id=%L', 'dismissed', rid));
+  up_rp := val.rows_as(RP, format('update post_reports set status=%L where id=%L', 'dismissed', rid));
+  SELECT status INTO st FROM post_reports WHERE id=rid;
+  up_ad := val.rows_as(AD, format('update post_reports set status=%L where id=%L', 'dismissed', rid));
+  PERFORM val.rec('y5.post_reports_admin_update_and_visibility',
+    s_ad=1 AND s_rp=1 AND s_ot=0 AND s_own=1 AND up_ot='0' AND up_rp='0' AND st='open' AND up_ad='1' AND (SELECT status FROM post_reports WHERE id=rid)='dismissed',
+    format('select: admin=%s reporter=%s unrelated=%s group_owner=%s | update rows: unrelated=%s reporter=%s (status stays %s) admin=%s -> now %s', s_ad,s_rp,s_ot,s_own,up_ot,up_rp,st,up_ad,(SELECT status FROM post_reports WHERE id=rid)));
+END $$;
+
+-- y6: triggers/functions: on_post_like_notify gone, nothing depends on it, only one trigger uses notify_on_post_like(); other live objects intact
+DO $$ DECLARE fn oid := 'public.notify_on_post_like()'::regprocedure; ntrg int; dep_other int; trgs text; lst text; BEGIN
+  SELECT count(*) INTO ntrg FROM pg_trigger WHERE tgfoid=fn AND NOT tgisinternal;
+  SELECT string_agg(tgname,',') INTO trgs FROM pg_trigger WHERE tgfoid=fn AND NOT tgisinternal;
+  SELECT count(*) INTO dep_other FROM pg_depend d WHERE d.refobjid=fn AND d.deptype='n' AND d.classid <> 'pg_trigger'::regclass;
+  SELECT string_agg(p.oid::regprocedure::text, ', ' ORDER BY p.oid::regprocedure::text) INTO lst FROM pg_proc p WHERE pronamespace='public'::regnamespace
+    AND proname IN ('can_view_profile','get_routine_suggestions_for_keyword','notify_on_follow');
+  PERFORM val.rec('y6.old_like_trigger_dropped_nothing_depends_on_it',
+    NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='on_post_like_notify')
+    AND ntrg=1 AND trgs='notify_on_post_like_trigger' AND dep_other=0
+    AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='on_follow_notify' AND tgrelid='follows'::regclass AND NOT tgisinternal)
+    AND lst = 'can_view_profile(uuid), get_routine_suggestions_for_keyword(text,integer), notify_on_follow()'
+    AND (SELECT count(*) FROM pg_trigger WHERE tgrelid IN ('follows'::regclass,'post_likes'::regclass,'post_comments'::regclass) AND NOT tgisinternal)=3,
+    format('on_post_like_notify exists=%s | triggers using notify_on_post_like()=%s(%s) | non-trigger dependents on that function=%s | on_follow_notify kept=%s | untouched live fns: %s',
+      EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='on_post_like_notify'), ntrg, trgs, dep_other, EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='on_follow_notify'), lst));
+END $$;
+
+-- y7: leave_group / transfer_ownership still fine with NO ACTION FKs; sole-owner leave archives group; then transfer + old owner delete_account
+DO $$ DECLARE r json; r2 json; g text; code text; g2 text; err text; own uuid; a_at timestamptz; BEGIN
+  PERFORM val.mkuser(210,'y7a'); PERFORM val.mkuser(211,'y7b'); PERFORM val.mkuser(212,'y7c');
+  PERFORM val.as_user(val.u(210)); r := create_group('Y7 A',''); g := r->>'community_id';
+  r2 := leave_group(g);                               -- sole member leaves -> archived
+  EXECUTE 'RESET ROLE';
+  SELECT archived_at INTO a_at FROM communities WHERE id=g;
+  PERFORM val.as_user(val.u(211)); r := create_group('Y7 B',''); g2 := r->>'community_id'; code := r->>'invite_code';
+  PERFORM val.as_user(val.u(212)); PERFORM join_by_invite(code);
+  PERFORM val.as_user(val.u(211)); r := transfer_ownership(g2, val.u(212));
+  EXECUTE 'RESET ROLE';
+  err := val.try_as(val.u(211), 'select delete_account()');
+  SELECT owner_id INTO own FROM communities WHERE id=g2;
+  PERFORM val.rec('y7.leave_transfer_then_delete_old_owner',
+    r2->>'status'='success' AND a_at IS NOT NULL AND r->>'status'='success' AND err='OK' AND own=val.u(212)
+    AND (SELECT role FROM community_members WHERE community_id=g2 AND user_id=val.u(212))='owner' AND (SELECT member_count FROM communities WHERE id=g2)=1
+    AND (SELECT member_count FROM communities WHERE id=g)=0,
+    format('sole leave=%s archived=%s | transfer=%s | old owner delete_account=%s | new owner ok=%s member_count(g2)=%s member_count(archived g)=%s', r2, a_at IS NOT NULL, r, err, own=val.u(212), (SELECT member_count FROM communities WHERE id=g2),(SELECT member_count FROM communities WHERE id=g)));
+END $$;
+
+-- y8: SOLE-OWNER group containing OTHER users' legacy posts (authors NOT members) with comments/likes/reactions/post_reports/like-notifications:
+--     delete_account must remove all of it; unrelated groups/posts of the same authors survive; other tables do not block.
+DO $$ DECLARE U uuid := val.u(220); A1 uuid := val.u(221); A2 uuid := val.u(222); RP uuid := val.u(223); g text; r json; err text;
+  p1 uuid := gen_random_uuid(); p2 uuid := gen_random_uuid(); p3 uuid := gen_random_uuid(); pkeep uuid := gen_random_uuid(); pown uuid := gen_random_uuid();
+  nn_before int; left_txt text; BEGIN
+  PERFORM val.mkuser(220,'y8owner'); PERFORM val.mkuser(221,'y8a1'); PERFORM val.mkuser(222,'y8a2'); PERFORM val.mkuser(223,'y8rp');
+  PERFORM val.as_user(U); r := create_group('Y8 Solo',''); g := r->>'community_id';
+  EXECUTE 'RESET ROLE';
+  -- legacy public posts of non-members pointing at the group + U's own group post
+  INSERT INTO posts(id,user_id,content,community_id,category,visibility) VALUES
+    (p1,A1,'legacy1',g,'habit','public'),(p2,A2,'legacy2',g,'diet','public'),(p3,A1,'legacy3',g,'habit','private'),(pown,U,'own',g,'habit','group'),
+    (pkeep,A1,'unrelated keep',NULL,'habit','public');
+  INSERT INTO post_comments(post_id,user_id,text) VALUES (p1,A2,'c1'),(p1,RP,'c2'),(p2,A1,'c3'),(pkeep,A2,'ckeep');
+  INSERT INTO post_reactions(post_id,user_id,reaction_type) VALUES (p1,A2,'clap'),(p2,A1,'fire'),(pkeep,A2,'clap');
+  INSERT INTO post_likes(post_id,user_id) VALUES (p1,A2),(p2,A1),(pkeep,A2);          -- trigger creates like notifications for p1,p2,pkeep
+  INSERT INTO post_comments(post_id,user_id,text) VALUES (p2,A2,'c4');               -- trigger creates comment notification
+  INSERT INTO post_reports(post_id,reporter_id,reason) VALUES (p1,RP,'r1'),(p2,RP,'r2'),(p3,A2,'r3'),(pkeep,RP,'rkeep');
+  INSERT INTO notifications(user_id,actor_id,type,text,post_id) VALUES (A1,U,'report','n-on-p1',p1),(U,A1,'comment','n-on-pown',pown);
+  SELECT count(*) INTO nn_before FROM notifications WHERE post_id IN (p1,p2,p3,pown);
+  err := val.try_as(U, 'select delete_account()');
+  SELECT format('group=%s posts_in_group=%s legacy_posts=%s comments=%s reactions=%s likes=%s reports=%s notifs=%s | kept: pkeep=%s ckeep=%s rkeep=%s nkeep=%s | profile=%s',
+     (SELECT count(*) FROM communities WHERE id=g), (SELECT count(*) FROM posts WHERE community_id=g), (SELECT count(*) FROM posts WHERE id IN (p1,p2,p3,pown)),
+     (SELECT count(*) FROM post_comments WHERE post_id IN (p1,p2,p3,pown)), (SELECT count(*) FROM post_reactions WHERE post_id IN (p1,p2,p3,pown)),
+     (SELECT count(*) FROM post_likes WHERE post_id IN (p1,p2,p3,pown)), (SELECT count(*) FROM post_reports WHERE post_id IN (p1,p2,p3,pown)),
+     (SELECT count(*) FROM notifications WHERE post_id IN (p1,p2,p3,pown)),
+     (SELECT count(*) FROM posts WHERE id=pkeep),(SELECT count(*) FROM post_comments WHERE post_id=pkeep),(SELECT count(*) FROM post_reports WHERE post_id=pkeep),
+     (SELECT count(*) FROM notifications WHERE post_id=pkeep), (SELECT count(*) FROM profiles WHERE id=U)) INTO left_txt;
+  PERFORM val.rec('y8.delete_account_sole_owner_group_with_other_users_legacy_posts',
+    err='OK' AND nn_before>=5 AND left_txt = 'group=0 posts_in_group=0 legacy_posts=0 comments=0 reactions=0 likes=0 reports=0 notifs=0 | kept: pkeep=1 ckeep=1 rkeep=1 nkeep=2 | profile=0',
+    format('call=%s notifs_referencing_group_posts_before=%s | %s', err, nn_before, left_txt));
+END $$;
+
+-- y9: on the live-like SEED: seed owner (user ...01, sole member/owner of comm-1759000000001 which holds ~20 legacy posts by non-members, with live-like
+--     comments/likes/reactions/post_reports) deletes the account -> succeeds, group + all its posts gone, ownerless groups untouched.
+DO $$ DECLARE U uuid := '00000000-0000-0000-0000-000000000001'; g text := 'comm-1759000000001'; n_posts int; n_nonmember int; err text; extra text; BEGIN
+  SELECT count(*) INTO n_posts FROM posts WHERE community_id=g;
+  SELECT count(*) INTO n_nonmember FROM posts WHERE community_id=g AND user_id <> U;
+  -- add a like notification on a legacy post (trigger path) so notifications.post_id rows exist for the cascade
+  PERFORM val.try_as('00000000-0000-0000-0000-00000000000b', format('insert into post_likes(post_id,user_id) values (%L,%L) on conflict do nothing', (SELECT id FROM posts WHERE community_id=g AND user_id NOT IN (U,'00000000-0000-0000-0000-00000000000b') LIMIT 1), '00000000-0000-0000-0000-00000000000b'));
+  err := val.try_as(U, 'select delete_account()');
+  SELECT format('ownerless_groups_left=%s total_groups_with_seed_prefix=%s posts_in_deleted_group=%s orphan_comments=%s orphan_reports=%s orphan_notifs=%s',
+     (SELECT count(*) FROM communities WHERE id LIKE 'comm-17590000000%' AND owner_id IS NULL), (SELECT count(*) FROM communities WHERE id LIKE 'comm-17590000000%'),
+     (SELECT count(*) FROM posts WHERE community_id=g),
+     (SELECT count(*) FROM post_comments c WHERE NOT EXISTS (SELECT 1 FROM posts p WHERE p.id=c.post_id)),
+     (SELECT count(*) FROM post_reports c WHERE NOT EXISTS (SELECT 1 FROM posts p WHERE p.id=c.post_id)),
+     (SELECT count(*) FROM notifications c WHERE c.post_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.id=c.post_id))) INTO extra;
+  PERFORM val.rec('y9.seed_owner_delete_account_removes_group_and_nonmember_legacy_posts',
+    err='OK' AND n_nonmember>=10 AND NOT EXISTS (SELECT 1 FROM communities WHERE id=g) AND NOT EXISTS (SELECT 1 FROM posts WHERE community_id=g)
+    AND NOT EXISTS (SELECT 1 FROM profiles WHERE id=U) AND NOT EXISTS (SELECT 1 FROM auth.users WHERE id=U)
+    AND (SELECT count(*) FROM communities WHERE id LIKE 'comm-17590000000%')=6 AND (SELECT count(*) FROM posts WHERE community_id LIKE 'comm-17590000000%')>100
+    AND NOT EXISTS (SELECT 1 FROM post_comments c WHERE NOT EXISTS (SELECT 1 FROM posts p WHERE p.id=c.post_id)),
+    format('call=%s | posts in group before=%s (by non-members=%s) | %s', err, n_posts, n_nonmember, extra));
+END $$;
+
+
+-- y10: user who hid someone else's post (posts.hidden_by -> profiles, ON DELETE SET NULL) and who owns a group with a member deletes the account
+DO $$ DECLARE H uuid := val.u(230); M uuid := val.u(231); A uuid := val.u(232); g text; r json; p uuid := gen_random_uuid(); err text; hb uuid; BEGIN
+  PERFORM val.mkuser(230,'y10hider'); PERFORM val.mkuser(231,'y10m'); PERFORM val.mkuser(232,'y10author');
+  PERFORM val.as_user(H); r := create_group('Y10',''); g := r->>'community_id';
+  PERFORM val.as_user(M); PERFORM join_by_invite(r->>'invite_code');
+  EXECUTE 'RESET ROLE';
+  INSERT INTO posts(id,user_id,content,community_id,category,visibility,hidden_at,hidden_by) VALUES (p,A,'hidden one',g,'habit','public',now(),H);
+  err := val.try_as(H, 'select delete_account()');
+  SELECT hidden_by INTO hb FROM posts WHERE id=p;
+  PERFORM val.rec('y10.delete_account_user_who_hid_a_post', err='OK' AND hb IS NULL AND EXISTS(SELECT 1 FROM posts WHERE id=p) AND (SELECT owner_id FROM communities WHERE id=g)=M,
+    format('call=%s hidden_by_after=%s post_kept=%s new_owner_is_member=%s', err, coalesce(hb::text,'NULL'), EXISTS(SELECT 1 FROM posts WHERE id=p), (SELECT owner_id FROM communities WHERE id=g)=M));
+END $$;
+
 \echo ==== RESULTS ====
 SELECT seq, id, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS result, detail FROM val.res ORDER BY seq;

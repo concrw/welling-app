@@ -1,4 +1,4 @@
--- [V2: tables corrected to verified live shapes - see REPORT_v2.md]
+-- [V3: FKs (all NO ACTION except the 5 live CASCADEs) and RLS policy set rebuilt to the live ground truth read read-only on 2026-10-01 - see REPORT_v3.md]
 -- LIVE PRODUCTION BASELINE SCHEMA (ejgfqpcqpvsvnnwyzrrp)
 -- Captured 2026-10-01 for migration validation
 -- This recreates the ACTUAL live state before migrations 001-007
@@ -21,7 +21,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- profiles (11 rows live)
 CREATE TABLE profiles (
-  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id uuid PRIMARY KEY REFERENCES auth.users(id),
   nickname text,
   created_at timestamptz DEFAULT now(),
   bio text,
@@ -40,15 +40,15 @@ CREATE TABLE communities (
   focus text,
   "desc" text, -- reserved word, must be quoted
   created_at timestamptz DEFAULT now(),
-  owner_id uuid REFERENCES profiles(id),
+  owner_id uuid REFERENCES profiles(id),  -- nullable, NO ACTION
   visibility text CHECK (visibility IN ('public', 'private'))
 );
 
 -- community_members (2 rows live)
 -- PK (user_id, community_id), NO created_at, NO role
 CREATE TABLE community_members (
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  community_id text REFERENCES communities(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id),
+  community_id text REFERENCES communities(id),
   joined_at timestamptz DEFAULT now(),
   PRIMARY KEY (user_id, community_id)
 );
@@ -56,9 +56,9 @@ CREATE TABLE community_members (
 -- posts (143 rows live)
 CREATE TABLE posts (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES profiles(id),
   content text,
-  community_id text REFERENCES communities(id) ON DELETE CASCADE,
+  community_id text REFERENCES communities(id),
   created_at timestamptz DEFAULT now(),
   has_img boolean DEFAULT false,
   img_url text,
@@ -70,8 +70,8 @@ CREATE TABLE posts (
 
 -- follows
 CREATE TABLE follows (
-  follower_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  followee_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  follower_id uuid NOT NULL REFERENCES auth.users(id),
+  followee_id uuid NOT NULL REFERENCES auth.users(id),
   created_at timestamptz DEFAULT now(),
   PRIMARY KEY (follower_id, followee_id)
 );
@@ -80,8 +80,8 @@ CREATE TABLE follows (
 -- NO related_id, NO post_id
 CREATE TABLE notifications (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  actor_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id),
+  actor_id uuid NOT NULL REFERENCES profiles(id),
   type text NOT NULL CHECK (type IN ('like', 'follow', 'comment')),
   text text NOT NULL,
   read boolean NOT NULL DEFAULT false,
@@ -91,24 +91,24 @@ CREATE TABLE notifications (
 -- post_comments
 CREATE TABLE post_comments (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  post_id uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  post_id uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,   -- live: CASCADE
+  user_id uuid NOT NULL REFERENCES auth.users(id),
   text text NOT NULL,            -- [V2] live column is `text`, not `content`
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- post_likes (PK-less per user report)
 CREATE TABLE post_likes (
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  post_id uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id),
+  post_id uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,   -- live: CASCADE
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, post_id)  -- [V2] live HAS a PK
 );
 
 -- post_reactions
 CREATE TABLE post_reactions (
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  post_id uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id),
+  post_id uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,   -- live: CASCADE
   reaction_type text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, post_id, reaction_type)
@@ -138,7 +138,7 @@ CREATE TABLE reports (
 -- routine_groups
 CREATE TABLE routine_groups (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id),
   name text NOT NULL,
   sort_order integer NOT NULL DEFAULT 0,
   is_current boolean NOT NULL DEFAULT false,
@@ -168,7 +168,7 @@ CREATE TABLE routine_privacy (
 -- evening_reflections
 CREATE TABLE evening_reflections (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id),
   content text,
   date date,
   created_at timestamptz DEFAULT now()
@@ -177,7 +177,7 @@ CREATE TABLE evening_reflections (
 -- custom_quick_buttons
 CREATE TABLE custom_quick_buttons (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id),
   label text,
   category text,
   created_at timestamptz DEFAULT now()
@@ -186,7 +186,7 @@ CREATE TABLE custom_quick_buttons (
 -- calendar_event_snapshots
 CREATE TABLE calendar_event_snapshots (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id),
   event_date date,
   snapshot_data jsonb,
   created_at timestamptz DEFAULT now()
@@ -194,7 +194,7 @@ CREATE TABLE calendar_event_snapshots (
 
 -- notification_settings
 CREATE TABLE notification_settings (
-  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id),
   follow boolean DEFAULT true,
   "like" boolean DEFAULT true,
   comment boolean DEFAULT true,
@@ -234,7 +234,7 @@ AS $$
   END;
 $$;
 
-CREATE OR REPLACE FUNCTION get_routine_suggestions_for_keyword(keyword text)
+CREATE OR REPLACE FUNCTION get_routine_suggestions_for_keyword(keyword text, min_users int)
 RETURNS TABLE(suggestion text)
 LANGUAGE plpgsql
 AS $$
@@ -362,16 +362,31 @@ CREATE POLICY "profiles are publicly readable" ON profiles FOR SELECT
 CREATE POLICY "users can update own profile" ON profiles FOR UPDATE
   USING (id = auth.uid());
 
--- Add minimal policies for other tables (not relevant to migration testing)
-CREATE POLICY "users manage own data" ON follows FOR ALL USING (follower_id = auth.uid());
+-- post_comments (live: select true + insert; NO update/delete live)
 CREATE POLICY "post comments are publicly readable" ON post_comments FOR SELECT USING (true);
 CREATE POLICY "users can comment themselves" ON post_comments FOR INSERT WITH CHECK (user_id = auth.uid());
+
+-- post_likes
 CREATE POLICY "post likes are publicly readable" ON post_likes FOR SELECT USING (true);
 CREATE POLICY "users can like posts themselves" ON post_likes FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY "users can unlike posts themselves" ON post_likes FOR DELETE USING (user_id = auth.uid());
-CREATE POLICY "users manage own data" ON post_reactions FOR ALL USING (user_id = auth.uid());
-CREATE POLICY "users manage own data" ON post_reports FOR ALL USING (reporter_id = auth.uid());
-CREATE POLICY "users manage own data" ON reports FOR ALL USING (reported_user_id = auth.uid());  -- (live policy unknown; placeholder)
+
+-- post_reactions (live names; qual expressions of the INSERT/DELETE ones are assumed)
+CREATE POLICY "post reactions are publicly readable" ON post_reactions FOR SELECT USING (true);
+CREATE POLICY "users can react to posts themselves" ON post_reactions FOR INSERT WITH CHECK (user_id = auth.uid());
+CREATE POLICY "users can remove their own reactions" ON post_reactions FOR DELETE USING (user_id = auth.uid());
+
+-- post_reports (live names; qual expressions are ASSUMED - only names/cmds were read from live)
+CREATE POLICY "admins can update post reports" ON post_reports FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM profiles pr WHERE pr.id = auth.uid() AND pr.is_admin = true));
+CREATE POLICY "admins can view all post reports" ON post_reports FOR SELECT
+  USING (EXISTS (SELECT 1 FROM profiles pr WHERE pr.id = auth.uid() AND pr.is_admin = true));
+CREATE POLICY "users can report posts themselves" ON post_reports FOR INSERT WITH CHECK (reporter_id = auth.uid());
+CREATE POLICY "users can view their own reports" ON post_reports FOR SELECT USING (reporter_id = auth.uid());
+
+-- Other tables: live policies NOT read in detail -> placeholders (not touched by 003; not relevant to the migrations)
+CREATE POLICY "users manage own data" ON follows FOR ALL USING (follower_id = auth.uid());
+CREATE POLICY "users manage own data" ON reports FOR ALL USING (reported_user_id = auth.uid());  -- placeholder
 CREATE POLICY "users manage own data" ON routine_groups FOR ALL USING (user_id = auth.uid());
 CREATE POLICY "users manage own data" ON routine_items FOR ALL USING (EXISTS (SELECT 1 FROM routine_groups g WHERE g.id = group_id AND g.user_id = auth.uid()));
 CREATE POLICY "users manage own data" ON routine_privacy FOR ALL USING (EXISTS (SELECT 1 FROM routine_items i JOIN routine_groups g ON g.id = i.group_id WHERE i.id = item_id AND g.user_id = auth.uid()));

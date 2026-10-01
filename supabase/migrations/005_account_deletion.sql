@@ -7,6 +7,8 @@
 --   3. anon 권한 명시적으로 회수
 --   4. Storage 파일 삭제는 클라이언트/Edge Function에서 처리 (TODO)
 --   5. 나를 대상으로 한 reports 행 삭제 (live: reports.reported_user_id NOT NULL + FK profiles(id), cascade 없음)
+--   6. (v3) live FK는 거의 전부 NO ACTION: 단독 소유 그룹 삭제 시 그룹 내 모든 글(타인의 레거시 글 포함)과 그 댓글/좋아요/반응/신고/알림,
+--      community_members 행을 그룹 삭제 전에 명시적으로 삭제한다.
 --
 -- ⚠️ 이 마이그레이션은 PR #2를 대체하며, PR #2는 이 PR에서 superseded로 표시됩니다.
 
@@ -22,6 +24,7 @@ SET search_path = public
 AS $$
 DECLARE
   calling_user_id uuid;
+  v_dead_groups text[];
 BEGIN
   calling_user_id := auth.uid();
 
@@ -53,15 +56,37 @@ BEGIN
   )
   AND role <> 'owner';
 
-  -- 여전히 내가 소유자인 그룹 (= 다른 멤버 없음): 삭제
-  -- live post_reports.post_id FK에는 ON DELETE CASCADE가 없으므로, 그룹 삭제 시 cascade로 지워지는 글(타인 글 포함)의
-  -- post_reports를 먼저 명시적으로 삭제해야 한다.
-  DELETE FROM post_reports
-  WHERE post_id IN (
-    SELECT p.id FROM posts p
-    WHERE p.community_id IN (SELECT id FROM communities WHERE owner_id = calling_user_id)
-  );
-  DELETE FROM communities WHERE owner_id = calling_user_id;
+  -- 여전히 내가 소유자인 그룹 (= 다른 멤버 없음): 그룹과 그 안의 모든 글(타인의 레거시 글 포함)을 삭제
+  --
+  -- LIVE FK 사실 (read-only 확인): ON DELETE CASCADE는 post_comments/post_likes/post_reactions.post_id -> posts,
+  -- routine_items.group_id, routine_privacy.item_id 뿐이다. 나머지는 전부 NO ACTION 이다. 즉
+  --   * posts.community_id -> communities(id)            : NO ACTION  (그룹 삭제 전에 글을 먼저 지워야 함)
+  --   * community_members.community_id -> communities(id): NO ACTION  (그룹 삭제 전에 멤버 행을 먼저 지워야 함)
+  --   * post_reports.post_id -> posts(id)                : NO ACTION  (글 삭제 전에 신고를 먼저 지워야 함)
+  --   * notifications.post_id -> posts(id)               : CASCADE (004에서 추가)
+  -- live에는 community_id가 있는 글 142개에 community_members는 2행뿐이므로, 멤버가 아닌 사용자의 레거시 글이
+  -- 그룹에 매달려 있을 수 있다. 이 글들도 같이 지워야 그룹을 지울 수 있다.
+  SELECT coalesce(array_agg(id), ARRAY[]::text[]) INTO v_dead_groups
+  FROM communities WHERE owner_id = calling_user_id;
+
+  IF cardinality(v_dead_groups) > 0 THEN
+    -- 그룹 안 모든 글(작성자 무관)에 대한 신고
+    DELETE FROM post_reports
+    WHERE post_id IN (SELECT p.id FROM posts p WHERE p.community_id = ANY (v_dead_groups));
+    -- 댓글/좋아요/반응은 posts FK CASCADE로 지워지지만 의도를 명시하기 위해 직접 삭제 (notifications.post_id는 CASCADE)
+    DELETE FROM post_comments
+    WHERE post_id IN (SELECT p.id FROM posts p WHERE p.community_id = ANY (v_dead_groups));
+    DELETE FROM post_reactions
+    WHERE post_id IN (SELECT p.id FROM posts p WHERE p.community_id = ANY (v_dead_groups));
+    DELETE FROM post_likes
+    WHERE post_id IN (SELECT p.id FROM posts p WHERE p.community_id = ANY (v_dead_groups));
+    DELETE FROM notifications
+    WHERE post_id IN (SELECT p.id FROM posts p WHERE p.community_id = ANY (v_dead_groups));
+    DELETE FROM posts WHERE community_id = ANY (v_dead_groups);
+    -- 멤버 행 (community_members FK는 NO ACTION). community_bans / community_join_requests는 001에서 ON DELETE CASCADE
+    DELETE FROM community_members WHERE community_id = ANY (v_dead_groups);
+    DELETE FROM communities WHERE id = ANY (v_dead_groups);
+  END IF;
 
   -- ============================================================
   -- 2. 내 멤버십 삭제 (트리거가 member_count 감소)
@@ -71,7 +96,7 @@ BEGIN
   -- ============================================================
   -- 3. 내 글에 달린 타인의 반응/댓글 삭제 (FK cascade 확인 필요)
   -- ============================================================
-  -- FK가 CASCADE가 아니면 15번 posts 삭제에서 실패하므로 명시적으로 삭제
+  -- live: post_comments/likes/reactions.post_id는 CASCADE이지만 post_reports.post_id는 NO ACTION -> 명시적으로 삭제
   DELETE FROM post_comments WHERE post_id IN (SELECT id FROM posts WHERE user_id = calling_user_id);
   DELETE FROM post_reactions WHERE post_id IN (SELECT id FROM posts WHERE user_id = calling_user_id);
   DELETE FROM post_likes WHERE post_id IN (SELECT id FROM posts WHERE user_id = calling_user_id);

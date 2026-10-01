@@ -10,6 +10,8 @@
 --   • community_members: 같은 그룹 멤버만 조회, 비공개 그룹 직접 insert 금지
 --   • posts: visibility + 멤버십 조합
 --   • post_likes, post_reactions, post_comments: 글 조회 권한 기반
+--   • post_reactions / post_reports: live 정책("post reactions are publicly readable" 등)을 drop하고 can_view_post 기반으로 교체
+--     (post_reports의 live "admins can update post reports"는 유지)
 --   • (profiles, notifications 등은 기존 정책 유지)
 
 -- ============================================================================
@@ -227,6 +229,11 @@ CREATE POLICY post_likes_delete ON post_likes
 
 -- 기존 정책 제거 (LIVE policy names)
 DROP POLICY IF EXISTS "users manage own data" ON post_reactions;
+-- live names (verified read-only on live): the permissive USING(true) SELECT policy would otherwise survive and bypass
+-- can_view_post() for private/group posts, and the live INSERT policy lets users react to posts they cannot see.
+DROP POLICY IF EXISTS "post reactions are publicly readable" ON post_reactions;
+DROP POLICY IF EXISTS "users can react to posts themselves" ON post_reactions;
+DROP POLICY IF EXISTS "users can remove their own reactions" ON post_reactions;
 DROP POLICY IF EXISTS post_reactions_select ON post_reactions;
 DROP POLICY IF EXISTS post_reactions_insert ON post_reactions;
 DROP POLICY IF EXISTS post_reactions_delete ON post_reactions;
@@ -286,6 +293,12 @@ CREATE POLICY post_comments_delete ON post_comments
 
 -- 기존 정책 제거 (LIVE policy names)
 DROP POLICY IF EXISTS "users manage own data" ON post_reports;
+-- live names (verified read-only on live). Replaced by post_reports_select / post_reports_insert below
+-- (post_reports_select already covers reporter, admin and group owner; insert additionally requires can_view_post()).
+DROP POLICY IF EXISTS "users can report posts themselves" ON post_reports;
+DROP POLICY IF EXISTS "users can view their own reports" ON post_reports;
+DROP POLICY IF EXISTS "admins can view all post reports" ON post_reports;
+-- NOTE: live "admins can update post reports" (UPDATE) is intentionally KEPT: no replacement UPDATE policy is created.
 DROP POLICY IF EXISTS post_reports_select ON post_reports;
 DROP POLICY IF EXISTS post_reports_insert ON post_reports;
 DROP POLICY IF EXISTS post_reports_delete ON post_reports;

@@ -101,19 +101,19 @@ $$;
 -- unique 제약 (중복 가입 방지)
 DO $$
 BEGIN
-  -- 기존 중복 제거 (최신 것만 남김)
+  -- 기존 중복 제거 (joined_at 최신 것만 남김)
   DELETE FROM community_members a
   USING (
-    SELECT community_id, user_id, MAX(created_at) as max_created
+    SELECT community_id, user_id, MAX(joined_at) as max_joined
     FROM community_members
     GROUP BY community_id, user_id
     HAVING COUNT(*) > 1
   ) b
   WHERE a.community_id = b.community_id
     AND a.user_id = b.user_id
-    AND a.created_at < b.max_created;
+    AND a.joined_at < b.max_joined;
 
-  -- unique 제약 추가
+  -- unique 제약 추가 (이미 PK이지만 명시적 제약)
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'community_members_community_user_unique' AND conrelid = 'community_members'::regclass
   ) THEN
@@ -122,8 +122,7 @@ BEGIN
 END
 $$;
 
--- joined_at 백필 (created_at이 있으면 복사, 없으면 now())
-UPDATE community_members SET joined_at = COALESCE(created_at, now()) WHERE joined_at IS NULL;
+-- joined_at 백필은 불필요 (컬럼 추가 시 DEFAULT now() 적용됨)
 
 -- role 백필: owner_id에 해당하는 멤버를 'owner'로
 UPDATE community_members cm
@@ -251,7 +250,7 @@ BEGIN
   v_community_id := gen_random_uuid()::text;
   v_invite_code := generate_invite_code();
 
-  INSERT INTO communities (id, name, initial, color, members, focus, desc, visibility, owner_id, invite_code, max_members, member_count)
+  INSERT INTO communities (id, name, initial, color, members, focus, "desc", visibility, owner_id, invite_code, member_count)
   VALUES (
     v_community_id,
     p_name,
@@ -263,7 +262,6 @@ BEGIN
     p_visibility,
     v_user_id,
     v_invite_code,
-    30,
     1
   );
 
@@ -380,18 +378,36 @@ BEGIN
     RETURN json_build_object('status', 'already', 'community_id', v_community.id, 'name', v_community.name);
   END IF;
 
-  -- 인원 상한 (비공개 그룹)
-  IF v_community.member_count >= v_community.max_members THEN
-    RETURN json_build_object('status', 'full');
+  -- 사용자당 그룹 상한 (50개 - 관대한 제한, 운영 중 조정 가능)
+  DECLARE
+    v_user_group_count int;
+  BEGIN
+    SELECT COUNT(*) INTO v_user_group_count FROM community_members WHERE user_id = v_user_id;
+    IF v_user_group_count >= 50 THEN
+      RETURN json_build_object('status', 'too_many_groups');
+    END IF;
+  END;
+
+  -- 승인 필요 그룹: 가입 요청 생성
+  IF v_community.requires_approval THEN
+    -- 이미 요청했는지 확인
+    SELECT EXISTS (
+      SELECT 1 FROM community_join_requests 
+      WHERE community_id = v_community.id AND user_id = v_user_id
+    ) INTO v_has_pending_request;
+    
+    IF v_has_pending_request THEN
+      RETURN json_build_object('status', 'pending', 'community_id', v_community.id, 'name', v_community.name);
+    END IF;
+    
+    -- 가입 요청 생성
+    INSERT INTO community_join_requests (community_id, user_id, status)
+    VALUES (v_community.id, v_user_id, 'pending');
+    
+    RETURN json_build_object('status', 'pending', 'community_id', v_community.id, 'name', v_community.name);
   END IF;
 
-  -- 사용자당 그룹 상한 (10개)
-  SELECT COUNT(*) INTO v_user_group_count FROM community_members WHERE user_id = v_user_id;
-  IF v_user_group_count >= 10 THEN
-    RETURN json_build_object('status', 'too_many_groups');
-  END IF;
-
-  -- 가입
+  -- 즉시 가입
   INSERT INTO community_members (community_id, user_id, role, joined_at)
   VALUES (v_community.id, v_user_id, 'member', now());
 
@@ -460,7 +476,7 @@ $$;
 REVOKE ALL ON FUNCTION leave_group(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION leave_group(text) TO authenticated;
 
--- 6.5 remove_member: 멤버 내보내기 (그룹장만)
+-- 6.5 remove_member: 멤버 내보내기 (그룹장 또는 관리자)
 CREATE OR REPLACE FUNCTION remove_member(
   p_community_id text,
   p_user_id uuid,
@@ -474,6 +490,9 @@ AS $$
 DECLARE
   v_caller_id uuid;
   v_owner_id uuid;
+  v_caller_role text;
+  v_target_role text;
+  v_is_admin boolean;
 BEGIN
   v_caller_id := auth.uid();
   IF v_caller_id IS NULL THEN
@@ -485,13 +504,23 @@ BEGIN
     RETURN json_build_object('status', 'not_found');
   END IF;
 
-  IF v_owner_id <> v_caller_id THEN
-    RETURN json_build_object('status', 'not_owner');
+  -- 권한 확인: owner 또는 admin
+  SELECT role INTO v_caller_role FROM community_members WHERE community_id = p_community_id AND user_id = v_caller_id;
+  SELECT is_admin INTO v_is_admin FROM profiles WHERE id = v_caller_id;
+  
+  IF v_caller_role NOT IN ('owner', 'admin') AND NOT COALESCE(v_is_admin, false) THEN
+    RETURN json_build_object('status', 'not_authorized');
   END IF;
 
   -- 자기 자신 내보내기 불가
   IF p_user_id = v_caller_id THEN
     RETURN json_build_object('status', 'cannot_remove_self');
+  END IF;
+
+  -- 관리자는 owner나 다른 admin을 내보낼 수 없음
+  SELECT role INTO v_target_role FROM community_members WHERE community_id = p_community_id AND user_id = p_user_id;
+  IF v_caller_role = 'admin' AND v_target_role IN ('owner', 'admin') THEN
+    RETURN json_build_object('status', 'cannot_remove_owner_or_admin');
   END IF;
 
   -- 멤버 삭제
@@ -556,7 +585,7 @@ $$;
 REVOKE ALL ON FUNCTION transfer_ownership(text, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION transfer_ownership(text, uuid) TO authenticated;
 
--- 6.7 rotate_invite_code: 초대 코드 재발급 (그룹장만)
+-- 6.7 rotate_invite_code: 초대 코드 재발급 (그룹장 또는 관리자)
 CREATE OR REPLACE FUNCTION rotate_invite_code(p_community_id text)
 RETURNS json
 LANGUAGE plpgsql
@@ -565,7 +594,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_caller_id uuid;
-  v_owner_id uuid;
+  v_caller_role text;
   v_new_code text;
   max_tries int := 10;
   i int;
@@ -575,13 +604,11 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  SELECT owner_id INTO v_owner_id FROM communities WHERE id = p_community_id;
-  IF NOT FOUND THEN
-    RETURN json_build_object('status', 'not_found');
-  END IF;
-
-  IF v_owner_id <> v_caller_id THEN
-    RETURN json_build_object('status', 'not_owner');
+  -- 권한 확인: owner 또는 admin
+  SELECT role INTO v_caller_role FROM community_members WHERE community_id = p_community_id AND user_id = v_caller_id;
+  
+  IF v_caller_role NOT IN ('owner', 'admin') THEN
+    RETURN json_build_object('status', 'not_authorized');
   END IF;
 
   -- 새 코드 생성 (중복 시 재시도)
@@ -602,7 +629,7 @@ $$;
 REVOKE ALL ON FUNCTION rotate_invite_code(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION rotate_invite_code(text) TO authenticated;
 
--- 6.8 set_invite_expiry: 초대 만료 설정 (그룹장만)
+-- 6.8 set_invite_expiry: 초대 만료 설정 (그룹장 또는 관리자)
 CREATE OR REPLACE FUNCTION set_invite_expiry(
   p_community_id text,
   p_expires_at timestamptz
@@ -614,20 +641,18 @@ SET search_path = public
 AS $$
 DECLARE
   v_caller_id uuid;
-  v_owner_id uuid;
+  v_caller_role text;
 BEGIN
   v_caller_id := auth.uid();
   IF v_caller_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  SELECT owner_id INTO v_owner_id FROM communities WHERE id = p_community_id;
-  IF NOT FOUND THEN
-    RETURN json_build_object('status', 'not_found');
-  END IF;
-
-  IF v_owner_id <> v_caller_id THEN
-    RETURN json_build_object('status', 'not_owner');
+  -- 권한 확인: owner 또는 admin
+  SELECT role INTO v_caller_role FROM community_members WHERE community_id = p_community_id AND user_id = v_caller_id;
+  
+  IF v_caller_role NOT IN ('owner', 'admin') THEN
+    RETURN json_build_object('status', 'not_authorized');
   END IF;
 
   UPDATE communities SET invite_expires_at = p_expires_at WHERE id = p_community_id;

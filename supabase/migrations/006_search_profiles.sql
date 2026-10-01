@@ -30,7 +30,7 @@ BEGIN
     p.nickname,
     COALESCE(p.bio, '') as bio,
     p.avatar_url,
-    EXISTS(SELECT 1 FROM follows WHERE follower_id = v_user_id AND following_id = p.id) as followed
+    EXISTS(SELECT 1 FROM follows WHERE follower_id = v_user_id AND followee_id = p.id) as followed
   FROM profiles p
   WHERE 
     p.id != v_user_id
@@ -42,9 +42,9 @@ BEGIN
       -- Public profiles
       p.profile_visibility = 'public'
       -- OR followers-only if already following
-      OR (p.profile_visibility = 'followers' AND EXISTS(SELECT 1 FROM follows WHERE follower_id = v_user_id AND following_id = p.id))
+      OR (p.profile_visibility = 'followers' AND EXISTS(SELECT 1 FROM follows WHERE follower_id = v_user_id AND followee_id = p.id))
       -- OR already following each other
-      OR EXISTS(SELECT 1 FROM follows WHERE follower_id = p.id AND following_id = v_user_id)
+      OR EXISTS(SELECT 1 FROM follows WHERE follower_id = p.id AND followee_id = v_user_id)
     )
   ORDER BY 
     -- Exact match first, then prefix, then contains

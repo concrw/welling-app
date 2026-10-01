@@ -13,6 +13,7 @@
 
 -- 컬럼 추가
 ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS related_id text,
   ADD COLUMN IF NOT EXISTS post_id uuid REFERENCES posts(id) ON DELETE CASCADE,
   ADD COLUMN IF NOT EXISTS actor_count int DEFAULT 1;
 
@@ -68,7 +69,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS notifications_unread_like_uniq_v2
   ON notifications (user_id, post_id)
   WHERE type = 'like' AND read = false AND post_id IS NOT NULL;
 
--- Step 2c: Trigger function with matching ON CONFLICT predicate
+-- Step 2c: Drop LIVE trigger, create new one
+DROP TRIGGER IF EXISTS on_post_like_notify ON post_likes;
+DROP TRIGGER IF EXISTS notify_on_post_like_trigger ON post_likes;
+
+-- Step 2d: Trigger function with matching ON CONFLICT predicate
 CREATE OR REPLACE FUNCTION notify_on_post_like()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -109,8 +114,7 @@ BEGIN
 END;
 $$;
 
--- 기존 트리거 재생성 (함수 변경 반영)
-DROP TRIGGER IF EXISTS notify_on_post_like_trigger ON post_likes;
+-- Create new trigger
 CREATE TRIGGER notify_on_post_like_trigger
   AFTER INSERT ON post_likes
   FOR EACH ROW EXECUTE FUNCTION notify_on_post_like();

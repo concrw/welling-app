@@ -89,8 +89,8 @@ BEGIN
   DELETE FROM post_reports WHERE reporter_id = calling_user_id;
   DELETE FROM reports WHERE reporter_id = calling_user_id;
 
-  -- 남이 나를 신고한 것: 운영 기록 보존을 위해 reported_user_id를 NULL로
-  UPDATE reports SET reported_user_id = NULL WHERE reported_user_id = calling_user_id;
+  -- 남이 나를 신고한 것: 운영 기록 보존을 위해 reported_id를 NULL로
+  UPDATE reports SET reported_id = NULL WHERE reported_id = calling_user_id;
 
   -- ============================================================
   -- 7. 알림
@@ -101,15 +101,10 @@ BEGIN
   -- ============================================================
   -- 8. 루틴
   -- ============================================================
-  DELETE FROM routine_privacy
-  WHERE item_id IN (
-    SELECT ri.id FROM routine_items ri
-    JOIN routine_groups rg ON ri.group_id = rg.id
-    WHERE rg.user_id = calling_user_id
-  );
+  DELETE FROM routine_privacy WHERE user_id = calling_user_id;
 
   DELETE FROM routine_items
-  WHERE group_id IN (SELECT id FROM routine_groups WHERE user_id = calling_user_id);
+  WHERE routine_group_id IN (SELECT id FROM routine_groups WHERE user_id = calling_user_id);
 
   DELETE FROM routine_groups WHERE user_id = calling_user_id;
 

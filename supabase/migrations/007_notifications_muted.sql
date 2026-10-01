@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS community_members_not_muted_idx
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION toggle_community_notifications(
-  p_community_id uuid,
+  p_community_id text,
   p_muted boolean
 )
 RETURNS json

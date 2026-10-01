@@ -49,7 +49,10 @@ COMMENT ON FUNCTION public.can_view_post IS 'RLS 헬퍼: 현재 사용자가 지
 -- communities 정책
 -- ============================================================================
 
--- 기존 정책 제거
+-- 기존 정책 제거 (LIVE policy names)
+DROP POLICY IF EXISTS "communities are readable by visibility" ON communities;
+DROP POLICY IF EXISTS "authenticated users can create communities" ON communities;
+DROP POLICY IF EXISTS "owners or admins can update communities" ON communities;
 DROP POLICY IF EXISTS communities_select ON communities;
 DROP POLICY IF EXISTS communities_insert ON communities;
 DROP POLICY IF EXISTS communities_update ON communities;
@@ -92,6 +95,10 @@ CREATE POLICY communities_delete ON communities
 -- community_members 정책
 -- ============================================================================
 
+-- 기존 정책 제거 (LIVE policy names)
+DROP POLICY IF EXISTS "community members are publicly readable" ON community_members;
+DROP POLICY IF EXISTS "users can join/leave communities themselves" ON community_members;
+DROP POLICY IF EXISTS "users can leave communities themselves" ON community_members;
 DROP POLICY IF EXISTS community_members_select ON community_members;
 DROP POLICY IF EXISTS community_members_insert ON community_members;
 DROP POLICY IF EXISTS community_members_update ON community_members;
@@ -131,6 +138,11 @@ CREATE POLICY community_members_delete ON community_members
 -- posts 정책
 -- ============================================================================
 
+-- 기존 정책 제거 (LIVE policy names)
+DROP POLICY IF EXISTS "posts_select_by_visibility" ON posts;
+DROP POLICY IF EXISTS "users can insert own posts" ON posts;
+DROP POLICY IF EXISTS "users can update own posts" ON posts;
+DROP POLICY IF EXISTS "users can delete own posts" ON posts;
 DROP POLICY IF EXISTS posts_select ON posts;
 DROP POLICY IF EXISTS posts_insert ON posts;
 DROP POLICY IF EXISTS posts_update ON posts;
@@ -172,6 +184,8 @@ CREATE POLICY posts_delete ON posts
 -- post_likes 정책
 -- ============================================================================
 
+-- 기존 정책 제거 (LIVE policy names)
+DROP POLICY IF EXISTS "users manage own data" ON post_likes;
 DROP POLICY IF EXISTS post_likes_select ON post_likes;
 DROP POLICY IF EXISTS post_likes_insert ON post_likes;
 DROP POLICY IF EXISTS post_likes_delete ON post_likes;
@@ -195,6 +209,8 @@ CREATE POLICY post_likes_delete ON post_likes
 -- post_reactions 정책
 -- ============================================================================
 
+-- 기존 정책 제거 (LIVE policy names)
+DROP POLICY IF EXISTS "users manage own data" ON post_reactions;
 DROP POLICY IF EXISTS post_reactions_select ON post_reactions;
 DROP POLICY IF EXISTS post_reactions_insert ON post_reactions;
 DROP POLICY IF EXISTS post_reactions_delete ON post_reactions;
@@ -218,6 +234,8 @@ CREATE POLICY post_reactions_delete ON post_reactions
 -- post_comments 정책
 -- ============================================================================
 
+-- 기존 정책 제거 (LIVE policy names)
+DROP POLICY IF EXISTS "users manage own data" ON post_comments;
 DROP POLICY IF EXISTS post_comments_select ON post_comments;
 DROP POLICY IF EXISTS post_comments_insert ON post_comments;
 DROP POLICY IF EXISTS post_comments_update ON post_comments;
@@ -247,6 +265,8 @@ CREATE POLICY post_comments_delete ON post_comments
 -- post_reports 정책
 -- ============================================================================
 
+-- 기존 정책 제거 (LIVE policy names)
+DROP POLICY IF EXISTS "users manage own data" ON post_reports;
 DROP POLICY IF EXISTS post_reports_select ON post_reports;
 DROP POLICY IF EXISTS post_reports_insert ON post_reports;
 DROP POLICY IF EXISTS post_reports_delete ON post_reports;

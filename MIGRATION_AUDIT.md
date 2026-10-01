@@ -1,4 +1,4 @@
-# Migration Audit Report - VALIDATED ON SCRATCH FIXTURE (not run on the live DB)
+# Migration Audit Report - VALIDATED v3 ON SCRATCH FIXTURE (not run on the live DB)
 
 ## Critical Bugs Found & Fixed
 
@@ -36,8 +36,9 @@
 
 ## Validation Strategy
 
-**Status: validated on a scratch Postgres 17 fixture built from the live schema (read via SQL editor), not run on the live DB.**
+**Status: validated v3 on a scratch Postgres 17 fixture built from the live schema (read via SQL editor), not run on the live DB.**
 
-- Migrations 001-007 (with the fixes in `fixes_v2.patch`) were applied twice in a row (`psql -v ON_ERROR_STOP=1 -1`) to a scratch PostgreSQL 17.11 database whose tables, FKs, CHECKs, policies and the live `notify_on_post_like` trigger were recreated from the live schema read through the Supabase SQL editor. No real Supabase database was touched.
-- 28 behavioural assertions (group create/join/approval, no member cap, like/comment notifications, RLS visibility, owner transfer, delete_account incl. users with routines, reports, post_reports, bans and join-request reviews, search_profiles, mute toggle, anon privileges) all pass; see `REPORT_v2.md`.
-- Not covered: live data volume/contents, live objects not captured in the fixture (other tables/triggers/policies/FKs), real Supabase auth internals. Remaining assumptions are listed in `REPORT_v2.md`. Run the pre-checks in it against live (read-only) before applying.
+- Migrations 001-007 (with fixes in `fixes_v3.patch`) applied twice (`psql -v ON_ERROR_STOP=1 -1`) to a scratch PostgreSQL 17.11 database with tables, FKs (NO ACTION everywhere except CASCADE on post_comments/likes/reactions.post_id), CHECKs, policies, and live triggers recreated from the live schema. Seeded with 11 profiles, 7 communities (5 ownerless/empty), 143 posts (142 with community_id, 125 public posts by non-members), comments/likes/reactions/reports on legacy posts. No real Supabase database was touched.
+- **38 assertions PASS** (0 FAIL): group ops, approval, no member cap, like/comment notifications, RLS (incl. reactions/reports on group posts), owner transfer, delete_account with routines/reports/bans/reviews/legacy posts by non-members in sole-owner groups, search_profiles, mute, anon, live-like seed data, FK actions, exact policy set, old trigger dropped, admin update reports; see `REPORT_v3.md`.
+- 6 mutation checks confirm v3 fixes catch regressions (v2 005 fails with live NO ACTION FKs; missing policy drops leak data).
+- Unverified: live data volume/contents beyond seed pattern, tables/triggers/functions not in fixture, real Supabase auth internals, concurrency. See `REPORT_v3.md` "Remaining unverified items". Run pre-checks against live (read-only) before applying.

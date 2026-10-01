@@ -182,21 +182,15 @@ export default function CommunitySettings() {
     }
   }
 
-  const handleApproveRequest = async (requestId: string, userId: string) => {
+  const handleApproveRequest = async (requestId: string, _userId: string) => {
     if (!selectedCommunity) return
     
-    // Approve = add to members
-    const { error } = await supabase
-      .from('community_members')
-      .insert({ community_id: selectedCommunity.id, user_id: userId, role: 'member' })
+    // Use RPC (handles RLS + member_count trigger)
+    const { error } = await supabase.rpc('approve_join_request', {
+      p_request_id: requestId,
+    })
     
     if (!error) {
-      // Update request status
-      await supabase
-        .from('community_join_requests')
-        .update({ status: 'approved', reviewed_by: userId, reviewed_at: new Date().toISOString() })
-        .eq('id', requestId)
-      
       await loadSettings()
     }
   }
@@ -204,10 +198,10 @@ export default function CommunitySettings() {
   const handleRejectRequest = async (requestId: string) => {
     if (!selectedCommunity) return
     
-    const { error } = await supabase
-      .from('community_join_requests')
-      .update({ status: 'rejected', reviewed_by: userId, reviewed_at: new Date().toISOString() })
-      .eq('id', requestId)
+    // Use RPC (handles RLS)
+    const { error } = await supabase.rpc('reject_join_request', {
+      p_request_id: requestId,
+    })
     
     if (!error) {
       await loadSettings()
@@ -218,11 +212,12 @@ export default function CommunitySettings() {
     if (!selectedCommunity || myRole !== 'owner') return
     
     const newRole = member.role === 'member' ? 'admin' : 'member'
-    const { error } = await supabase
-      .from('community_members')
-      .update({ role: newRole })
-      .eq('community_id', selectedCommunity.id)
-      .eq('user_id', member.id)
+    // Use RPC (handles RLS)
+    const { error } = await supabase.rpc('set_member_role', {
+      p_community_id: selectedCommunity.id,
+      p_user_id: member.id,
+      p_role: newRole,
+    })
     
     if (!error) {
       await loadSettings()

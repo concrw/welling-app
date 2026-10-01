@@ -12,6 +12,7 @@ export default function EveningReflection() {
   const saveEveningReflection = useAppStore((s) => s.saveEveningReflection)
   const eveningReflections = useAppStore((s) => s.eveningReflections)
   const addPost = useAppStore((s) => s.addPost)
+  const defaultVisibility = useAppStore((s) => s.defaultVisibility)
   const todayKey = new Date().toISOString().slice(0, 10)
 
   const [answers, setAnswers] = useState(() => {
@@ -28,7 +29,7 @@ export default function EveningReflection() {
     saveEveningReflection({ date: todayKey, answers })
     if (isPublic) {
       const content = prompts.map((p, i) => answers[i].trim() ? `${p}\n${answers[i].trim()}` : '').filter(Boolean).join('\n\n')
-      if (content) addPost(content, undefined, 'reflection', 'public', null)
+      if (content) addPost(content, undefined, 'reflection', defaultVisibility, null)
     }
     setSaved(true)
     setTimeout(() => navigate('mypage'), 1200)

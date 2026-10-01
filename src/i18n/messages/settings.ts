@@ -6,6 +6,7 @@ const ko = {
   defaultVisibility: '기본 공개 범위',
   profileVisibility: '프로필 공개 범위',
   changeUsername: '사용자명 변경',
+  deleteAccount: '계정 삭제',
   language: '언어',
   signOut: '로그아웃',
 
@@ -49,6 +50,7 @@ const en: typeof ko = {
   defaultVisibility: 'Default visibility',
   profileVisibility: 'Profile visibility',
   changeUsername: 'Change username',
+  deleteAccount: 'Delete account',
   language: 'Language',
   signOut: 'Sign out',
 

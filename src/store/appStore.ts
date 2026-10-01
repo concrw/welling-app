@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchTodayEvents, isConnected as isCalendarConnected } from '../lib/googleCalendar'
 import { getMessages } from '../i18n'
 import { daysAgo, generateHistoricalPosts, SAMPLE_POSTS, SAMPLE_COMMUNITIES, SAMPLE_USERS, SAMPLE_NOTIFS } from '../data/demo'
-import { DEMO_AD_SLOTS, DEMO_ROUTINE_GROUPS, DEMO_ADMIN_REPORTS, DEMO_SYNC_ALARM_DATE } from '../data/demoState'
+import { DEMO_ROUTINE_GROUPS, DEMO_ADMIN_REPORTS, DEMO_SYNC_ALARM_DATE } from '../data/demoState'
 
 export type Screen =
   | 'onboarding-username'
@@ -21,6 +21,7 @@ export type Screen =
   | 'community-detail'
   | 'new-community'
   | 'community-edit'
+  | 'community-settings'
   | 'routine-edit'
   | 'routine-history'
   | 'routine-privacy'
@@ -30,24 +31,19 @@ export type Screen =
   | 'comm-notifications'
   | 'notifications'
   | 'alarm'
-  | 'messages'
-  | 'chat-thread'
   | 'admin-users'
-  | 'admin-ads'
-  | 'ad-page'
   | 'evening-reflection'
   | 'settings-home-screen'
   | 'settings-default-visibility'
   | 'settings-profile-visibility'
   | 'settings-google-calendar'
   | 'settings-change-username'
+  | 'settings-delete-account'
 
 export type NavTab = 'feed' | 'explore' | 'ranking' | 'mypage'
 
-export type AdSlotKey = 'explore' | 'ranking' | 'mypage' | 'otherProfile' | 'community-detail'
-
-export type PostCategory = 'habit' | 'diet' | 'reflection' | 'routine'
-export type PostVisibility = 'public' | 'followers' | 'private'
+export type PostCategory = 'habit' | 'diet' | 'reflection' | 'routine' | 'exercise'
+export type PostVisibility = 'group' | 'public' | 'followers' | 'private'
 
 export interface Post {
   id: string
@@ -244,6 +240,10 @@ interface AppState {
   commVisibility: 'public' | 'private'
   // 커뮤니티 상세에서 글쓰기를 누르면 그 커뮤니티를 미리 선택한 채 기록 모달을 연다.
   pendingRecordCommunityId: string | null
+  // 초대 링크 처리
+  pendingInviteCode: string | null
+  pendingInviteSavedAt: number | null
+  invitePreview: { communityId: string; name: string; memberCount: number } | null
 
   selectedCommunity: Community | null
   selectedUser: User | null
@@ -257,8 +257,6 @@ interface AppState {
   showSyncAlarm: boolean
   showPostDetail: boolean
   selectedPost: Post | null
-  showAdModal: boolean
-  adModalData: { brand: string; desc: string; modalTitle?: string; modalBody?: string; ctaLabel?: string; ctaUrl?: string; slotKey?: AdSlotKey } | null
   showHomePrompt: boolean
   hasPromptedHome: boolean
   homeScreenIsRecord: boolean
@@ -266,12 +264,11 @@ interface AppState {
   recordUseCount: number
   showWelcomeAnimation: boolean
   pendingRecordAfterWelcome: boolean
-  defaultVisibility: 'public' | 'followers' | 'private'
+  defaultVisibility: PostVisibility
   profileVisibility: 'public' | 'followers' | 'private'
   nicknameEditInput: string
   onboardingAnimating: boolean
 
-  adSlots: Record<AdSlotKey, { brand: string; desc: string; clickAction: 'link' | 'modal' | 'page'; url: string; modalTitle: string; modalBody: string; pageId: string }>
   chatUser: string
   syncSheetUserName: string
   syncSheetAlarms: Array<{ time: string; items: string; group: string }>
@@ -309,6 +306,11 @@ interface AppState {
   navigate: (screen: Screen) => void
   goBack: () => void
   setNavTab: (tab: NavTab) => void
+  
+  // Invite handling
+  checkPendingInvite: () => Promise<void>
+  consumePendingInvite: () => Promise<void>
+  clearPendingInvite: () => void
   setNicknameInput: (v: string) => void
   setEmailInput: (v: string) => void
   setPasswordInput: (v: string) => void
@@ -334,6 +336,7 @@ interface AppState {
   toggleFollowUser: (userId: string) => Promise<void>
   toggleFollowOnboard: (userId: string) => void
   loadSuggestedUsers: () => Promise<void>
+  searchProfiles: (query: string) => Promise<void>
   toggleJoinCommunity: (communityId: string) => Promise<void>
   toggleLikePost: (postId: string) => Promise<void>
   toggleReaction: (postId: string, reactionType: string) => Promise<void>
@@ -363,15 +366,11 @@ interface AppState {
   completeSyncAlarm: () => void
   openPostDetail: (post: Post) => void
   closePostDetail: () => void
-  openAdModal: (data: { brand: string; desc: string; modalTitle?: string; modalBody?: string; ctaLabel?: string; ctaUrl?: string; slotKey?: AdSlotKey }) => void
-  closeAdModal: () => void
-  setAdPageData: (data: { brand: string; desc: string; slotKey: AdSlotKey }) => void
   acceptHomePrompt: () => void
   dismissHomePrompt: () => void
   showWelcomeAnim: () => void
   dismissWelcomeAnimation: () => void
   toggleSyncUser: (userId: string) => void
-  setAdSlot: (key: AdSlotKey, data: Partial<AppState['adSlots']['explore']>) => void
   closeSyncConfirm: () => void
   setDefaultVisibility: (v: 'public' | 'followers' | 'private') => void
   setProfileVisibility: (v: 'public' | 'followers' | 'private') => Promise<void>
@@ -412,7 +411,7 @@ async function insertRoutineGroups(userId: string, groups: RoutineGroupData[]): 
     const group = groups[gi]
     const { data: groupRow, error } = await supabase
       .from('routine_groups')
-      .insert({ user_id: userId, name: group.name, sort_order: gi, is_current: true, is_public: true })
+      .insert({ user_id: userId, name: group.name, sort_order: gi, is_current: true, is_public: false })
       .select()
       .single()
     if (error || !groupRow) continue
@@ -487,6 +486,10 @@ export const useAppStore = create<AppState>()(
 
   isAdmin: false,
   showRecordModal: false,
+  
+  pendingInviteCode: null,
+  pendingInviteSavedAt: null,
+  invitePreview: null,
 
   syncedList: new Set(),
   showSyncSheet: false,
@@ -494,8 +497,6 @@ export const useAppStore = create<AppState>()(
   showSyncAlarm: false,
   showPostDetail: false,
   selectedPost: null,
-  showAdModal: false,
-  adModalData: null,
   showHomePrompt: false,
   hasPromptedHome: false,
   homeScreenIsRecord: false,
@@ -504,11 +505,10 @@ export const useAppStore = create<AppState>()(
   showWelcomeAnimation: false,
   pendingRecordAfterWelcome: false,
   onboardingAnimating: false,
-  defaultVisibility: 'public',
+  defaultVisibility: 'group',
   profileVisibility: 'public',
   nicknameEditInput: '',
 
-  adSlots: DEMO_AD_SLOTS,
   routineGroups: DEMO_ROUTINE_GROUPS,
   routineHistory: [],
   currentRoutineStartDate: daysAgo(20, 0, 0),
@@ -585,6 +585,79 @@ export const useAppStore = create<AppState>()(
       feedVisitCount: tab === 'feed' ? s.feedVisitCount + 1 : s.feedVisitCount
     }))
   },
+  
+  // Invite handling
+  checkPendingInvite: async () => {
+    const stored = localStorage.getItem('welling_pending_invite')
+    if (!stored) return
+    
+    try {
+      const { code, savedAt } = JSON.parse(stored)
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+      if (Date.now() - savedAt > sevenDaysMs) {
+        localStorage.removeItem('welling_pending_invite')
+        return
+      }
+      
+      // Fetch invite preview
+      const { data, error } = await supabase.rpc('get_invite_preview', { p_code: code })
+      if (error || !data) {
+        localStorage.removeItem('welling_pending_invite')
+        return
+      }
+      
+      const result = typeof data === 'string' ? JSON.parse(data) : data
+      if (result.status === 'valid') {
+        set({
+          pendingInviteCode: code,
+          pendingInviteSavedAt: savedAt,
+          invitePreview: {
+            communityId: result.community_id,
+            name: result.name,
+            memberCount: result.member_count,
+          },
+        })
+      }
+    } catch {
+      localStorage.removeItem('welling_pending_invite')
+    }
+  },
+  
+  consumePendingInvite: async () => {
+    const { pendingInviteCode, userId } = get()
+    if (!pendingInviteCode || !userId) return
+    
+    const { data, error } = await supabase.rpc('join_by_invite', { p_code: pendingInviteCode })
+    if (error) {
+      console.error('Failed to join by invite:', error)
+      localStorage.removeItem('welling_pending_invite')
+      set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
+      return
+    }
+    
+    const result = typeof data === 'string' ? JSON.parse(data) : data
+    if (result.status === 'success' || result.status === 'already') {
+      localStorage.removeItem('welling_pending_invite')
+      set({
+        pendingInviteCode: null,
+        pendingInviteSavedAt: null,
+        invitePreview: null,
+        activeCommunityTab: result.community_id,
+        screen: 'feed',
+      })
+      // Reload feed to show new group
+      await get().loadFeedData()
+    } else {
+      // Handle error statuses
+      localStorage.removeItem('welling_pending_invite')
+      set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
+    }
+  },
+  
+  clearPendingInvite: () => {
+    localStorage.removeItem('welling_pending_invite')
+    set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
+  },
 
   setNicknameInput: (v) => set({ nicknameInput: v }),
   setEmailInput: (v) => set({ emailInput: v }),
@@ -614,7 +687,7 @@ export const useAppStore = create<AppState>()(
   },
 
   submitSocialNickname: async () => {
-    const { nicknameInput, userId } = get()
+    const { nicknameInput, userId, pendingInviteCode } = get()
     const trimmed = nicknameInput.trim()
     if (trimmed.length < 2 || !userId) return
     set({ authLoading: true, authError: '' })
@@ -626,8 +699,6 @@ export const useAppStore = create<AppState>()(
     set({
       nickname: trimmed,
       authLoading: false,
-      screen: 'onboarding-preview',
-      prevScreen: 'social-nickname',
     })
     get().loadFeedData()
     get().loadSuggestedUsers()
@@ -639,6 +710,13 @@ export const useAppStore = create<AppState>()(
     get().loadNotificationSettings()
     get().loadAdminData()
     get().loadCustomQuickButtons()
+    
+    // Handle invite or normal onboarding
+    if (pendingInviteCode) {
+      await get().consumePendingInvite()
+    } else {
+      set({ screen: 'onboarding-preview', prevScreen: 'social-nickname' })
+    }
   },
 
   updatePassword: async (newPassword) => {
@@ -654,7 +732,7 @@ export const useAppStore = create<AppState>()(
   },
 
   submitNickname: async () => {
-    const { nicknameInput, emailInput, passwordInput } = get()
+    const { nicknameInput, emailInput, passwordInput, pendingInviteCode } = get()
     const trimmed = nicknameInput.trim()
     if (trimmed.length < 2) return
     set({ authLoading: true, authError: '' })
@@ -673,8 +751,6 @@ export const useAppStore = create<AppState>()(
       userId: data.user.id,
       isDemo: false,
       authLoading: false,
-      screen: 'onboarding-preview',
-      prevScreen: 'onboarding-username',
     })
     get().loadFeedData()
     get().loadSuggestedUsers()
@@ -686,10 +762,17 @@ export const useAppStore = create<AppState>()(
     get().loadNotificationSettings()
     get().loadAdminData()
     get().loadCustomQuickButtons()
+    
+    // Handle invite or normal onboarding
+    if (pendingInviteCode) {
+      await get().consumePendingInvite()
+    } else {
+      set({ screen: 'onboarding-preview', prevScreen: 'onboarding-username' })
+    }
   },
 
   submitLogin: async () => {
-    const { emailInput, passwordInput } = get()
+    const { emailInput, passwordInput, pendingInviteCode } = get()
     set({ authLoading: true, authError: '' })
     const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput })
     if (error || !data.user) {
@@ -704,9 +787,6 @@ export const useAppStore = create<AppState>()(
       isAdmin: profile?.is_admin ?? false,
       profileVisibility: (profile?.profile_visibility as 'public' | 'followers' | 'private') ?? 'public',
       authLoading: false,
-      screen: 'feed',
-      navTab: 'feed',
-      prevScreen: null,
       showRecordModal: get().homeScreenIsRecord,
     })
     get().loadFeedData()
@@ -719,6 +799,13 @@ export const useAppStore = create<AppState>()(
     get().loadNotificationSettings()
     get().loadAdminData()
     get().loadCustomQuickButtons()
+    
+    // Handle invite or go to feed
+    if (pendingInviteCode) {
+      await get().consumePendingInvite()
+    } else {
+      set({ screen: 'feed', navTab: 'feed', prevScreen: null })
+    }
   },
 
   restoreSession: async () => {
@@ -736,6 +823,7 @@ export const useAppStore = create<AppState>()(
       set({ userId: user.id, isDemo: false, authInitializing: false, screen: 'social-nickname', navTab: 'feed' })
       return
     }
+    const { pendingInviteCode } = get()
     set({
       nickname: profile?.nickname ?? '',
       userId: user.id,
@@ -743,10 +831,8 @@ export const useAppStore = create<AppState>()(
       isAdmin: profile?.is_admin ?? false,
       profileVisibility: (profile?.profile_visibility as 'public' | 'followers' | 'private') ?? 'public',
       authInitializing: false,
-      screen: recovering ? 'reset-password' : 'feed',
-      navTab: 'feed',
       // 홈 화면 설정이 record면 피드 위에 기록 모달을 띄운다(비밀번호 재설정 중에는 제외)
-      showRecordModal: !recovering && get().homeScreenIsRecord,
+      showRecordModal: !recovering && get().homeScreenIsRecord && !pendingInviteCode,
     })
     get().loadFeedData()
     get().loadSuggestedUsers()
@@ -758,6 +844,13 @@ export const useAppStore = create<AppState>()(
     get().loadNotificationSettings()
     get().loadAdminData()
     get().loadCustomQuickButtons()
+    
+    // Handle invite or go to appropriate screen
+    if (pendingInviteCode) {
+      await get().consumePendingInvite()
+    } else {
+      set({ screen: recovering ? 'reset-password' : 'feed', navTab: 'feed' })
+    }
   },
 
   goFeedDemo: () => set({ nickname: 'Min', isDemo: true, userId: null, screen: 'feed', navTab: 'feed', prevScreen: null }),
@@ -822,11 +915,42 @@ export const useAppStore = create<AppState>()(
       return { onboardingFollowed: next }
     }),
 
+  searchProfiles: async (query) => {
+    const { userId, isDemo } = get()
+    if (isDemo || !userId) return
+    if (!query.trim()) {
+      set({ suggestedUsers: [] })
+      return
+    }
+    const { data, error } = await supabase.rpc('search_profiles', { p_query: query, p_limit: 20 })
+    if (error || !data) {
+      set({ suggestedUsers: [] })
+      return
+    }
+    const palette = ['#0984E3', '#00A389', '#7C3AED', '#B45309', '#1A6B4A', '#C2600A']
+    const suggestedUsers: User[] = data.map((p: any, i: number) => ({
+      id: p.id,
+      name: p.nickname,
+      handle: p.nickname,
+      initials: p.nickname[0]?.toUpperCase() ?? '?',
+      color: palette[i % palette.length],
+      bio: p.bio ?? '',
+      followers: 0,
+      following: 0,
+      followed: false,
+      synced: false,
+      routines: [],
+      routineGoals: [],
+    }))
+    set({ suggestedUsers })
+  },
+
   loadSuggestedUsers: async () => {
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
+    // DEPRECATED: Load limited initial set only. Use searchProfiles for search.
     const [{ data: profileRows }, { data: followRows }, { data: countRows }] = await Promise.all([
-      supabase.from('profiles').select('id, nickname, bio').neq('id', userId),
+      supabase.from('profiles').select('id, nickname, bio').neq('id', userId).limit(20),
       supabase.from('follows').select('followee_id').eq('follower_id', userId),
       supabase.from('follow_counts').select('*'),
     ])
@@ -1343,9 +1467,6 @@ export const useAppStore = create<AppState>()(
   openPostDetail: (post) => set({ showPostDetail: true, selectedPost: post }),
   closePostDetail: () => set({ showPostDetail: false, selectedPost: null }),
 
-  openAdModal: (data) => set({ showAdModal: true, adModalData: data }),
-  closeAdModal: () => set({ showAdModal: false, adModalData: null }),
-  setAdPageData: (data) => set({ adModalData: data }),
 
   acceptHomePrompt: () => set({ showHomePrompt: false, homeScreenIsRecord: true }),
 
@@ -1367,7 +1488,6 @@ export const useAppStore = create<AppState>()(
       return { syncedList: next }
     }),
 
-  setAdSlot: (key, data) => set((s) => ({ adSlots: { ...s.adSlots, [key]: { ...s.adSlots[key], ...data } } })),
 
   closeSyncConfirm: () => set({ showSyncConfirm: false }),
 
@@ -1739,7 +1859,7 @@ export const useAppStore = create<AppState>()(
       homeScreenIsRecord: false,
       feedVisitCount: 0,
       recordUseCount: 0,
-      defaultVisibility: 'public',
+      defaultVisibility: 'group',
       profileVisibility: 'public',
       nicknameEditInput: '',
       screen: 'onboarding-username',
@@ -1755,7 +1875,6 @@ export const useAppStore = create<AppState>()(
         nickname: s.nickname,
         isDemo: s.isDemo,
         dashboardPeriod: s.dashboardPeriod,
-        adSlots: s.adSlots,
         chatUser: s.chatUser,
         homeScreenIsRecord: s.homeScreenIsRecord,
         hasPromptedHome: s.hasPromptedHome,

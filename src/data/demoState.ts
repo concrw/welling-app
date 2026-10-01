@@ -1,14 +1,6 @@
 // appStore 초기 상태에 들어가는 데모 값 모음. UI 문구가 아닌 목업 콘텐츠이므로
 // i18n 카탈로그가 아닌 데이터 파일로 관리한다.
-import type { AdSlotKey, RoutineGroupData, AdminReportRecord } from '../store/appStore'
-
-export const DEMO_AD_SLOTS: Record<AdSlotKey, { brand: string; desc: string; clickAction: 'link' | 'modal' | 'page'; url: string; modalTitle: string; modalBody: string; pageId: string }> = {
-  explore: { brand: '나이키 러닝 클럽', desc: '함께 달리면 더 멀리. 지금 참여하세요.', clickAction: 'link', url: 'https://nike.com/kr', modalTitle: '', modalBody: '', pageId: '' },
-  ranking: { brand: '마이프로틴 Korea', desc: '루틴의 완성. 100% 유청 단백질.', clickAction: 'modal', url: '', modalTitle: '마이프로틴 특별 할인', modalBody: '루틴 챌린지 달성자 한정 20% 할인쿠폰을 드려요.\n프로모션 코드: WELLING20', pageId: '' },
-  mypage: { brand: 'Calm · 마음 루틴', desc: '수면의 질이 루틴을 결정해요.', clickAction: 'page', url: '', modalTitle: '', modalBody: '', pageId: 'calm-detail' },
-  otherProfile: { brand: 'Calm · 마음 루틴', desc: '수면의 질이 루틴을 결정해요.', clickAction: 'page', url: '', modalTitle: '', modalBody: '', pageId: 'calm-detail' },
-  'community-detail': { brand: '마이프로틴 Korea', desc: '루틴의 완성. 100% 유청 단백질.', clickAction: 'page', url: '', modalTitle: '', modalBody: '', pageId: 'myprotein-detail' },
-}
+import type { RoutineGroupData, AdminReportRecord } from '../store/appStore'
 
 export const DEMO_ROUTINE_GROUPS: RoutineGroupData[] = [
   {

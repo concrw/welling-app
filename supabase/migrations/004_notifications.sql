@@ -86,8 +86,8 @@ BEGIN
   -- 글 작성자 조회
   SELECT user_id INTO v_post_author_id FROM posts WHERE id = NEW.post_id;
 
-  -- 본인 행동은 알림 안 함
-  IF v_post_author_id = NEW.user_id THEN
+  -- 작성자 없음(NULL) 또는 본인 행동은 알림 안 함 (live notifications.user_id NOT NULL)
+  IF v_post_author_id IS NULL OR v_post_author_id = NEW.user_id THEN
     RETURN NEW;
   END IF;
 
@@ -140,8 +140,8 @@ BEGIN
   -- 글 작성자 조회
   SELECT user_id INTO v_post_author_id FROM posts WHERE id = NEW.post_id;
 
-  -- 본인 댓글은 알림 안 함
-  IF v_post_author_id = NEW.user_id THEN
+  -- 작성자 없음(NULL) 또는 본인 댓글은 알림 안 함 (live notifications.user_id NOT NULL)
+  IF v_post_author_id IS NULL OR v_post_author_id = NEW.user_id THEN
     RETURN NEW;
   END IF;
 

@@ -143,7 +143,7 @@ CREATE INDEX IF NOT EXISTS community_members_community_id_idx ON community_membe
 CREATE TABLE IF NOT EXISTS community_bans (
   community_id text NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  banned_by uuid NOT NULL REFERENCES profiles(id) ON DELETE SET NULL,
+  banned_by uuid REFERENCES profiles(id) ON DELETE SET NULL, -- nullable so ON DELETE SET NULL can work (delete_account)
   created_at timestamptz DEFAULT now(),
   PRIMARY KEY (community_id, user_id)
 );
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS community_join_requests (
   user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   requested_at timestamptz DEFAULT now(),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-  reviewed_by uuid REFERENCES profiles(id),
+  reviewed_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
   reviewed_at timestamptz,
   UNIQUE(community_id, user_id)
 );
@@ -262,7 +262,7 @@ BEGIN
     p_visibility,
     v_user_id,
     v_invite_code,
-    1
+    0 -- member_count starts at 0: the community_member_count_trigger increments it when the owner row is inserted below
   );
 
   -- 소유자를 멤버로 추가

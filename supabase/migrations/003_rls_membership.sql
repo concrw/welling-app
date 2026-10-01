@@ -143,6 +143,11 @@ DROP POLICY IF EXISTS "posts_select_by_visibility" ON posts;
 DROP POLICY IF EXISTS "users can insert own posts" ON posts;
 DROP POLICY IF EXISTS "users can update own posts" ON posts;
 DROP POLICY IF EXISTS "users can delete own posts" ON posts;
+-- live names as captured in the verified live schema ("their own"): must be dropped too, otherwise these permissive
+-- policies survive alongside posts_insert/update/delete (e.g. allow inserting a group post without membership)
+DROP POLICY IF EXISTS "users can insert their own posts" ON posts;
+DROP POLICY IF EXISTS "users can update their own posts" ON posts;
+DROP POLICY IF EXISTS "users can delete their own posts" ON posts;
 DROP POLICY IF EXISTS posts_select ON posts;
 DROP POLICY IF EXISTS posts_insert ON posts;
 DROP POLICY IF EXISTS posts_update ON posts;
@@ -159,6 +164,13 @@ CREATE POLICY posts_select ON posts
       SELECT 1 FROM follows f WHERE f.follower_id = auth.uid() AND f.followee_id = user_id
     ))
   );
+
+-- anon: live policy had no role restriction, so anon could read public posts. Preserve that.
+-- (separate policy: anon cannot EXECUTE is_member(), so it must not be evaluated for anon)
+DROP POLICY IF EXISTS posts_select_anon_public ON posts;
+CREATE POLICY posts_select_anon_public ON posts
+  FOR SELECT TO anon
+  USING (visibility = 'public');
 
 -- INSERT: 본인만, community_id가 있으면 멤버 확인
 CREATE POLICY posts_insert ON posts
@@ -186,6 +198,10 @@ CREATE POLICY posts_delete ON posts
 
 -- 기존 정책 제거 (LIVE policy names)
 DROP POLICY IF EXISTS "users manage own data" ON post_likes;
+-- live names: permissive USING(true) SELECT policies would otherwise survive and bypass can_view_post()
+DROP POLICY IF EXISTS "post likes are publicly readable" ON post_likes;
+DROP POLICY IF EXISTS "users can like posts themselves" ON post_likes;
+DROP POLICY IF EXISTS "users can unlike posts themselves" ON post_likes;
 DROP POLICY IF EXISTS post_likes_select ON post_likes;
 DROP POLICY IF EXISTS post_likes_insert ON post_likes;
 DROP POLICY IF EXISTS post_likes_delete ON post_likes;
@@ -236,6 +252,9 @@ CREATE POLICY post_reactions_delete ON post_reactions
 
 -- 기존 정책 제거 (LIVE policy names)
 DROP POLICY IF EXISTS "users manage own data" ON post_comments;
+-- live names: permissive USING(true) SELECT policy would otherwise survive and bypass can_view_post()
+DROP POLICY IF EXISTS "post comments are publicly readable" ON post_comments;
+DROP POLICY IF EXISTS "users can comment themselves" ON post_comments;
 DROP POLICY IF EXISTS post_comments_select ON post_comments;
 DROP POLICY IF EXISTS post_comments_insert ON post_comments;
 DROP POLICY IF EXISTS post_comments_update ON post_comments;

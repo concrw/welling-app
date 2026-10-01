@@ -22,6 +22,7 @@ ALTER TABLE posts
   CHECK (visibility IN ('group', 'public', 'followers', 'private'));
 
 -- group 글은 community_id 필수
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_group_has_community;
 ALTER TABLE posts
   ADD CONSTRAINT posts_group_has_community
   CHECK (visibility <> 'group' OR community_id IS NOT NULL);

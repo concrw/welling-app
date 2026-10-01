@@ -29,7 +29,7 @@ BEGIN
     p.id,
     p.nickname,
     COALESCE(p.bio, '') as bio,
-    p.avatar_url,
+    NULL::text AS avatar_url, -- profiles.avatar_url does not exist live
     EXISTS(SELECT 1 FROM follows WHERE follower_id = v_user_id AND followee_id = p.id) as followed
   FROM profiles p
   WHERE 
@@ -54,7 +54,7 @@ BEGIN
       ELSE 2
     END,
     p.nickname
-  LIMIT p_limit;
+  LIMIT LEAST(GREATEST(COALESCE(p_limit, 20), 1), 20); -- hard cap 20 regardless of caller
 END;
 $$;
 

@@ -6,7 +6,7 @@
 --   2. 소유 그룹 처리: 삭제 대신 소유권 이전
 --   3. anon 권한 명시적으로 회수
 --   4. Storage 파일 삭제는 클라이언트/Edge Function에서 처리 (TODO)
---   5. 신고 기록 보존 (reported_user_id를 NULL로)
+--   5. 나를 대상으로 한 reports 행 삭제 (live: reports.reported_user_id NOT NULL + FK profiles(id), cascade 없음)
 --
 -- ⚠️ 이 마이그레이션은 PR #2를 대체하며, PR #2는 이 PR에서 superseded로 표시됩니다.
 
@@ -54,6 +54,13 @@ BEGIN
   AND role <> 'owner';
 
   -- 여전히 내가 소유자인 그룹 (= 다른 멤버 없음): 삭제
+  -- live post_reports.post_id FK에는 ON DELETE CASCADE가 없으므로, 그룹 삭제 시 cascade로 지워지는 글(타인 글 포함)의
+  -- post_reports를 먼저 명시적으로 삭제해야 한다.
+  DELETE FROM post_reports
+  WHERE post_id IN (
+    SELECT p.id FROM posts p
+    WHERE p.community_id IN (SELECT id FROM communities WHERE owner_id = calling_user_id)
+  );
   DELETE FROM communities WHERE owner_id = calling_user_id;
 
   -- ============================================================
@@ -85,12 +92,13 @@ BEGIN
   -- ============================================================
   -- 6. 신고 기록 처리
   -- ============================================================
-  -- 내가 신고한 것: 삭제
+  -- 내가 신고한 글 신고(post_reports): 삭제
   DELETE FROM post_reports WHERE reporter_id = calling_user_id;
-  DELETE FROM reports WHERE reporter_id = calling_user_id;
+  -- (live `reports` has no reporter column: id, reported_user_id, count, content, reason, status, created_at)
 
-  -- 남이 나를 신고한 것: 운영 기록 보존을 위해 reported_id를 NULL로
-  UPDATE reports SET reported_id = NULL WHERE reported_id = calling_user_id;
+  -- 나를 대상으로 한 신고: live reports.reported_user_id는 NOT NULL + FK profiles(id) (cascade 없음)이므로
+  -- NULL 처리 불가 -> 프로필 삭제 전에 행 삭제
+  DELETE FROM reports WHERE reported_user_id = calling_user_id;
 
   -- ============================================================
   -- 7. 알림
@@ -101,10 +109,16 @@ BEGIN
   -- ============================================================
   -- 8. 루틴
   -- ============================================================
-  DELETE FROM routine_privacy WHERE user_id = calling_user_id;
+  -- live: routine_groups(user_id), routine_items(group_id), routine_privacy(item_id PK -> routine_items ON DELETE CASCADE)
+  -- routine_items / routine_privacy에는 user_id 컬럼이 없음 -> group_id / item_id 경유
+  DELETE FROM routine_privacy
+  WHERE item_id IN (
+    SELECT i.id FROM routine_items i
+    WHERE i.group_id IN (SELECT g.id FROM routine_groups g WHERE g.user_id = calling_user_id)
+  );
 
   DELETE FROM routine_items
-  WHERE routine_group_id IN (SELECT id FROM routine_groups WHERE user_id = calling_user_id);
+  WHERE group_id IN (SELECT g.id FROM routine_groups g WHERE g.user_id = calling_user_id);
 
   DELETE FROM routine_groups WHERE user_id = calling_user_id;
 

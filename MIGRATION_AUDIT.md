@@ -1,4 +1,4 @@
-# Migration Audit Report - UNTESTED (No Postgres available)
+# Migration Audit Report - VALIDATED ON SCRATCH FIXTURE (not run on the live DB)
 
 ## Critical Bugs Found & Fixed
 
@@ -36,17 +36,8 @@
 
 ## Validation Strategy
 
-**UNTESTED** - No Postgres/Docker available in VM.
+**Status: validated on a scratch Postgres 17 fixture built from the live schema (read via SQL editor), not run on the live DB.**
 
-**Manual audit conducted:**
-- Line-by-line review of all 7 migrations
-- Cross-referenced with live schema facts
-- Verified column existence at each step
-- Checked policy names match live
-- Confirmed FK references valid tables/columns
-
-**Recommended verification before production:**
-1. Restore prod snapshot to staging DB
-2. Run migrations 001-007 in sequence
-3. Verify: `SELECT DISTINCT type FROM notifications;`
-4. Test: invite join, cheer (1 notif), 2 comments (no collision), RLS blocks non-member
+- Migrations 001-007 (with the fixes in `fixes_v2.patch`) were applied twice in a row (`psql -v ON_ERROR_STOP=1 -1`) to a scratch PostgreSQL 17.11 database whose tables, FKs, CHECKs, policies and the live `notify_on_post_like` trigger were recreated from the live schema read through the Supabase SQL editor. No real Supabase database was touched.
+- 28 behavioural assertions (group create/join/approval, no member cap, like/comment notifications, RLS visibility, owner transfer, delete_account incl. users with routines, reports, post_reports, bans and join-request reviews, search_profiles, mute toggle, anon privileges) all pass; see `REPORT_v2.md`.
+- Not covered: live data volume/contents, live objects not captured in the fixture (other tables/triggers/policies/FKs), real Supabase auth internals. Remaining assumptions are listed in `REPORT_v2.md`. Run the pre-checks in it against live (read-only) before applying.

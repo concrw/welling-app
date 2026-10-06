@@ -16,12 +16,14 @@ const ko = {
   usernameHint: '영문, 숫자, 언더바 사용 가능. 최대 20자.',
 
   // Visibility options
+  visGroup: '내 그룹',
   visPublic: '전체 공개',
   visFollowers: '팔로워만',
   visPrivate: '비공개',
   defaultVisibilityGuide: '새 게시물의 기본 공개 범위를 설정하세요. 게시물마다 개별 변경도 가능합니다.',
   visPublicPostDesc: '누구나 내 게시물을 볼 수 있습니다.',
   visFollowersDesc: '나를 팔로우하는 사람만 볼 수 있습니다.',
+  visGroupDesc: '내가 속한 그룹에 자동으로 게시됩니다.',
   visPrivateDesc: '나만 볼 수 있습니다.',
   profileVisibilityGuide: '내 프로필 페이지의 공개 범위를 설정하세요.',
   visPublicProfileDesc: '누구나 내 프로필을 볼 수 있습니다.',

@@ -7,7 +7,8 @@ export default function SettingsDefaultVisibility() {
   const defaultVisibility = useAppStore((s) => s.defaultVisibility)
   const setDefaultVisibility = useAppStore((s) => s.setDefaultVisibility)
 
-  const OPTIONS: { value: 'public' | 'followers' | 'private'; label: string; desc: string }[] = [
+  const OPTIONS: { value: 'group' | 'public' | 'followers' | 'private'; label: string; desc: string }[] = [
+    { value: 'group', label: M.settings.visGroup, desc: M.settings.visGroupDesc },
     { value: 'public', label: M.settings.visPublic, desc: M.settings.visPublicPostDesc },
     { value: 'followers', label: M.settings.visFollowers, desc: M.settings.visFollowersDesc },
     { value: 'private', label: M.settings.visPrivate, desc: M.settings.visPrivateDesc },

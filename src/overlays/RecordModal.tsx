@@ -25,6 +25,7 @@ export default function RecordModal() {
   const addCustomQuickButton = useAppStore((s) => s.addCustomQuickButton)
   const updateCustomQuickButton = useAppStore((s) => s.updateCustomQuickButton)
   const removeCustomQuickButton = useAppStore((s) => s.removeCustomQuickButton)
+  const routineGroups = useAppStore((s) => s.routineGroups)
 
   const [toast, setToast] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -50,12 +51,20 @@ export default function RecordModal() {
   const didLongPress = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Build quick button list: routine items + custom buttons
+  const routineButtons: QuickBtn[] = routineGroups.flatMap((g) => g.items).map((item) => ({
+    id: `routine-${item.id}`,
+    num: 0,
+    label: item.name,
+    isCustom: false,
+  }))
   const customButtons: QuickBtn[] = customQuickButtons.map((b, i) => ({
     id: b.id,
     num: i + 1,
     label: b.label,
     isCustom: true,
   }))
+  const allQuickButtons: QuickBtn[] = [...routineButtons, ...customButtons].map((b, i) => ({ ...b, num: i + 1 }))
 
   // Timer interval
   useEffect(() => {
@@ -397,9 +406,9 @@ export default function RecordModal() {
             )}
 
             {/* Custom quick buttons */}
-            {customButtons.length > 0 && (
+            {allQuickButtons.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {customButtons.map((btn) => (
+                {allQuickButtons.map((btn) => (
                   <button
                     key={btn.id}
                     onMouseDown={() => handlePressStart(btn)}

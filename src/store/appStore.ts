@@ -1982,6 +1982,15 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'welling_v1',
+      version: 2,
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as Partial<AppState>
+        // v1 -> v2: convert legacy 'public' defaultVisibility to 'group'
+        if (version < 2 && state.defaultVisibility === 'public') {
+          state.defaultVisibility = 'group'
+        }
+        return state as AppState
+      },
       partialize: (s) => ({
         nickname: s.nickname,
         isDemo: s.isDemo,
@@ -1996,10 +2005,6 @@ export const useAppStore = create<AppState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return
-        // Migrate legacy 'public' defaultVisibility to 'group'
-        if (state.defaultVisibility === 'public') {
-          state.defaultVisibility = 'group'
-        }
         const updates: Partial<AppState> = {
           mypageTab: 'dashboard',
           expandedPrev: true,

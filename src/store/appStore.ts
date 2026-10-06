@@ -374,7 +374,7 @@ interface AppState {
   dismissWelcomeAnimation: () => void
   toggleSyncUser: (userId: string) => void
   closeSyncConfirm: () => void
-  setDefaultVisibility: (v: 'public' | 'followers' | 'private') => void
+  setDefaultVisibility: (v: PostVisibility) => void
   setProfileVisibility: (v: 'public' | 'followers' | 'private') => Promise<void>
   setNicknameEditInput: (v: string) => void
   submitNicknameEdit: () => Promise<void>

@@ -626,7 +626,7 @@ export const useAppStore = create<AppState>()(
   },
   
   consumePendingInvite: async () => {
-    const { pendingInviteCode, userId } = get()
+    const { pendingInviteCode, userId, screen } = get()
     if (!pendingInviteCode || !userId) return
     
     const { data, error } = await supabase.rpc('join_by_invite', { p_code: pendingInviteCode })
@@ -635,6 +635,9 @@ export const useAppStore = create<AppState>()(
       alert(getMessages().store.inviteUnknownError(error.message))
       localStorage.removeItem('welling_pending_invite')
       set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
+      // Navigate based on whether this is a new signup (coming from nickname/username screens)
+      const isNewSignup = screen === 'social-nickname' || screen === 'onboarding-username'
+      get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
       return
     }
     
@@ -698,7 +701,7 @@ export const useAppStore = create<AppState>()(
     alert(statusMessages[result.status] || M.store.inviteUnknownError(result.status))
     
     // Navigate to appropriate screen after failure
-    const isNewSignup = get().screen === 'onboarding-preview'
+    const isNewSignup = get().screen === 'social-nickname' || get().screen === 'onboarding-username'
     get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
   },
   

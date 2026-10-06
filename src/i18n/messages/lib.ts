@@ -10,6 +10,7 @@ const ko = {
   timeOfDay: {
     morning: '아침',
     lunch: '점심',
+    afternoon: '오후',
     dinner: '저녁',
     snack: '간식',
   },
@@ -57,6 +58,7 @@ const en: typeof ko = {
   timeOfDay: {
     morning: 'morning',
     lunch: 'lunch',
+    afternoon: 'afternoon',
     dinner: 'dinner',
     snack: 'snack',
   },

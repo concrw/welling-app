@@ -34,7 +34,6 @@ export default function RecordModal() {
   const [recordText, setRecordText] = useState('')
   const [recordCommunityId, setRecordCommunityId] = useState<string>('')
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [showMore, setShowMore] = useState(false)
   const [recordCategory, setRecordCategory] = useState<PostCategory>('habit')
   const [recordVisibility, setRecordVisibility] = useState<PostVisibility>(defaultVisibility)
   const [recordInstaUrl, setRecordInstaUrl] = useState('')
@@ -69,7 +68,7 @@ export default function RecordModal() {
   // Timer interval
   useEffect(() => {
     if (!activeTimer) return
-    const tick = () => {
+    const tick = async () => {
       const remaining = activeTimer.endsAt - Date.now()
       if (remaining <= 0) {
         const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
@@ -80,8 +79,12 @@ export default function RecordModal() {
         } else if (defaultVisibility === 'group') {
           vis = 'private'
         }
-        addPost(activeTimer.btn.label, undefined, 'habit', vis, communityId)
-        showToast(M.overlays.recordDoneWithLabel(activeTimer.btn.label))
+        const success = await addPost(activeTimer.btn.label, undefined, 'habit', vis, communityId)
+        if (success) {
+          showToast(M.overlays.recordDoneWithLabel(activeTimer.btn.label))
+        } else {
+          showToast(M.overlays.recordFailed)
+        }
         setActiveTimer(null)
         setTimerRemainingMs(0)
       } else {
@@ -118,8 +121,19 @@ export default function RecordModal() {
   }
 
   const handleQuickPost = async (category: 'diet' | 'exercise') => {
+    // Get Asia/Seoul time for HH:MM
     const now = new Date()
-    const timeLabel = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+    const parts = formatter.formatToParts(now)
+    const hour = parts.find((p) => p.type === 'hour')?.value || '00'
+    const minute = parts.find((p) => p.type === 'minute')?.value || '00'
+    const timeLabel = `${hour}:${minute}`
+    
     const activityLabel = getActivityLabel(category, M)
     const content = `${activityLabel} · ${timeLabel}`
     const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
@@ -197,7 +211,7 @@ export default function RecordModal() {
   }
 
   // Custom button handlers
-  const handleCustomTap = (btn: QuickBtn) => {
+  const handleCustomTap = async (btn: QuickBtn) => {
     const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
     // When posting to a group, map 'public' -> 'group' (legacy default from main)
     let vis = defaultVisibility
@@ -206,9 +220,13 @@ export default function RecordModal() {
     } else if (defaultVisibility === 'group') {
       vis = 'private'
     }
-    addPost(btn.label, undefined, 'habit', vis, communityId)
-    showToast(M.overlays.recordDoneWithLabel(btn.label))
-    setTimeout(() => closeRecordModal(), 400)
+    const success = await addPost(btn.label, undefined, 'habit', vis, communityId)
+    if (success) {
+      showToast(M.overlays.recordDoneWithLabel(btn.label))
+      setTimeout(() => closeRecordModal(), 400)
+    } else {
+      showToast(M.overlays.recordFailed)
+    }
   }
 
   const handlePressStart = (btn: QuickBtn) => {
@@ -263,7 +281,7 @@ export default function RecordModal() {
     const totalMs = minutes * 60 * 1000
     setActiveTimer({ btn: timerTarget, endsAt: Date.now() + totalMs, totalMs })
     setTimerTarget(null)
-    setShowMore(false)
+    // Don't collapse the More section when timer starts
   }
 
   const formatTimerRemaining = (ms: number): string => {
@@ -367,31 +385,82 @@ export default function RecordModal() {
           </button>
         </div>
 
-        {/* More options collapsible section */}
-        {!showMore && (
-          <div style={{ padding: '0 20px 16px' }}>
+
+        {/* Target group display */}
+        {selectedComm && (
+          <div style={{ padding: '0 20px 8px', fontSize: 13, color: '#666666' }}>
+            {M.overlays.recordingTo(selectedComm.name)}
+          </div>
+        )}
+
+        {/* Optional photo & text */}
+        <div style={{ padding: '0 20px 16px' }}>
+          <textarea
+            placeholder={M.overlays.recordPlaceholder}
+            value={recordText}
+            onChange={(e) => setRecordText(e.target.value)}
+            style={{
+              width: '100%',
+              minHeight: 60,
+              padding: 12,
+              fontSize: 14,
+              border: '1px solid #EBEBEB',
+              borderRadius: 8,
+              resize: 'none',
+              fontFamily: 'inherit',
+              boxSizing: 'border-box',
+            }}
+          />
+          {imagePreview && (
+            <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+              <img src={imagePreview} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }} />
+              <button
+                onClick={() => { setImagePreview(null); setImageFile(null) }}
+                style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#111111', color: '#FFFFFF', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
             <button
-              onClick={() => setShowMore(true)}
-              style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: '1px solid #EBEBEB', background: 'transparent', color: '#555555', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              onClick={() => fileRef.current?.click()}
+              style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: '1px solid #EBEBEB', borderRadius: 8, cursor: 'pointer' }}
             >
-              {M.overlays.moreOptions}
+              {M.overlays.photo}
+            </button>
+            {recordText.trim() && (
+              <button
+                onClick={handleTextRecord}
+                disabled={uploading}
+                style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#FFFFFF', background: '#111111', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+              >
+                {uploading ? M.overlays.uploading : M.overlays.recordSubmit}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* '더보기' toggle for advanced options */}
+        {!showAdvanced && (
+          <div style={{ padding: '0 20px 8px' }}>
+            <button
+              onClick={() => setShowAdvanced(true)}
+              style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            >
+              {M.overlays.showAdvanced}
             </button>
           </div>
         )}
 
-        {showMore && (
-          <div style={{ padding: '0 20px 16px', borderTop: '1px solid #F0F0F0', paddingTop: 16, marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#111111' }}>
-                {M.overlays.moreOptions}
-              </p>
-              <button
-                onClick={() => setShowMore(false)}
-                style={{ padding: '4px 12px', borderRadius: 6, background: 'transparent', border: '1px solid #EBEBEB', color: '#AAAAAA', fontSize: 11, cursor: 'pointer' }}
-              >
-                {M.common.close}
-              </button>
-            </div>
+        {showAdvanced && (
+          <div style={{ padding: '0 20px 16px', borderTop: '1px solid #EBEBEB', paddingTop: 16 }}>
+            <button
+              onClick={() => setShowAdvanced(false)}
+              style={{ width: '100%', padding: '8px 0', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: 'none', cursor: 'pointer', marginBottom: 12 }}
+            >
+              {M.overlays.hideAdvanced}
+            </button>
 
             {/* Active timer display */}
             {activeTimer && (
@@ -408,22 +477,60 @@ export default function RecordModal() {
             {/* Custom quick buttons */}
             {allQuickButtons.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {allQuickButtons.map((btn) => (
-                  <button
-                    key={btn.id}
-                    onMouseDown={() => handlePressStart(btn)}
-                    onMouseUp={() => handlePressEnd(btn)}
-                    onMouseLeave={() => {
-                      if (longPressTimer.current) clearTimeout(longPressTimer.current)
-                      longPressTimer.current = null
-                    }}
-                    onTouchStart={() => handlePressStart(btn)}
-                    onTouchEnd={() => handlePressEnd(btn)}
-                    style={{ padding: '10px 16px', borderRadius: 8, background: '#F8F8F8', fontSize: 13, fontWeight: 600, color: '#111111', border: 'none', cursor: 'pointer' }}
-                  >
-                    {btn.label}
-                  </button>
-                ))}
+                {allQuickButtons.map((btn) => {
+                  const isTiming = activeTimer?.btn.id === btn.id
+                  return (
+                    <div key={btn.id} style={{ position: 'relative' }}>
+                      <button
+                        onMouseDown={() => handlePressStart(btn)}
+                        onMouseUp={() => handlePressEnd(btn)}
+                        onMouseLeave={() => {
+                          if (longPressTimer.current) clearTimeout(longPressTimer.current)
+                          longPressTimer.current = null
+                        }}
+                        onTouchStart={() => handlePressStart(btn)}
+                        onTouchEnd={(e) => { e.preventDefault(); handlePressEnd(btn) }}
+                        disabled={isTiming}
+                        style={{ 
+                          padding: '10px 32px 10px 16px', 
+                          borderRadius: 8, 
+                          background: isTiming ? '#111111' : '#F8F8F8', 
+                          fontSize: 13, 
+                          fontWeight: 600, 
+                          color: isTiming ? '#FFFFFF' : '#111111', 
+                          border: 'none', 
+                          cursor: isTiming ? 'default' : 'pointer',
+                          position: 'relative'
+                        }}
+                      >
+                        {isTiming ? formatTimerRemaining(timerRemainingMs) : btn.label}
+                      </button>
+                      {!isTiming && (
+                        <button
+                          onClick={() => setTimerTarget(btn)}
+                          style={{ 
+                            position: 'absolute', 
+                            top: '50%', 
+                            right: 8, 
+                            transform: 'translateY(-50%)', 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            padding: 4, 
+                            display: 'flex', 
+                            alignItems: 'center' 
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <circle cx="8" cy="9" r="6" stroke="#AAAAAA" strokeWidth="1.4"/>
+                            <path d="M8 6v3l2 1.5" stroke="#AAAAAA" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M6 1.5h4" stroke="#AAAAAA" strokeWidth="1.4" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
 
@@ -551,84 +658,6 @@ export default function RecordModal() {
                 <span style={{ fontSize: 12, color: '#AAAAAA', letterSpacing: '.02em' }}>{M.overlays.addButton}</span>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Target group display */}
-        {selectedComm && (
-          <div style={{ padding: '0 20px 8px', fontSize: 13, color: '#666666' }}>
-            {M.overlays.recordingTo(selectedComm.name)}
-          </div>
-        )}
-
-        {/* Optional photo & text */}
-        <div style={{ padding: '0 20px 16px' }}>
-          <textarea
-            placeholder={M.overlays.recordPlaceholder}
-            value={recordText}
-            onChange={(e) => setRecordText(e.target.value)}
-            style={{
-              width: '100%',
-              minHeight: 60,
-              padding: 12,
-              fontSize: 14,
-              border: '1px solid #EBEBEB',
-              borderRadius: 8,
-              resize: 'none',
-              fontFamily: 'inherit',
-              boxSizing: 'border-box',
-            }}
-          />
-          {imagePreview && (
-            <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
-              <img src={imagePreview} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }} />
-              <button
-                onClick={() => { setImagePreview(null); setImageFile(null) }}
-                style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#111111', color: '#FFFFFF', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                ×
-              </button>
-            </div>
-          )}
-          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-            <button
-              onClick={() => fileRef.current?.click()}
-              style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: '1px solid #EBEBEB', borderRadius: 8, cursor: 'pointer' }}
-            >
-              {M.overlays.photo}
-            </button>
-            {recordText.trim() && (
-              <button
-                onClick={handleTextRecord}
-                disabled={uploading}
-                style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#FFFFFF', background: '#111111', border: 'none', borderRadius: 8, cursor: 'pointer' }}
-              >
-                {uploading ? M.overlays.uploading : M.overlays.recordSubmit}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* '더보기' toggle for advanced options */}
-        {!showAdvanced && (
-          <div style={{ padding: '0 20px 8px' }}>
-            <button
-              onClick={() => setShowAdvanced(true)}
-              style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-            >
-              {M.overlays.showAdvanced}
-            </button>
-          </div>
-        )}
-
-        {showAdvanced && (
-          <div style={{ padding: '0 20px 16px', borderTop: '1px solid #EBEBEB', paddingTop: 16 }}>
-            <button
-              onClick={() => setShowAdvanced(false)}
-              style={{ width: '100%', padding: '8px 0', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: 'none', cursor: 'pointer', marginBottom: 12 }}
-            >
-              {M.overlays.hideAdvanced}
-            </button>
 
             {/* Category selection */}
             <div style={{ marginBottom: 16 }}>
@@ -664,6 +693,9 @@ export default function RecordModal() {
               <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#AAAAAA' }}>{M.overlays.visibilityLabel}</p>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {(['group', 'public', 'followers', 'private'] as PostVisibility[]).map((vis) => {
+                  // Hide 'public' when a group is selected (it will be mapped to 'group' anyway)
+                  if (vis === 'public' && recordCommunityId) return null
+                  
                   const key = `visibility_${vis}` as keyof typeof M.overlays
                   const label = typeof M.overlays[key] === 'string' ? M.overlays[key] as string : vis
                   return (

@@ -39,9 +39,9 @@ export function getLocalDateFromTimestamp(timestamp: number, timezone: string = 
 
 /**
  * Asia/Seoul 시간대 기준 현재 시각에 따른 시간대 레이블 키 반환
- * @returns 'morning' | 'lunch' | 'dinner' | 'snack'
+ * @returns 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'snack'
  */
-export function getTimeOfDayKey(): 'morning' | 'lunch' | 'dinner' | 'snack' {
+export function getTimeOfDayKey(): 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'snack' {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Seoul',
     hour: 'numeric',
@@ -55,6 +55,8 @@ export function getTimeOfDayKey(): 'morning' | 'lunch' | 'dinner' | 'snack' {
     return 'morning'
   } else if (hour >= 11 && hour < 14) {
     return 'lunch'
+  } else if (hour >= 14 && hour < 17) {
+    return 'afternoon'
   } else if (hour >= 17 && hour < 21) {
     return 'dinner'
   } else {
@@ -67,6 +69,7 @@ type Messages = {
     timeOfDay: {
       morning: string
       lunch: string
+      afternoon: string
       dinner: string
       snack: string
     }

@@ -30,10 +30,22 @@ export default function EveningReflection() {
     if (isPublic) {
       const content = prompts.map((p, i) => answers[i].trim() ? `${p}\n${answers[i].trim()}` : '').filter(Boolean).join('\n\n')
       if (content) {
-        // Get current community for group posting, fall back to private if no group or toggle is off
-        const communities = useAppStore.getState().communities
+        // Post to ACTIVE group (fallback: first joined group; private if none or toggle off)
+        const state = useAppStore.getState()
+        const communities = state.communities
+        const activeCommunityTab = state.activeCommunityTab
         const joinedCommunities = communities.filter(c => c.joined)
-        const currentCommunityId = joinedCommunities.length > 0 ? joinedCommunities[0].id : null
+        
+        // Try to use active tab, then first joined, then null
+        let currentCommunityId: string | null = null
+        if (activeCommunityTab && activeCommunityTab !== 'all') {
+          const activeComm = joinedCommunities.find(c => c.id === activeCommunityTab)
+          if (activeComm) currentCommunityId = activeCommunityTab
+        }
+        if (!currentCommunityId && joinedCommunities.length > 0) {
+          currentCommunityId = joinedCommunities[0].id
+        }
+        
         const visibility: 'group' | 'private' = currentCommunityId ? 'group' : 'private'
         
         const success = await addPost(content, undefined, 'reflection', visibility, currentCommunityId)

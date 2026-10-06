@@ -57,12 +57,13 @@ export default function RecordModal() {
   const handleQuickPost = async (category: 'diet' | 'exercise') => {
     const now = new Date()
     const timeLabel = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
-    const activityLabel = getActivityLabel(category)
+    const activityLabel = getActivityLabel(category, M)
     const content = `${activityLabel} · ${timeLabel}`
     const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
     
-    // If no group, must use private visibility
-    const vis = communityId ? (defaultVisibility === 'public' ? 'group' : defaultVisibility) : 'private'
+    // Only downgrade to private if no community AND visibility is 'group'
+    // Never override explicit 'public' choice
+    const vis = communityId ? defaultVisibility : (defaultVisibility === 'group' ? 'private' : defaultVisibility)
     
     const success = await addPost(content, undefined, category, vis, communityId)
     if (!success) {
@@ -89,8 +90,9 @@ export default function RecordModal() {
     }
     
     const communityId = recordCommunityId || null
-    // If no group, must use private visibility
-    const finalVisibility = communityId ? recordVisibility : 'private'
+    // Only downgrade to private if no community AND visibility is 'group'
+    // Never override explicit 'public' choice
+    const finalVisibility = communityId ? recordVisibility : (recordVisibility === 'group' ? 'private' : recordVisibility)
     
     const success = await addPost(recordText.trim(), finalImgUrl, recordCategory, finalVisibility, communityId, validInsta)
     if (!success) {

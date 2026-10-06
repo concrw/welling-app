@@ -4,6 +4,7 @@ import { useMessages } from '../i18n'
 import { EveningReflectionHeader } from '../components/evening-reflection/EveningReflectionHeader'
 import { ReflectionPromptList } from '../components/evening-reflection/ReflectionPromptList'
 import { EveningReflectionSaveFooter } from '../components/evening-reflection/EveningReflectionSaveFooter'
+import { getLocalDate } from '../lib/date'
 
 export default function EveningReflection() {
   const M = useMessages()
@@ -12,8 +13,7 @@ export default function EveningReflection() {
   const saveEveningReflection = useAppStore((s) => s.saveEveningReflection)
   const eveningReflections = useAppStore((s) => s.eveningReflections)
   const addPost = useAppStore((s) => s.addPost)
-  const defaultVisibility = useAppStore((s) => s.defaultVisibility)
-  const todayKey = new Date().toISOString().slice(0, 10)
+  const todayKey = getLocalDate()
 
   const [answers, setAnswers] = useState(() => {
     const existing = eveningReflections.find((e) => e.date === todayKey)
@@ -25,11 +25,17 @@ export default function EveningReflection() {
   const setAnswer = (i: number, val: string) =>
     setAnswers((prev) => prev.map((a, idx) => (idx === i ? val : a)))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     saveEveningReflection({ date: todayKey, answers })
     if (isPublic) {
       const content = prompts.map((p, i) => answers[i].trim() ? `${p}\n${answers[i].trim()}` : '').filter(Boolean).join('\n\n')
-      if (content) addPost(content, undefined, 'reflection', defaultVisibility, null)
+      if (content) {
+        // Use 'private' for evening reflections (no group needed)
+        const success = await addPost(content, undefined, 'reflection', 'private', null)
+        if (!success) {
+          console.error('Failed to post evening reflection')
+        }
+      }
     }
     setSaved(true)
     setTimeout(() => navigate('mypage'), 1200)

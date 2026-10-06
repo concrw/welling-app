@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { supabase } from '../lib/supabaseClient'
 import { fetchTodayEvents, isConnected as isCalendarConnected } from '../lib/googleCalendar'
 import { getMessages } from '../i18n'
+import { getLocalDate } from '../lib/date'
 import { daysAgo, generateHistoricalPosts, SAMPLE_POSTS, SAMPLE_COMMUNITIES, SAMPLE_USERS, SAMPLE_NOTIFS } from '../data/demo'
 import { DEMO_ROUTINE_GROUPS, DEMO_ADMIN_REPORTS, DEMO_SYNC_ALARM_DATE } from '../data/demoState'
 
@@ -631,13 +632,17 @@ export const useAppStore = create<AppState>()(
     const { data, error } = await supabase.rpc('join_by_invite', { p_code: pendingInviteCode })
     if (error) {
       console.error('Failed to join by invite:', error)
+      alert(getMessages().store.inviteUnknownError(error.message))
       localStorage.removeItem('welling_pending_invite')
       set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
       return
     }
     
     const result = typeof data === 'string' ? JSON.parse(data) : data
-    if (result.status === 'success' || result.status === 'already') {
+    const M = getMessages()
+    
+    // Handle different statuses
+    if (result.status === 'success') {
       localStorage.removeItem('welling_pending_invite')
       set({
         pendingInviteCode: null,
@@ -646,13 +651,51 @@ export const useAppStore = create<AppState>()(
         activeCommunityTab: result.community_id,
         screen: 'feed',
       })
-      // Reload feed to show new group
       await get().loadFeedData()
-    } else {
-      // Handle error statuses
-      localStorage.removeItem('welling_pending_invite')
-      set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
+      alert(M.store.inviteJoinSuccess)
+      return
     }
+    
+    if (result.status === 'already' || result.status === 'already_member') {
+      localStorage.removeItem('welling_pending_invite')
+      set({
+        pendingInviteCode: null,
+        pendingInviteSavedAt: null,
+        invitePreview: null,
+        activeCommunityTab: result.community_id,
+        screen: 'feed',
+      })
+      await get().loadFeedData()
+      alert(M.store.inviteAlreadyMember)
+      return
+    }
+    
+    if (result.status === 'pending') {
+      localStorage.removeItem('welling_pending_invite')
+      set({
+        pendingInviteCode: null,
+        pendingInviteSavedAt: null,
+        invitePreview: null,
+        screen: 'feed',
+      })
+      alert(M.store.invitePending)
+      return
+    }
+    
+    // Clear invite and show error for other statuses
+    localStorage.removeItem('welling_pending_invite')
+    set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
+    
+    const statusMessages: Record<string, string> = {
+      expired: M.store.inviteExpired,
+      archived: M.store.inviteArchived,
+      banned: M.store.inviteBanned,
+      too_many_groups: M.store.inviteFull,
+      invalid: M.store.inviteInvalid,
+      invalid_code: M.store.inviteInvalid,
+    }
+    
+    alert(statusMessages[result.status] || M.store.inviteUnknownError(result.status))
   },
   
   clearPendingInvite: () => {
@@ -1117,7 +1160,13 @@ export const useAppStore = create<AppState>()(
     const { userId, isDemo, nickname, hasPromptedHome, defaultVisibility, feedVisitCount, recordUseCount } = get()
     const displayName = nickname || 'Min'
     const finalCategory: PostCategory = category ?? 'habit'
-    const finalVisibility: PostVisibility = visibility ?? defaultVisibility
+    let finalVisibility: PostVisibility = visibility ?? defaultVisibility
+    
+    // Downgrade 'group' to 'private' if no community (CHECK constraint enforcement)
+    if (finalVisibility === 'group' && !communityId) {
+      finalVisibility = 'private'
+    }
+    
     const shouldPrompt = !hasPromptedHome && recordUseCount > feedVisitCount
     if (isDemo || !userId) {
       const newPost: Post = {
@@ -1140,7 +1189,7 @@ export const useAppStore = create<AppState>()(
         posts: [newPost, ...s.posts],
         ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
       }))
-      return
+      return true
     }
     const { data, error } = await supabase
       .from('posts')
@@ -1157,7 +1206,10 @@ export const useAppStore = create<AppState>()(
       })
       .select()
       .single()
-    if (error || !data) return
+    if (error || !data) {
+      console.error('Failed to add post:', error)
+      return false
+    }
     const newPost: Post = {
       id: data.id,
       user: displayName,
@@ -1179,6 +1231,47 @@ export const useAppStore = create<AppState>()(
       posts: [newPost, ...s.posts],
       ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
     }))
+    return true
+  },
+
+  deletePost: async (postId) => {
+    const { userId, isDemo, posts } = get()
+    if (isDemo || !userId) return false
+    
+    // Find the post to get image URL before deleting
+    const post = posts.find((p) => p.id === postId)
+    if (!post) return false
+    
+    // Delete from database
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId)
+      .eq('user_id', userId)
+    
+    if (error) {
+      console.error('Failed to delete post:', error)
+      return false
+    }
+    
+    // Delete Storage image if exists
+    if (post.hasImg && post.imgUrl) {
+      try {
+        const urlParts = post.imgUrl.split('/')
+        const fileName = urlParts[urlParts.length - 1]
+        const path = `${userId}/${fileName}`
+        await supabase.storage.from('post-images').remove([path])
+      } catch (err) {
+        console.error('Failed to delete post image:', err)
+      }
+    }
+    
+    // Update local state
+    set((s) => ({
+      posts: s.posts.filter((p) => p.id !== postId),
+      selectedPost: s.selectedPost?.id === postId ? null : s.selectedPost,
+    }))
+    
     return true
   },
 
@@ -1649,7 +1742,7 @@ export const useAppStore = create<AppState>()(
     if (isDemo || !userId || !isCalendarConnected()) return
     const events = await fetchTodayEvents()
     const eventTitles = events.map((e) => e.summary)
-    const dateStr = new Date().toISOString().slice(0, 10)
+    const dateStr = getLocalDate()
     set((s) => {
       const existing = s.calendarSnapshots.filter((e) => e.date !== dateStr)
       return { calendarSnapshots: [{ date: dateStr, eventTitles }, ...existing] }

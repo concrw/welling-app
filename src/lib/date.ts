@@ -38,37 +38,58 @@ export function getLocalDateFromTimestamp(timestamp: number, timezone: string = 
 }
 
 /**
- * 현재 시각에 따른 한국어 시간대 레이블 반환
- * @returns '아침' | '점심' | '저녁' | '간식'
+ * Asia/Seoul 시간대 기준 현재 시각에 따른 시간대 레이블 키 반환
+ * @returns 'morning' | 'lunch' | 'dinner' | 'snack'
  */
-export function getTimeOfDayLabel(): string {
-  const now = new Date()
-  const hour = now.getHours()
+export function getTimeOfDayKey(): 'morning' | 'lunch' | 'dinner' | 'snack' {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    hour: 'numeric',
+    hour12: false,
+  })
+  const hour = parseInt(formatter.format(new Date()))
   
   if (hour >= 5 && hour < 11) {
-    return '아침'
+    return 'morning'
   } else if (hour >= 11 && hour < 14) {
-    return '점심'
+    return 'lunch'
   } else if (hour >= 17 && hour < 21) {
-    return '저녁'
+    return 'dinner'
   } else {
-    return '간식'
+    return 'snack'
+  }
+}
+
+type Messages = {
+  lib: {
+    timeOfDay: {
+      morning: string
+      lunch: string
+      dinner: string
+      snack: string
+    }
+    activityLabels: {
+      exercise: string
+      snackMeal: string
+      mealWithTime: (time: string) => string
+    }
   }
 }
 
 /**
- * 시간대 레이블에 맞는 동사 반환
+ * 시간대 레이블에 맞는 활동 레이블 반환
  * @param category 'diet' | 'exercise'
+ * @param M Messages object from useMessages()
  * @returns 예: '아침 먹었어', '운동했어'
  */
-export function getActivityLabel(category: 'diet' | 'exercise'): string {
+export function getActivityLabel(category: 'diet' | 'exercise', M: Messages): string {
   if (category === 'exercise') {
-    return '운동했어'
+    return M.lib.activityLabels.exercise
   }
   
-  const timeLabel = getTimeOfDayLabel()
-  if (timeLabel === '간식') {
-    return '간식 먹었어'
+  const timeKey = getTimeOfDayKey()
+  if (timeKey === 'snack') {
+    return M.lib.activityLabels.snackMeal
   }
-  return `${timeLabel} 먹었어`
+  return M.lib.activityLabels.mealWithTime(M.lib.timeOfDay[timeKey])
 }

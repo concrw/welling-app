@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { supabase } from '../lib/supabaseClient'
-import { callRpc } from '../lib/rpc'
+import { useMessages } from '../i18n'
+import { callRpc, getStatusMessage } from '../lib/rpc'
 
 interface Member {
   id: string
@@ -18,6 +19,7 @@ interface JoinRequest {
 }
 
 export default function CommunitySettings() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const selectedCommunity = useAppStore((s) => s.selectedCommunity)
   const userId = useAppStore((s) => s.userId)
@@ -165,7 +167,7 @@ export default function CommunitySettings() {
     })
     
     if (!result.ok) {
-      alert(result.message)
+      alert(getStatusMessage(result.message, M))
     } else {
       await loadSettings()
     }
@@ -194,7 +196,7 @@ export default function CommunitySettings() {
     })
     
     if (!result.ok) {
-      alert(result.message)
+      alert(getStatusMessage(result.message, M))
       return
     }
     
@@ -209,7 +211,7 @@ export default function CommunitySettings() {
     })
     
     if (!result.ok) {
-      alert(result.message)
+      alert(getStatusMessage(result.message, M))
       return
     }
     
@@ -227,7 +229,7 @@ export default function CommunitySettings() {
     })
     
     if (!result.ok) {
-      alert(result.message)
+      alert(getStatusMessage(result.message, M))
       return
     }
     
@@ -244,7 +246,7 @@ export default function CommunitySettings() {
     })
     
     if (!result.ok) {
-      alert(result.message)
+      alert(getStatusMessage(result.message, M))
       return
     }
     
@@ -254,15 +256,18 @@ export default function CommunitySettings() {
   const handleLeave = async () => {
     if (!selectedCommunity) return
     
-    const { error } = await supabase.rpc('leave_group', {
+    const result = await callRpc('leave_group', {
       p_community_id: selectedCommunity.id,
     })
     
-    if (!error) {
-      navigate('feed')
-      window.location.reload()
+    if (!result.ok) {
+      alert(getStatusMessage(result.message, M))
+      setShowLeaveConfirm(false)
+      return
     }
-    setShowLeaveConfirm(false)
+    
+    navigate('feed')
+    window.location.reload()
   }
 
   const handleTransfer = async () => {
@@ -274,7 +279,7 @@ export default function CommunitySettings() {
     })
     
     if (!result.ok) {
-      alert(result.message)
+      alert(getStatusMessage(result.message, M))
     } else {
       await loadSettings()
     }
@@ -288,25 +293,23 @@ export default function CommunitySettings() {
     
     const newMuted = !isMuted
     
-    // Call RPC to update server-side
-    const { data, error } = await supabase.rpc('toggle_community_notifications', {
+    const result = await callRpc('toggle_community_notifications', {
       p_community_id: selectedCommunity.id,
       p_muted: newMuted,
     })
     
-    if (error || data?.status !== 'success') {
-      console.error('Failed to toggle notifications:', error || data)
+    if (!result.ok) {
+      alert(getStatusMessage(result.message, M))
       return
     }
     
-    // Update local state on success
     const { commNotifSettings } = useAppStore.getState()
     const existing = commNotifSettings.find((s) => s.id === selectedCommunity.id)
     
     const updated = commNotifSettings.filter((s) => s.id !== selectedCommunity.id)
     updated.push({
       id: selectedCommunity.id,
-      master: !newMuted, // master=true means unmuted
+      master: !newMuted,
       options: existing?.options ?? [],
     })
     

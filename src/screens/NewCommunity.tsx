@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
-import { callRpc } from '../lib/rpc'
+import { useMessages } from '../i18n'
+import { callRpc, getStatusMessage } from '../lib/rpc'
 
 export default function NewCommunity() {
+  const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const navigate = useAppStore((s) => s.navigate)
   
@@ -30,7 +32,7 @@ export default function NewCommunity() {
     )
     
     if (!result.ok) {
-      setError(result.message)
+      setError(getStatusMessage(result.message, M))
       setCreating(false)
       return
     }

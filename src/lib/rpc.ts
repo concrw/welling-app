@@ -21,43 +21,19 @@ export type RpcError = {
 
 export type RpcResult<T = Record<string, unknown>> = RpcSuccess<T> | RpcError
 
-const STATUS_MESSAGES: Record<string, string> = {
-  // 공통
-  not_authorized: '권한이 없습니다',
-  not_found: '찾을 수 없습니다',
-  
-  // 가입 요청
-  already_processed: '이미 처리된 요청입니다',
-  banned: '차단된 사용자입니다',
-  user_not_found: '사용자를 찾을 수 없습니다',
-  already_member: '이미 멤버입니다',
-  
-  // 역할 변경
-  not_member: '멤버를 찾을 수 없습니다',
-  invalid_role: '잘못된 역할입니다',
-  cannot_change_own_role: '자신의 역할은 변경할 수 없습니다',
-  cannot_change_owner: '그룹장 역할은 변경할 수 없습니다',
-  
-  // 멤버 제거
-  cannot_remove_self: '자신을 내보낼 수 없습니다',
-  cannot_remove_owner_or_admin: '관리자는 그룹장이나 다른 관리자를 내보낼 수 없습니다',
-  
-  // 소유권 이전
-  not_owner: '그룹장만 가능한 작업입니다',
-  invalid_target: '유효하지 않은 대상입니다',
-  
-  // 초대
-  archived: '보관된 그룹입니다',
-  expired: '만료된 초대입니다',
-  too_many_groups: '가입 가능한 그룹 수를 초과했습니다',
-  
-  // 가입
-  not_invited: '초대받지 않았습니다',
-  invalid_code: '유효하지 않은 초대 코드입니다',
-}
-
-export function getStatusMessage(status: string): string {
-  return STATUS_MESSAGES[status] || `작업 실패 (${status})`
+/**
+ * Get localized status message
+ * Use this in React components with useMessages()
+ * @param status The status code from RPC
+ * @param messages Messages object from useMessages()
+ */
+export function getStatusMessage(status: string, messages: any): string {
+  const errors = messages.lib.rpcErrors as Record<string, string | ((s: string) => string)>
+  const msg = errors[status]
+  if (typeof msg === 'function') {
+    return msg(status)
+  }
+  return msg || messages.lib.rpcErrors.operation_failed(status)
 }
 
 /**
@@ -101,7 +77,8 @@ export async function callRpc<T = Record<string, unknown>>(
       return {
         ok: false,
         status: 'failed',
-        message: '작업 실패',
+        // Status code, translate at call site
+        message: 'generic_failure',
       }
     }
   }
@@ -118,7 +95,8 @@ export async function callRpc<T = Record<string, unknown>>(
       return {
         ok: false,
         status,
-        message: getStatusMessage(status),
+        // Status code, translate at call site using getStatusMessage
+        message: status,
       }
     }
   }

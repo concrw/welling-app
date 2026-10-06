@@ -19,6 +19,9 @@ const ko = {
   reportReasonInappropriate: '부적절한 게시물',
   attachedImageAlt: '첨부 이미지',
   commentPlaceholder: '댓글을 입력하세요…',
+  deletePostConfirm: '이 게시글을 삭제하시겠습니까?',
+  deletePostFailed: '삭제 실패',
+  deletePost: '삭제',
 
   // RecordModal
   categoryLabels: {
@@ -91,6 +94,9 @@ const en: typeof ko = {
   reportReasonInappropriate: 'Inappropriate post',
   attachedImageAlt: 'Attached image',
   commentPlaceholder: 'Add a comment…',
+  deletePostConfirm: 'Delete this post?',
+  deletePostFailed: 'Delete failed',
+  deletePost: 'Delete',
 
   // RecordModal
   categoryLabels: {

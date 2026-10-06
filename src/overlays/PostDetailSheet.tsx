@@ -38,7 +38,7 @@ export default function PostDetailSheet() {
     if (success) {
       closePostDetail()
     } else {
-      alert('삭제 실패')
+      alert(M.overlays.deletePostFailed)
     }
     setShowDeleteConfirm(false)
   }
@@ -127,6 +127,14 @@ export default function PostDetailSheet() {
           >
             {isFollowing ? M.overlays.following : M.overlays.follow}
           </button>
+          {isOwnPost && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', fontSize: 11, color: '#DC2626', fontWeight: 600 }}
+            >
+              {M.overlays.deletePost}
+            </button>
+          )}
           {selectedPost.user !== nickname && !reported && (
             <button onClick={() => setShowReportConfirm(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', fontSize: 11, color: '#AAAAAA', fontWeight: 600 }}>
               {M.overlays.report}
@@ -144,7 +152,7 @@ export default function PostDetailSheet() {
         <div style={{ position: 'absolute', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)', padding: 24 }}>
           <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 20, maxWidth: 320, width: '100%' }}>
             <p style={{ margin: '0 0 16px', fontSize: 14, color: '#111111', lineHeight: 1.6 }}>
-              이 게시글을 삭제하시겠습니까?
+              {M.overlays.deletePostConfirm}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
@@ -157,7 +165,7 @@ export default function PostDetailSheet() {
                 onClick={handleDelete}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: '#DC2626', color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
               >
-                삭제
+                {M.overlays.deletePost}
               </button>
             </div>
           </div>

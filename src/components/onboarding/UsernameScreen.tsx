@@ -20,7 +20,7 @@ interface UsernameScreenProps {
   requestPasswordReset: () => void
   signInWithProvider: (provider: 'google' | 'kakao') => void
   goFeedDemo: () => void
-  invitePreview: { communityId: string; name: string; memberCount: number } | null
+  invitePreview: { communityId: string; name: string; memberCount: number; ownerNickname?: string } | null
 }
 
 export function UsernameScreen({
@@ -82,6 +82,7 @@ export function UsernameScreen({
           <div style={{ flex: 1 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111111' }}>{M.onboarding.invitePreviewTitle(invitePreview.name)}</p>
             <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>{M.onboarding.invitePreviewMembers(invitePreview.memberCount)}</p>
+            {invitePreview.ownerNickname && <p style={{ margin: '3px 0 0', fontSize: 12, color: '#666666' }}>{M.onboarding.invitedBy(invitePreview.ownerNickname)}</p>}
           </div>
         </div>
       )}

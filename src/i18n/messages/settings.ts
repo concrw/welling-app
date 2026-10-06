@@ -31,7 +31,7 @@ const ko = {
   // Google Calendar
   connectedStatus: '연결됨',
   notConnectedStatus: '연결되지 않음',
-  googleCalendarDesc: 'Google Calendar를 연결하면 일정에 따라 루틴 Insights를 분석할 수 있습니다. 캘린더 데이터는 분석 목적으로만 사용됩니다.',
+  googleCalendarDesc: 'Google 캘린더를 연결하면 일정에 따라 루틴 인사이트를 분석할 수 있습니다. 캘린더 데이터는 분석 목적으로만 사용됩니다.',
   connecting: '연결 중...',
   disconnect: '연결 해제',
   connect: '연결하기',

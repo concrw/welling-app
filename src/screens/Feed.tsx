@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
-import { daysSinceLastPost } from '../lib/achievement'
+import { computeAchievement, daysSinceLastPost } from '../lib/achievement'
 import { FeedHeader } from '../components/feed/FeedHeader'
 import { FeedQuietBanner, FeedFocusNote } from '../components/feed/FeedBanners'
 import { FeedPostList } from '../components/feed/FeedPostList'
@@ -27,6 +27,7 @@ export default function Feed() {
   const pendingJoinRequests = useAppStore((s) => s.pendingJoinRequests)
   const feedLoading = useAppStore((s) => s.feedLoading)
   const feedError = useAppStore((s) => s.feedError)
+  const routineGroups = useAppStore((s) => s.routineGroups)
   
   const [quietBannerDismissed, setQuietBannerDismissed] = useState(false)
   const [communityTabOrder, setCommunityTabOrder] = useState<string[]>([])
@@ -79,6 +80,10 @@ export default function Feed() {
   const displayPosts = activeCommunityTab === 'all'
     ? posts.filter((p) => p.user === nickname || p.visibility === 'followers' || p.visibility === 'public' || joinedCommunityIds.includes(p.community))
     : posts.filter((p) => p.community === activeCommunityTab)
+  const todayStart = new Date().setHours(0, 0, 0, 0)
+  const friendsToday = new Set(displayPosts.filter((post) => post.user !== nickname && post.createdAt >= todayStart).map((post) => post.user)).size
+  const myStreak = computeAchievement(routineGroups, posts, nickname, 365).streak
+  const activitySummary = friendsToday > 0 || myStreak > 0 ? M.feed.todaySummary(friendsToday, myStreak) : null
 
   const handleTapUser = (userName: string, post?: { initials: string; color: string }) => {
     if (userName === nickname) return
@@ -138,6 +143,8 @@ export default function Feed() {
           {M.feed.pendingApproval(request.communityName)}
         </div>
       ))}
+
+      {activitySummary && <div style={{ margin: '10px 20px 0', padding: '10px 12px', borderRadius: 10, background: '#F4F8F6', color: '#285943', fontSize: 12, fontWeight: 700 }}>{activitySummary}</div>}
 
       {showQuietBanner && (
         <FeedQuietBanner

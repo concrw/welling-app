@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { supabase } from '../lib/supabaseClient'
-import { useMessages } from '../i18n'
+import { useLangStore, useMessages } from '../i18n'
+import { Toggle } from '../components/ui/Toggle'
 import { callRpc, getStatusMessage } from '../lib/rpc'
 import { SAMPLE_USERS, DEMO_GROUP_MEMBER_IDS } from '../data/demo'
 
@@ -21,6 +22,7 @@ interface JoinRequest {
 
 export default function CommunitySettings() {
   const M = useMessages()
+  const lang = useLangStore((s) => s.lang)
   const goBack = useAppStore((s) => s.goBack)
   const selectedCommunity = useAppStore((s) => s.selectedCommunity)
   const userId = useAppStore((s) => s.userId)
@@ -513,32 +515,7 @@ export default function CommunitySettings() {
                   <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111111' }}>{M.groupSettings.muteTitle}</p>
                   <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>{M.groupSettings.muteDesc}</p>
                 </div>
-                <button
-                  onClick={handleToggleMute}
-                  style={{
-                    width: 48,
-                    height: 28,
-                    borderRadius: 14,
-                    background: isMuted ? '#DC2626' : '#CCCCCC',
-                    border: 'none',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    transition: 'background 0.2s',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 12,
-                      background: '#FFFFFF',
-                      position: 'absolute',
-                      top: 2,
-                      left: isMuted ? 22 : 2,
-                      transition: 'left 0.2s',
-                    }}
-                  />
-                </button>
+                <Toggle on={isMuted} onToggle={handleToggleMute} label={M.groupSettings.muteTitle} />
               </div>
             </div>
 
@@ -549,32 +526,7 @@ export default function CommunitySettings() {
                     <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111111' }}>{M.groupSettings.approvalTitle}</p>
                     <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>{M.groupSettings.approvalDesc}</p>
                   </div>
-                  <button
-                    onClick={handleToggleApproval}
-                    style={{
-                      width: 48,
-                      height: 28,
-                      borderRadius: 14,
-                      background: requiresApproval ? '#22C55E' : '#CCCCCC',
-                      border: 'none',
-                      cursor: 'pointer',
-                      position: 'relative',
-                      transition: 'background 0.2s',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 12,
-                        background: '#FFFFFF',
-                        position: 'absolute',
-                        top: 2,
-                        left: requiresApproval ? 22 : 2,
-                        transition: 'left 0.2s',
-                      }}
-                    />
-                  </button>
+                  <Toggle on={requiresApproval} onToggle={handleToggleApproval} label={M.groupSettings.approvalTitle} />
                 </div>
               </div>
             )}
@@ -703,7 +655,7 @@ export default function CommunitySettings() {
                       {request.nickname}
                     </p>
                     <p style={{ margin: 0, fontSize: 12, color: '#999999' }}>
-                      {new Date(request.requested_at).toLocaleDateString()}
+                      {new Date(request.requested_at).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US')}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: 4 }}>

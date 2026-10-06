@@ -254,7 +254,7 @@ interface AppState {
   // 초대 링크 처리
   pendingInviteCode: string | null
   pendingInviteSavedAt: number | null
-  invitePreview: { communityId: string; name: string; memberCount: number } | null
+  invitePreview: { communityId: string; name: string; memberCount: number; ownerNickname?: string } | null
   pendingJoinRequests: PendingJoinRequest[]
 
   selectedCommunity: Community | null
@@ -265,6 +265,8 @@ interface AppState {
   toastMessage: string | null
   feedLoading: boolean
   feedError: string | null
+  notificationsLoading: boolean
+  notificationsError: boolean
 
   syncedList: Set<string>
   showSyncSheet: boolean
@@ -510,6 +512,8 @@ const createAccountScopedState = (): Partial<AppState> => ({
   nicknameEditInput: '',
   feedLoading: false,
   feedError: null,
+  notificationsLoading: false,
+  notificationsError: false,
   toastMessage: null,
   newCommName: '',
   newCommDesc: '',
@@ -625,6 +629,8 @@ export const useAppStore = create<AppState>()(
   toastMessage: null,
   feedLoading: false,
   feedError: null,
+  notificationsLoading: false,
+  notificationsError: false,
 
   pendingInviteCode: null,
   pendingInviteSavedAt: null,
@@ -758,6 +764,7 @@ export const useAppStore = create<AppState>()(
             communityId: result.community_id,
             name: result.name,
             memberCount: result.member_count,
+            ...(result.owner_nickname ? { ownerNickname: result.owner_nickname } : {}),
           },
         })
       } else {
@@ -1720,11 +1727,17 @@ export const useAppStore = create<AppState>()(
   loadNotifications: async () => {
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
-    const { data } = await supabase
+    set({ notificationsLoading: true, notificationsError: false })
+    const { data, error } = await supabase
       .from('notifications')
       .select('*, profiles!notifications_actor_id_fkey(nickname)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Failed to load notifications:', error)
+      set({ notificationsLoading: false, notificationsError: true })
+      return
+    }
     const notifications: Notification[] = (data ?? []).map((n) => {
       const actorNickname = (n as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.someone
       const M = getMessages()
@@ -1745,7 +1758,7 @@ export const useAppStore = create<AppState>()(
         time: '',
       }
     })
-    set({ notifications })
+    set({ notifications, notificationsLoading: false, notificationsError: false })
   },
 
   openRecordModal: () => set({ showRecordModal: true }),

@@ -41,7 +41,7 @@ const en: typeof ko = {
   onTheseDays: 'Avg on these days',
   overallAvg: 'Overall avg',
   suggestionTitle: (keyword: string) => `Routine suggestions for days with ${keyword}`,
-  suggestionPeople: (n: number) => `${n.toLocaleString()} people with similar schedules do this`,
+  suggestionPeople: (n: number) => `${n.toLocaleString('en-US')} people with similar schedules do this`,
   suggestionItem: (name: string, count: number) => `${name} · ${count} people`,
   savedToRoutine: 'Saved as a routine.',
   saveAsNewRoutine: 'Save as new routine',

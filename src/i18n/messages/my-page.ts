@@ -68,10 +68,10 @@ const ko = {
   eveningReflectionDesc: '오늘 하루를 돌아보며 기록하세요.',
   eveningReflectionCta: '기록하기',
   // insights section suggestion card
-  suggestedRoutineTitle: 'Suggested routine for team meeting days',
-  suggestedRoutinePeople: '75 people with similar schedules do this',
-  todayOnly: 'Today only',
-  saveAsRoutine: 'Save as routine',
+  suggestedRoutineTitle: '팀 회의가 있는 날의 추천 루틴',
+  suggestedRoutinePeople: '비슷한 일정의 75명이 실천하고 있어요',
+  todayOnly: '오늘만',
+  saveAsRoutine: '루틴으로 저장',
   // settings section
   settingsItems: {
     notifications: '알림',

@@ -11,6 +11,7 @@ const COMMUNITY_DISPLAY = [
   { id: 'c2', initial: 'C', name: 'Clean Eaters', color: '#00A389' },
   { id: 'c3', initial: 'B', name: 'Book Club 30m', color: '#7C3AED' },
 ]
+const ROUTINE_SYNC_ENABLED = false
 
 export default function Alarm() {
   const lang = useLangStore((s) => s.lang)
@@ -81,7 +82,7 @@ export default function Alarm() {
     <div>
       <AlarmHeader onBack={goBack} />
 
-      <SyncedAlarmSection synced={synced} onToggle={toggleSynced} />
+      {ROUTINE_SYNC_ENABLED && <SyncedAlarmSection synced={synced} onToggle={toggleSynced} />}
 
       <CommunityAlarmSection communities={communities} onToggle={toggleComm} />
 

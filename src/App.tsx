@@ -57,6 +57,7 @@ export default function App() {
   const checkPendingInvite = useAppStore((s) => s.checkPendingInvite)
   const pendingInviteCode = useAppStore((s) => s.pendingInviteCode)
   const toastMessage = useAppStore((s) => s.toastMessage)
+  const loadNotifications = useAppStore((s) => s.loadNotifications)
   const inviteCheckFinished = useRef(false)
   const hadPendingInvite = useRef(false)
 
@@ -91,6 +92,26 @@ export default function App() {
       hadPendingInvite.current = false
     }
   }, [pendingInviteCode])
+
+  useEffect(() => {
+    if (isDemo) return
+    const refresh = () => { if (document.visibilityState === 'visible') void loadNotifications() }
+    let intervalId: ReturnType<typeof setInterval> | null = document.visibilityState === 'visible' ? setInterval(refresh, 60_000) : null
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refresh()
+        if (!intervalId) intervalId = setInterval(refresh, 60_000)
+      } else if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [isDemo, loadNotifications])
 
   const isOnboarding = ONBOARDING_SCREENS.includes(screen)
   const showNav = NAV_SCREENS.includes(screen)

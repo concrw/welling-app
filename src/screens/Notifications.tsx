@@ -20,10 +20,30 @@ export default function Notifications() {
   const markAllRead = useAppStore((s) => s.markAllRead)
   const markSingleRead = useAppStore((s) => s.markSingleRead)
   const loadNotifications = useAppStore((s) => s.loadNotifications)
+  const isDemo = useAppStore((s) => s.isDemo)
+  const loading = useAppStore((s) => s.notificationsLoading)
+  const hasError = useAppStore((s) => s.notificationsError)
 
   useEffect(() => {
-    void loadNotifications()
-  }, [loadNotifications])
+    if (isDemo) return
+    const refresh = () => { if (document.visibilityState === 'visible') void loadNotifications() }
+    refresh()
+    let intervalId: ReturnType<typeof setInterval> | null = setInterval(refresh, 60_000)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refresh()
+        if (!intervalId) intervalId = setInterval(refresh, 60_000)
+      } else if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [isDemo, loadNotifications])
 
   return (
     <div>
@@ -43,7 +63,15 @@ export default function Notifications() {
       </div>
 
       <div>
-        {notifications.map((n) => (
+        {loading && notifications.length === 0 && <div style={{ padding: '60px 20px', textAlign: 'center', color: '#777777' }}>{M.notifications.loading}</div>}
+        {hasError && (
+          <div role="alert" style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700 }}>{M.notifications.errorTitle}</p>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#777777' }}>{M.notifications.errorDesc}</p>
+            <button onClick={() => void loadNotifications()} style={{ padding: '10px 16px', border: 0, borderRadius: 9, background: '#111111', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>{M.notifications.retry}</button>
+          </div>
+        )}
+        {!hasError && notifications.map((n) => (
           <div key={n.id} onClick={() => markSingleRead(n.id)} style={{ padding: '13px 20px', display: 'flex', gap: 12, alignItems: 'flex-start', background: n.read ? '#FFFFFF' : (n.bgColor ?? '#FFFDF5'), borderBottom: '1px solid #F5F5F5', cursor: 'pointer' }}>
             <div style={{ width: 38, height: 38, borderRadius: '50%', background: getColor(n.user), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{getInitials(n.user)}</span>
@@ -59,7 +87,7 @@ export default function Notifications() {
           </div>
         ))}
 
-        {notifications.length === 0 && (
+        {!loading && !hasError && notifications.length === 0 && (
           <div style={{ padding: '60px 20px', textAlign: 'center' }}>
             <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: '#111111' }}>{M.notifications.emptyTitle}</p>
             <p style={{ margin: 0, fontSize: 13, color: '#AAAAAA', fontWeight: 300 }}>{M.notifications.emptyDesc}</p>

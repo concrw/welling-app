@@ -68,9 +68,10 @@ export default function Feed() {
   const activeComm = allTabs.find((c) => c.id === activeCommunityTab)
   const focusNote = activeComm?.desc || activeComm?.focus || ''
 
+  const joinedCommunityIds = communities.filter((c) => c.joined).map((c) => c.id)
   const myPosts = posts.filter((p) => p.user === nickname)
   const displayPosts = activeCommunityTab === 'all'
-    ? posts
+    ? [...myPosts, ...posts.filter((p) => p.user !== nickname && joinedCommunityIds.includes(p.community))]
     : [
         ...myPosts,
         ...posts.filter((p) => p.community === activeCommunityTab && p.user !== nickname),

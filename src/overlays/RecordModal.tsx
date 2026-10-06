@@ -3,6 +3,7 @@ import { useAppStore, type PostCategory, type PostVisibility } from '../store/ap
 import { looksUnrelatedToCategory } from '../lib/contentGuideline'
 import { uploadPostImage } from '../lib/supabaseClient'
 import { useMessages } from '../i18n'
+import { getActivityLabel } from '../lib/date'
 
 export default function RecordModal() {
   const M = useMessages()
@@ -56,9 +57,8 @@ export default function RecordModal() {
   const handleQuickPost = async (category: 'diet' | 'exercise') => {
     const now = new Date()
     const timeLabel = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
-    const content = category === 'diet' 
-      ? `점심 먹었어 · ${timeLabel}` 
-      : `운동했어 · ${timeLabel}`
+    const activityLabel = getActivityLabel(category)
+    const content = `${activityLabel} · ${timeLabel}`
     const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
     
     // If no group, must use private visibility

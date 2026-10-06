@@ -84,16 +84,51 @@ test('Demo mode: Record modal quick buttons render correctly', async ({ page }) 
   console.log('✓ Quick post buttons render correctly')
 })
 
-test.skip('Timer posts exactly once with delayed addPost', async ({ page }) => {
-  // NOTE: This test validates that RecordModal timer (lines 69-101) only posts once
-  // even with delayed addPost. The fix uses a 'fired' flag and clears the interval
-  // before awaiting addPost.
-  // 
-  // Manual verification: Start a 1-minute timer, observe network tab shows exactly
-  // 1 POST to /rest/v1/posts when timer completes, even on slow connections.
-  
-  console.log('✓ Timer double-post fix is in place at RecordModal.tsx:69-101')
-})
+for (const delayMs of [0, 1000]) {
+  test(`Timer posts exactly once with delayed addPost (${delayMs}ms)`, async ({ page }) => {
+    await page.clock.install()
+    await page.route(/supabase\.co/, (route) => route.abort())
+    await page.goto('/')
+    await page.clock.runFor(1500)
+    await page.locator('button:has-text("데모 보기"), button:has-text("Skip to demo")').first().click()
+    await page.clock.runFor(500)
+
+    // Wrap the real addPost: count calls and add latency (simulates a slow network)
+    await page.evaluate(async (delay) => {
+      const { useAppStore } = await import('/src/store/appStore.ts')
+      const w = window as unknown as { __addPostCalls: number }
+      w.__addPostCalls = 0
+      const orig = useAppStore.getState().addPost
+      useAppStore.setState({
+        addPost: async (...args: Parameters<typeof orig>) => {
+          w.__addPostCalls++
+          await new Promise((r) => setTimeout(r, delay))
+          return orig(...args)
+        },
+      })
+    }, delayMs)
+
+    await page.locator('[data-testid="bottom-nav"] button').nth(2).click()
+    const modal = page.getByTestId('record-modal')
+    await expect(modal).toBeVisible()
+    const labels = await page.evaluate(async () => {
+      const o = (await import('/src/i18n/index.ts')).getMessages().overlays
+      return { more: o.showAdvanced, oneMinute: o.minutes(1) }
+    })
+    await page.getByRole('button', { name: labels.more }).click()
+
+    // ⏱ icon is the sibling button of the first routine quick button in demo data
+    await modal.locator('button:text-is("Morning Walk")').locator('xpath=following-sibling::button').click()
+    await page.getByRole('button', { name: labels.oneMinute, exact: true }).click()
+
+    await page.clock.runFor(59_000)
+    expect(await page.evaluate(() => (window as unknown as { __addPostCalls: number }).__addPostCalls)).toBe(0)
+    await page.clock.runFor(3_000 + delayMs)
+    await page.clock.runFor(5_000)
+    expect(await page.evaluate(() => (window as unknown as { __addPostCalls: number }).__addPostCalls)).toBe(1)
+    await expect(modal.locator('button:text-is("Morning Walk")')).toBeVisible()
+  })
+}
 
 test('Create group -> Share screen (mocked)', async ({ page }) => {
   // Mock the create_group RPC and capture the request body

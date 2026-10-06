@@ -13,14 +13,6 @@ ADD COLUMN IF NOT EXISTS post_snapshot jsonb;
 -- Add index on post_id for efficient FK and trigger lookups
 CREATE INDEX IF NOT EXISTS idx_post_reports_post_id ON post_reports(post_id);
 
--- Revoke INSERT and UPDATE on post_snapshot from authenticated and anon
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'post_reports' AND column_name = 'post_snapshot') THEN
-    EXECUTE 'REVOKE INSERT(post_snapshot), UPDATE(post_snapshot) ON post_reports FROM authenticated, anon';
-  END IF;
-END $$;
-
 -- Create BEFORE INSERT trigger to null out user-supplied post_snapshot
 CREATE OR REPLACE FUNCTION nullify_post_snapshot_on_insert()
 RETURNS TRIGGER

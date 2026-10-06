@@ -441,6 +441,9 @@ async function replaceCurrentRoutineGroups(userId: string, groups: RoutineGroupD
   return insertRoutineGroups(userId, groups)
 }
 
+// In-flight invite preview check; restoreSession awaits it so a logged-in user's invite isn't dropped
+let inviteCheckInFlight: Promise<void> | null = null
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -590,6 +593,7 @@ export const useAppStore = create<AppState>()(
   
   // Invite handling
   checkPendingInvite: async () => {
+    const run = (async () => {
     const stored = localStorage.getItem('welling_pending_invite')
     if (!stored) return
     
@@ -623,6 +627,9 @@ export const useAppStore = create<AppState>()(
     } catch {
       localStorage.removeItem('welling_pending_invite')
     }
+    })()
+    inviteCheckInFlight = run
+    try { await run } finally { if (inviteCheckInFlight === run) inviteCheckInFlight = null }
   },
   
   consumePendingInvite: async (options?: { isNewSignup?: boolean }) => {
@@ -871,6 +878,7 @@ export const useAppStore = create<AppState>()(
       set({ userId: user.id, isDemo: false, authInitializing: false, screen: 'social-nickname', navTab: 'feed' })
       return
     }
+    if (inviteCheckInFlight) await inviteCheckInFlight
     const { pendingInviteCode } = get()
     set({
       nickname: profile?.nickname ?? '',

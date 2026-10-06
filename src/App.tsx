@@ -45,6 +45,7 @@ export default function App() {
   const authInitializing = useAppStore((s) => s.authInitializing)
   const isDemo = useAppStore((s) => s.isDemo)
   const checkPendingInvite = useAppStore((s) => s.checkPendingInvite)
+  const toastMessage = useAppStore((s) => s.toastMessage)
 
   // Parse invite code from URL on mount
   useEffect(() => {
@@ -121,6 +122,11 @@ export default function App() {
       <SyncAlarm />
       <HomePrompt />
       <WelcomeAnimation />
+      {toastMessage && (
+        <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', background: '#111111', color: '#fff', padding: '10px 20px', borderRadius: 30, fontSize: 13, fontWeight: 600, zIndex: 999, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+          {toastMessage}
+        </div>
+      )}
     </div>
   )
 }

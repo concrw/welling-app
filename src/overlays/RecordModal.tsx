@@ -3,49 +3,39 @@ import { useAppStore, type PostCategory, type PostVisibility } from '../store/ap
 import { looksUnrelatedToCategory } from '../lib/contentGuideline'
 import { uploadPostImage } from '../lib/supabaseClient'
 import { useMessages } from '../i18n'
+import { getActivityLabel } from '../lib/date'
 
 interface QuickBtn { id: string; num: number; label: string; isCustom: boolean }
 
 const TIMER_PRESETS = [1, 3, 5, 10]
 
-const CATEGORY_KEYS: PostCategory[] = ['habit', 'diet', 'reflection', 'routine']
-
-const VISIBILITY_KEYS: PostVisibility[] = ['public', 'followers', 'private']
-
 export default function RecordModal() {
   const M = useMessages()
   const showRecordModal = useAppStore((s) => s.showRecordModal)
-  const pendingRecordCommunityId = useAppStore((s) => s.pendingRecordCommunityId)
-  const setPendingRecordCommunityId = useAppStore((s) => s.setPendingRecordCommunityId)
   const closeRecordModal = useAppStore((s) => s.closeRecordModal)
   const addPost = useAppStore((s) => s.addPost)
-  const routineGroups = useAppStore((s) => s.routineGroups)
+  const communities = useAppStore((s) => s.communities)
+  const defaultVisibility = useAppStore((s) => s.defaultVisibility)
+  const activeCommunityTab = useAppStore((s) => s.activeCommunityTab)
+  const pendingRecordCommunityId = useAppStore((s) => s.pendingRecordCommunityId)
+  const setPendingRecordCommunityId = useAppStore((s) => s.setPendingRecordCommunityId)
+  const isDemo = useAppStore((s) => s.isDemo)
+  const userId = useAppStore((s) => s.userId)
   const customQuickButtons = useAppStore((s) => s.customQuickButtons)
   const addCustomQuickButton = useAppStore((s) => s.addCustomQuickButton)
   const updateCustomQuickButton = useAppStore((s) => s.updateCustomQuickButton)
   const removeCustomQuickButton = useAppStore((s) => s.removeCustomQuickButton)
-  const communities = useAppStore((s) => s.communities)
-  const defaultVisibility = useAppStore((s) => s.defaultVisibility)
-
-  const routineButtons: QuickBtn[] = routineGroups.flatMap((g) => g.items).map((item) => ({
-    id: `routine-${item.id}`, num: 0, label: item.name, isCustom: false,
-  }))
-  const customButtons: QuickBtn[] = customQuickButtons.map((b) => ({
-    id: b.id, num: 0, label: b.label, isCustom: true,
-  }))
-  const buttons: QuickBtn[] = [...routineButtons, ...customButtons].map((b, i) => ({ ...b, num: i + 1 }))
-
-  const isDemo = useAppStore((s) => s.isDemo)
-  const userId = useAppStore((s) => s.userId)
+  const routineGroups = useAppStore((s) => s.routineGroups)
 
   const [toast, setToast] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [recordText, setRecordText] = useState('')
+  const [recordCommunityId, setRecordCommunityId] = useState<string>('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [recordCategory, setRecordCategory] = useState<PostCategory>('habit')
   const [recordVisibility, setRecordVisibility] = useState<PostVisibility>(defaultVisibility)
-  const [recordCommunityId, setRecordCommunityId] = useState<string>('')
   const [recordInstaUrl, setRecordInstaUrl] = useState('')
   const [showGuidelineWarning, setShowGuidelineWarning] = useState(false)
   const [longPressTarget, setLongPressTarget] = useState<QuickBtn | null>(null)
@@ -60,32 +50,73 @@ export default function RecordModal() {
   const didLongPress = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Build quick button list: routine items + custom buttons
+  const routineButtons: QuickBtn[] = routineGroups.flatMap((g) => g.items).map((item) => ({
+    id: `routine-${item.id}`,
+    num: 0,
+    label: item.name,
+    isCustom: false,
+  }))
+  const customButtons: QuickBtn[] = customQuickButtons.map((b, i) => ({
+    id: b.id,
+    num: i + 1,
+    label: b.label,
+    isCustom: true,
+  }))
+  const allQuickButtons: QuickBtn[] = [...routineButtons, ...customButtons].map((b, i) => ({ ...b, num: i + 1 }))
+
+  // Timer interval
   useEffect(() => {
     if (!activeTimer) return
-    const tick = () => {
+    let fired = false
+    const tick = async () => {
       const remaining = activeTimer.endsAt - Date.now()
-      if (remaining <= 0) {
-        addPost(activeTimer.btn.label, undefined, 'habit', defaultVisibility, null)
-        showToast(M.overlays.recordDoneWithLabel(activeTimer.btn.label))
-        setActiveTimer(null)
-        setTimerRemainingMs(0)
-      } else {
+      if (remaining > 0) {
         setTimerRemainingMs(remaining)
+        return
+      }
+      if (fired) return
+      fired = true
+      clearInterval(id)
+      const btn = activeTimer.btn
+      setActiveTimer(null)
+      setTimerRemainingMs(0)
+      const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
+      // When posting to a group, map 'public' -> 'group' (legacy default from main)
+      let vis = defaultVisibility
+      if (communityId) {
+        vis = defaultVisibility === 'public' ? 'group' : defaultVisibility
+      } else if (defaultVisibility === 'group') {
+        vis = 'private'
+      }
+      const success = await addPost(btn.label, undefined, 'habit', vis, communityId)
+      if (success) {
+        showToast(M.overlays.recordDoneWithLabel(btn.label))
+      } else {
+        showToast(M.overlays.recordFailed)
       }
     }
-    tick()
-    const id = setInterval(tick, 250)
+    void tick()
+    const id = setInterval(() => { void tick() }, 250)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTimer])
 
-  // 커뮤니티 상세에서 "기록 남기기"로 열었으면 그 커뮤니티를 미리 선택해 둔다.
+  // Auto-select target group
   useEffect(() => {
     if (!showRecordModal) return
-    if (!pendingRecordCommunityId) return
-    setRecordCommunityId(pendingRecordCommunityId)
-    setPendingRecordCommunityId(null)
-  }, [showRecordModal, pendingRecordCommunityId, setPendingRecordCommunityId])
+    if (pendingRecordCommunityId) {
+      setRecordCommunityId(pendingRecordCommunityId)
+      setPendingRecordCommunityId(null)
+    } else if (!recordCommunityId) {
+      const joinedCommunities = communities.filter((c) => c.joined)
+      if (activeCommunityTab && activeCommunityTab !== 'all') {
+        setRecordCommunityId(activeCommunityTab)
+      } else if (joinedCommunities.length > 0) {
+        setRecordCommunityId(joinedCommunities[0].id)
+      }
+    }
+  }, [showRecordModal, pendingRecordCommunityId, setPendingRecordCommunityId, recordCommunityId, activeCommunityTab, communities])
 
   if (!showRecordModal) return null
 
@@ -94,10 +125,113 @@ export default function RecordModal() {
     setTimeout(() => setToast(null), 2000)
   }
 
-  const handleTap = (btn: QuickBtn) => {
-    addPost(btn.label, undefined, 'habit', defaultVisibility, null)
-    showToast(M.overlays.recordDoneWithLabel(btn.label))
+  const handleQuickPost = async (category: 'diet' | 'exercise') => {
+    // Get Asia/Seoul time for HH:MM
+    const now = new Date()
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+    const parts = formatter.formatToParts(now)
+    const hour = parts.find((p) => p.type === 'hour')?.value || '00'
+    const minute = parts.find((p) => p.type === 'minute')?.value || '00'
+    const timeLabel = `${hour}:${minute}`
+    
+    const activityLabel = getActivityLabel(category, M)
+    const content = `${activityLabel} · ${timeLabel}`
+    const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
+    
+    // When posting to a group, map 'public' -> 'group' (legacy default from main)
+    let vis = defaultVisibility
+    if (communityId) {
+      vis = defaultVisibility === 'public' ? 'group' : defaultVisibility
+    } else if (defaultVisibility === 'group') {
+      vis = 'private'
+    }
+    
+    const success = await addPost(content, undefined, category, vis, communityId)
+    if (!success) {
+      showToast(M.overlays.recordFailed)
+      return
+    }
+    
+    showToast(content)
     setTimeout(() => closeRecordModal(), 400)
+  }
+
+  const submitTextRecord = async () => {
+    const trimmedInsta = recordInstaUrl.trim()
+    const validInsta = trimmedInsta.startsWith('https://') ? trimmedInsta : undefined
+    let finalImgUrl: string | undefined = isDemo ? (imagePreview ?? undefined) : undefined
+    if (!isDemo && imageFile && userId) {
+      setUploading(true)
+      finalImgUrl = (await uploadPostImage(imageFile, userId)) ?? undefined
+      setUploading(false)
+      if (!finalImgUrl) {
+        showToast(M.overlays.imageUploadFailed)
+        return
+      }
+    }
+    
+    const communityId = recordCommunityId || null
+    // When posting to a group, map 'public' -> 'group' (legacy default from main)
+    let finalVisibility = recordVisibility
+    if (communityId) {
+      finalVisibility = recordVisibility === 'public' ? 'group' : recordVisibility
+    } else if (recordVisibility === 'group') {
+      finalVisibility = 'private'
+    }
+    
+    const success = await addPost(recordText.trim(), finalImgUrl, recordCategory, finalVisibility, communityId, validInsta)
+    if (!success) {
+      showToast(M.overlays.recordFailed)
+      return
+    }
+    
+    showToast(M.overlays.recordDone)
+    setRecordText('')
+    setImagePreview(null)
+    setImageFile(null)
+    setRecordInstaUrl('')
+    setShowGuidelineWarning(false)
+    setTimeout(() => closeRecordModal(), 400)
+  }
+
+  const handleTextRecord = () => {
+    if (!recordText.trim()) return
+    if (recordVisibility === 'public' && looksUnrelatedToCategory(recordText, recordCategory)) {
+      setShowGuidelineWarning(true)
+      return
+    }
+    submitTextRecord()
+  }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  // Custom button handlers
+  const handleCustomTap = async (btn: QuickBtn) => {
+    const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
+    // When posting to a group, map 'public' -> 'group' (legacy default from main)
+    let vis = defaultVisibility
+    if (communityId) {
+      vis = defaultVisibility === 'public' ? 'group' : defaultVisibility
+    } else if (defaultVisibility === 'group') {
+      vis = 'private'
+    }
+    const success = await addPost(btn.label, undefined, 'habit', vis, communityId)
+    if (success) {
+      showToast(M.overlays.recordDoneWithLabel(btn.label))
+      setTimeout(() => closeRecordModal(), 400)
+    } else {
+      showToast(M.overlays.recordFailed)
+    }
   }
 
   const handlePressStart = (btn: QuickBtn) => {
@@ -114,7 +248,7 @@ export default function RecordModal() {
       longPressTimer.current = null
     }
     if (!didLongPress.current) {
-      handleTap(btn)
+      handleCustomTap(btn)
     }
   }
 
@@ -136,7 +270,10 @@ export default function RecordModal() {
     setEditLabel('')
   }
 
-  const handleAddBtn = () => { setAddingBtn(true); setNewBtnLabel('') }
+  const handleAddBtn = () => {
+    setAddingBtn(true)
+    setNewBtnLabel('')
+  }
 
   const handleConfirmAdd = () => {
     if (newBtnLabel.trim()) addCustomQuickButton(newBtnLabel.trim())
@@ -149,54 +286,18 @@ export default function RecordModal() {
     const totalMs = minutes * 60 * 1000
     setActiveTimer({ btn: timerTarget, endsAt: Date.now() + totalMs, totalMs })
     setTimerTarget(null)
+    // Don't collapse the More section when timer starts
   }
 
-  const submitTextRecord = async () => {
-    const trimmedInsta = recordInstaUrl.trim()
-    const validInsta = trimmedInsta.startsWith('https://') ? trimmedInsta : undefined
-    // 데모 모드는 세션 로컬 blob 미리보기 그대로, 실계정은 Storage에 올려 영구 URL로 저장
-    let finalImgUrl: string | undefined = isDemo ? (imagePreview ?? undefined) : undefined
-    if (!isDemo && imageFile && userId) {
-      setUploading(true)
-      finalImgUrl = (await uploadPostImage(imageFile, userId)) ?? undefined
-      setUploading(false)
-      if (!finalImgUrl) {
-        showToast(M.overlays.imageUploadFailed)
-        return
-      }
-    }
-    addPost(recordText.trim(), finalImgUrl, recordCategory, recordVisibility, recordCommunityId || null, validInsta)
-    showToast(M.overlays.recordDone)
-    setRecordText('')
-    setImagePreview(null)
-    setImageFile(null)
-    setRecordInstaUrl('')
-    setShowGuidelineWarning(false)
-    setTimeout(() => closeRecordModal(), 400)
-  }
-
-  const handleTextRecord = () => {
-    if (!recordText.trim()) return
-    if (looksUnrelatedToCategory(recordText, recordCategory)) {
-      setShowGuidelineWarning(true)
-      return
-    }
-    submitTextRecord()
-  }
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
-  }
-
-  const formatRemaining = (ms: number) => {
+  const formatTimerRemaining = (ms: number): string => {
     const totalSec = Math.ceil(ms / 1000)
-    const m = Math.floor(totalSec / 60)
-    const s = totalSec % 60
-    return `${m}:${String(s).padStart(2, '0')}`
+    const min = Math.floor(totalSec / 60)
+    const sec = totalSec % 60
+    return `${min}:${sec.toString().padStart(2, '0')}`
   }
+
+  const joinedCommunities = communities.filter((c) => c.joined)
+  const selectedComm = joinedCommunities.find((c) => c.id === recordCommunityId)
 
   return (
     <div data-testid="record-modal" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -230,55 +331,200 @@ export default function RecordModal() {
         </div>
       )}
 
-      <div data-testid="record-close" onClick={closeRecordModal} style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} />
-      <div style={{ background: '#FFFFFF', borderRadius: '20px 20px 0 0', maxHeight: '88%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px', flexShrink: 0 }}>
-          <div style={{ width: 28, height: 3, borderRadius: 2, background: '#EBEBEB' }} />
+      <div onClick={() => closeRecordModal()} style={{ flex: 1, cursor: 'pointer', background: 'rgba(0,0,0,.5)' }} />
+      <div style={{ background: '#FFFFFF', borderRadius: '24px 24px 0 0', paddingTop: 20, paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '0 20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: '#111111' }}>{M.overlays.record}</span>
+          <button onClick={() => closeRecordModal()} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+            <svg width="24" height="24" fill="none">
+              <path d="M6 6l12 12M18 6L6 18" stroke="#AAAAAA" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
 
-        <div style={{ overflowY: 'auto', padding: '16px 20px 40px', minHeight: 0 }}>
-          <p style={{ margin: '0 0 12px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em', textTransform: 'uppercase' }}>{M.overlays.quickRecordHint}</p>
+        {/* L1 Mode: Big [먹었어]/[운동했어] buttons */}
+        <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => handleQuickPost('diet')}
+            data-testid="record-quick-button"
+            style={{
+              flex: 1,
+              padding: '20px 16px',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #0E9F6E 0%, #00D9A3 100%)',
+              color: '#FFFFFF',
+              fontSize: 18,
+              fontWeight: 700,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 32 }}>🍽️</span>
+            {M.overlays.ate}
+          </button>
+          <button
+            onClick={() => handleQuickPost('exercise')}
+            data-testid="record-quick-button"
+            style={{
+              flex: 1,
+              padding: '20px 16px',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #0984E3 0%, #00BCFF 100%)',
+              color: '#FFFFFF',
+              fontSize: 18,
+              fontWeight: 700,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 32 }}>💪</span>
+            {M.overlays.exercised}
+          </button>
+        </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {buttons.map((btn) => {
-              const isTiming = activeTimer?.btn.id === btn.id
-              return (
-                <div key={btn.id} style={{ position: 'relative' }}>
-                  {editingBtn?.id === btn.id ? (
-                    <div style={{ padding: 10, borderRadius: 10, background: '#FAFAFA', border: '1.5px solid #111111', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <input
-                        autoFocus
-                        value={editLabel}
-                        onChange={(e) => setEditLabel(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit() }}
-                        style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid #EBEBEB', fontSize: 13, outline: 'none', background: '#fff', fontWeight: 600 }}
-                      />
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={handleSaveEdit} style={{ flex: 1, padding: '6px 0', borderRadius: 7, background: '#111111', color: '#fff', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>{M.common.save}</button>
-                        <button onClick={() => setEditingBtn(null)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, background: 'transparent', color: '#AAAAAA', fontSize: 11, border: '1px solid #EBEBEB', cursor: 'pointer' }}>{M.common.cancel}</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
+
+        {/* Target group display */}
+        {selectedComm && (
+          <div style={{ padding: '0 20px 8px', fontSize: 13, color: '#666666' }}>
+            {M.overlays.recordingTo(selectedComm.name)}
+          </div>
+        )}
+
+        {/* Optional photo & text */}
+        <div style={{ padding: '0 20px 16px' }}>
+          <textarea
+            placeholder={M.overlays.recordPlaceholder}
+            value={recordText}
+            onChange={(e) => setRecordText(e.target.value)}
+            style={{
+              width: '100%',
+              minHeight: 60,
+              padding: 12,
+              fontSize: 14,
+              border: '1px solid #EBEBEB',
+              borderRadius: 8,
+              resize: 'none',
+              fontFamily: 'inherit',
+              boxSizing: 'border-box',
+            }}
+          />
+          {imagePreview && (
+            <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+              <img src={imagePreview} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8 }} />
+              <button
+                onClick={() => { setImagePreview(null); setImageFile(null) }}
+                style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#111111', color: '#FFFFFF', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => fileRef.current?.click()}
+              style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: '1px solid #EBEBEB', borderRadius: 8, cursor: 'pointer' }}
+            >
+              {M.overlays.photo}
+            </button>
+            {recordText.trim() && (
+              <button
+                onClick={handleTextRecord}
+                disabled={uploading}
+                style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#FFFFFF', background: '#111111', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+              >
+                {uploading ? M.overlays.uploading : M.overlays.recordSubmit}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* '더보기' toggle for advanced options */}
+        {!showAdvanced && (
+          <div style={{ padding: '0 20px 8px' }}>
+            <button
+              onClick={() => setShowAdvanced(true)}
+              style={{ width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            >
+              {M.overlays.showAdvanced}
+            </button>
+          </div>
+        )}
+
+        {showAdvanced && (
+          <div style={{ padding: '0 20px 16px', borderTop: '1px solid #EBEBEB', paddingTop: 16 }}>
+            <button
+              onClick={() => setShowAdvanced(false)}
+              style={{ width: '100%', padding: '8px 0', fontSize: 13, fontWeight: 600, color: '#666666', background: 'transparent', border: 'none', cursor: 'pointer', marginBottom: 12 }}
+            >
+              {M.overlays.hideAdvanced}
+            </button>
+
+            {/* Active timer display */}
+            {activeTimer && (
+              <div style={{ marginBottom: 12, padding: 12, borderRadius: 10, background: '#F0F8FF', border: '1px solid #BBDEFB' }}>
+                <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: '#111111' }}>
+                  {M.overlays.timerRunning(activeTimer.btn.label)}
+                </p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1976D2' }}>
+                  {M.overlays.timerRemaining(formatTimerRemaining(timerRemainingMs))}
+                </p>
+              </div>
+            )}
+
+            {/* Custom quick buttons */}
+            {allQuickButtons.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {allQuickButtons.map((btn) => {
+                  const isTiming = activeTimer?.btn.id === btn.id
+                  return (
+                    <div key={btn.id} style={{ position: 'relative' }}>
                       <button
-                        data-testid="record-quick-button"
                         onMouseDown={() => handlePressStart(btn)}
                         onMouseUp={() => handlePressEnd(btn)}
-                        onMouseLeave={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null } }}
+                        onMouseLeave={() => {
+                          if (longPressTimer.current) clearTimeout(longPressTimer.current)
+                          longPressTimer.current = null
+                        }}
                         onTouchStart={() => handlePressStart(btn)}
                         onTouchEnd={(e) => { e.preventDefault(); handlePressEnd(btn) }}
                         disabled={isTiming}
-                        style={{ padding: '14px 40px 14px 12px', borderRadius: 10, background: isTiming ? '#111111' : '#FAFAFA', border: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', gap: 10, cursor: isTiming ? 'default' : 'pointer', width: '100%', textAlign: 'left', userSelect: 'none', transition: 'all .15s', boxSizing: 'border-box' }}
+                        style={{ 
+                          padding: '10px 32px 10px 16px', 
+                          borderRadius: 8, 
+                          background: isTiming ? '#111111' : '#F8F8F8', 
+                          fontSize: 13, 
+                          fontWeight: 600, 
+                          color: isTiming ? '#FFFFFF' : '#111111', 
+                          border: 'none', 
+                          cursor: isTiming ? 'default' : 'pointer',
+                          position: 'relative'
+                        }}
                       >
-                        <span style={{ fontSize: 11, fontWeight: 700, color: isTiming ? '#666666' : '#CCCCCC', fontVariantNumeric: 'tabular-nums', minWidth: 20 }}>{String(btn.num).padStart(2, '0')}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: isTiming ? '#FFFFFF' : '#111111', lineHeight: 1.3, flex: 1 }}>
-                          {isTiming ? formatRemaining(timerRemainingMs) : btn.label}
-                        </span>
+                        {isTiming ? formatTimerRemaining(timerRemainingMs) : btn.label}
                       </button>
                       {!isTiming && (
                         <button
                           onClick={() => setTimerTarget(btn)}
-                          style={{ position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}
+                          style={{ 
+                            position: 'absolute', 
+                            top: '50%', 
+                            right: 8, 
+                            transform: 'translateY(-50%)', 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            padding: 4, 
+                            display: 'flex', 
+                            alignItems: 'center' 
+                          }}
                         >
                           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                             <circle cx="8" cy="9" r="6" stroke="#AAAAAA" strokeWidth="1.4"/>
@@ -287,143 +533,252 @@ export default function RecordModal() {
                           </svg>
                         </button>
                       )}
-                      {longPressTarget?.id === btn.id && (
-                        <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 2 }}>
-                          <button onClick={() => handleEditBtn(btn)} style={{ padding: '7px 14px', borderRadius: 8, background: '#FFFFFF', color: '#111111', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>{M.common.edit}</button>
-                          <button onClick={() => handleDeleteBtn(btn.id)} style={{ padding: '7px 14px', borderRadius: 8, background: '#CC3333', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>{M.common.delete}</button>
-                          <button onClick={() => setLongPressTarget(null)} style={{ position: 'absolute', top: 4, right: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}>
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <line x1="3" y1="3" x2="11" y2="11" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
-                              <line x1="11" y1="3" x2="3" y2="11" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Long press menu */}
+            {longPressTarget && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)' }}>
+                <div style={{ background: '#FFFFFF', borderRadius: 12, padding: 16, minWidth: 200 }}>
+                  <button
+                    onClick={() => handleEditBtn(longPressTarget)}
+                    style={{ width: '100%', padding: '12px 0', borderRadius: 8, background: 'transparent', color: '#111111', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', textAlign: 'left', paddingLeft: 16 }}
+                  >
+                    {M.overlays.editButton}
+                  </button>
+                  <button
+                    onClick={() => { setLongPressTarget(null); setTimerTarget(longPressTarget) }}
+                    style={{ width: '100%', padding: '12px 0', borderRadius: 8, background: 'transparent', color: '#111111', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', textAlign: 'left', paddingLeft: 16 }}
+                  >
+                    {M.overlays.startTimer}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteBtn(longPressTarget.id)}
+                    style={{ width: '100%', padding: '12px 0', borderRadius: 8, background: 'transparent', color: '#FF3B30', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', textAlign: 'left', paddingLeft: 16 }}
+                  >
+                    {M.overlays.deleteButton}
+                  </button>
+                  <button
+                    onClick={() => setLongPressTarget(null)}
+                    style={{ width: '100%', padding: '12px 0', marginTop: 8, borderRadius: 8, background: '#F0F0F0', color: '#555555', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                  >
+                    {M.common.cancel}
+                  </button>
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            )}
 
-          {timerTarget && (
-            <div style={{ marginTop: 10, padding: '12px 14px', borderRadius: 10, background: '#FAFAFA', border: '1px solid #EBEBEB' }}>
-              <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 600, color: '#111111' }}>{M.overlays.pickTimerDuration(timerTarget.label)}</p>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {TIMER_PRESETS.map((min) => (
-                  <button key={min} onClick={() => handleStartTimer(min)} style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>{M.overlays.minutes(min)}</button>
-                ))}
-                <button onClick={() => setTimerTarget(null)} style={{ padding: '8px 12px', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 12, border: '1px solid #EBEBEB', cursor: 'pointer' }}>{M.common.cancel}</button>
+            {/* Edit button dialog */}
+            {editingBtn && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)', padding: 24 }}>
+                <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 20, maxWidth: 320, width: '100%' }}>
+                  <p style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#111111' }}>
+                    {M.overlays.editButton}
+                  </p>
+                  <input
+                    type="text"
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    placeholder={M.overlays.buttonNamePlaceholder}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #EBEBEB', fontSize: 14, marginBottom: 16 }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => { setEditingBtn(null); setEditLabel('') }}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 13, fontWeight: 600, border: '1px solid #EBEBEB', cursor: 'pointer' }}
+                    >
+                      {M.common.cancel}
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                    >
+                      {M.common.save}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Timer picker */}
+            {timerTarget && (
+              <div style={{ marginBottom: 12, padding: 12, borderRadius: 10, background: '#FFF9E6', border: '1px solid #FFD54F' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 600, color: '#111111' }}>
+                  {M.overlays.pickTimerDuration(timerTarget.label)}
+                </p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {TIMER_PRESETS.map((min) => (
+                    <button
+                      key={min}
+                      onClick={() => handleStartTimer(min)}
+                      style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}
+                    >
+                      {M.overlays.minutes(min)}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setTimerTarget(null)}
+                    style={{ padding: '8px 12px', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 12, border: '1px solid #EBEBEB', cursor: 'pointer' }}
+                  >
+                    {M.common.cancel}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Add button */}
+            {addingBtn ? (
+              <div style={{ padding: 12, borderRadius: 10, background: '#F8F8F8', marginBottom: 12 }}>
+                <input
+                  type="text"
+                  value={newBtnLabel}
+                  onChange={(e) => setNewBtnLabel(e.target.value)}
+                  placeholder={M.overlays.buttonNamePlaceholder}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #EBEBEB', fontSize: 14, marginBottom: 8 }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => { setAddingBtn(false); setNewBtnLabel('') }}
+                    style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 12, fontWeight: 600, border: '1px solid #EBEBEB', cursor: 'pointer' }}
+                  >
+                    {M.common.cancel}
+                  </button>
+                  <button
+                    onClick={handleConfirmAdd}
+                    style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                  >
+                    {M.overlays.add}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={handleAddBtn}
+                style={{ marginBottom: 12, padding: '11px 14px', borderRadius: 10, border: '1px dashed #DDDDDD', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+              >
+                <span style={{ fontSize: 16, color: '#AAAAAA', fontWeight: 200, lineHeight: 1 }}>+</span>
+                <span style={{ fontSize: 12, color: '#AAAAAA', letterSpacing: '.02em' }}>{M.overlays.addButton}</span>
+              </div>
+            )}
+
+            {/* Category selection */}
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#AAAAAA' }}>{M.overlays.category}</p>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(['habit', 'diet', 'exercise', 'reflection', 'routine'] as PostCategory[]).map((cat) => {
+                  const key = `category_${cat}` as keyof typeof M.overlays
+                  const label = typeof M.overlays[key] === 'string' ? M.overlays[key] as string : cat
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setRecordCategory(cat)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: recordCategory === cat ? 700 : 400,
+                        background: recordCategory === cat ? '#111111' : 'transparent',
+                        color: recordCategory === cat ? '#fff' : '#666666',
+                        border: `1px solid ${recordCategory === cat ? '#111111' : '#E0E0E0'}`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
-          )}
 
-          <div onClick={handleAddBtn} style={{ marginTop: 10, padding: '11px 14px', borderRadius: 10, border: '1px dashed #DDDDDD', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-            <span style={{ fontSize: 16, color: '#AAAAAA', fontWeight: 200, lineHeight: 1 }}>+</span>
-            <span style={{ fontSize: 12, color: '#AAAAAA', letterSpacing: '.02em' }}>{M.overlays.addButton}</span>
-          </div>
+            {/* Visibility selection */}
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#AAAAAA' }}>{M.overlays.visibilityLabel}</p>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(['group', 'public', 'followers', 'private'] as PostVisibility[]).map((vis) => {
+                  // Hide 'public' when a group is selected (it will be mapped to 'group' anyway)
+                  if (vis === 'public' && recordCommunityId) return null
+                  
+                  const key = `visibility_${vis}` as keyof typeof M.overlays
+                  const label = typeof M.overlays[key] === 'string' ? M.overlays[key] as string : vis
+                  return (
+                    <button
+                      key={vis}
+                      onClick={() => setRecordVisibility(vis)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: recordVisibility === vis ? 700 : 400,
+                        background: recordVisibility === vis ? '#111111' : 'transparent',
+                        color: recordVisibility === vis ? '#fff' : '#666666',
+                        border: `1px solid ${recordVisibility === vis ? '#111111' : '#E0E0E0'}`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
 
-          {addingBtn && (
-            <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Target group selection */}
+            {joinedCommunities.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#AAAAAA' }}>{M.overlays.selectGroup}</p>
+                <select
+                  value={recordCommunityId}
+                  onChange={(e) => setRecordCommunityId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #EBEBEB',
+                    fontSize: 13,
+                    background: '#FAFAFA',
+                  }}
+                >
+                  <option value="">{M.overlays.noGroup}</option>
+                  {joinedCommunities.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Instagram URL */}
+            <div>
+              <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#AAAAAA' }}>{M.overlays.instagramLink}</p>
               <input
-                autoFocus
-                value={newBtnLabel}
-                onChange={(e) => setNewBtnLabel(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmAdd(); if (e.key === 'Escape') { setAddingBtn(false); setNewBtnLabel('') } }}
-                placeholder={M.overlays.buttonNamePlaceholder}
-                style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #EBEBEB', fontSize: 13, outline: 'none', background: '#FAFAFA' }}
+                type="url"
+                value={recordInstaUrl}
+                onChange={(e) => setRecordInstaUrl(e.target.value)}
+                placeholder="https://instagram.com/p/..."
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #EBEBEB',
+                  fontSize: 13,
+                  background: '#FAFAFA',
+                  boxSizing: 'border-box',
+                }}
               />
-              <button onClick={handleConfirmAdd} style={{ padding: '9px 14px', borderRadius: 8, background: '#111111', color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>{M.overlays.add}</button>
-              <button onClick={() => { setAddingBtn(false); setNewBtnLabel('') }} style={{ padding: '9px 10px', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 12, border: '1px solid #EBEBEB', cursor: 'pointer' }}>{M.common.cancel}</button>
-            </div>
-          )}
-
-          <div style={{ marginTop: 16, borderTop: '1px solid #F0F0F0', paddingTop: 14 }}>
-            {imagePreview && (
-              <div style={{ position: 'relative', marginBottom: 10, borderRadius: 10, overflow: 'hidden' }}>
-                <img src={imagePreview} alt={M.overlays.attachedImageAlt} style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
-                <button
-                  onClick={() => { setImagePreview(null); setImageFile(null) }}
-                  style={{ position: 'absolute', top: 7, right: 7, width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,.55)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <line x1="2.5" y1="2.5" x2="9.5" y2="9.5" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                    <line x1="9.5" y1="2.5" x2="2.5" y2="9.5" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                </button>
-              </div>
-            )}
-            <p style={{ margin: '0 0 6px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em' }}>{M.overlays.recordType}</p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-              {CATEGORY_KEYS.map((key) => (
-                <button
-                  key={key}
-                  onClick={() => setRecordCategory(key)}
-                  style={{ padding: '6px 12px', borderRadius: 20, border: `1px solid ${recordCategory === key ? '#111111' : '#EBEBEB'}`, background: recordCategory === key ? '#111111' : '#FAFAFA', color: recordCategory === key ? '#fff' : '#111111', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  {M.overlays.categoryLabels[key]}
-                </button>
-              ))}
-            </div>
-
-            <p style={{ margin: '0 0 6px', fontSize: 11, color: '#AAAAAA', fontWeight: 300, letterSpacing: '.04em' }}>{M.overlays.visibilityScope}</p>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-              {VISIBILITY_KEYS.map((key) => (
-                <button
-                  key={key}
-                  onClick={() => setRecordVisibility(key)}
-                  style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1px solid ${recordVisibility === key ? '#111111' : '#EBEBEB'}`, background: recordVisibility === key ? '#111111' : '#FAFAFA', color: recordVisibility === key ? '#fff' : '#111111', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  {M.overlays.visibilityLabels[key]}
-                </button>
-              ))}
-            </div>
-
-            {communities.some((c) => c.joined) && (
-              <select
-                value={recordCommunityId}
-                onChange={(e) => setRecordCommunityId(e.target.value)}
-                style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #EBEBEB', fontSize: 12, background: '#FAFAFA', color: '#111111', marginBottom: 12, outline: 'none' }}
-              >
-                <option value="">{M.overlays.noCommunitySelected}</option>
-                {communities.filter((c) => c.joined).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            )}
-
-            <input
-              value={recordInstaUrl}
-              onChange={(e) => setRecordInstaUrl(e.target.value)}
-              placeholder={M.overlays.instaLinkPlaceholder}
-              style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #EBEBEB', fontSize: 12, background: '#FAFAFA', color: '#111111', marginBottom: 12, outline: 'none', boxSizing: 'border-box' }}
-            />
-
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageSelect} />
-            <textarea
-              data-testid="record-input"
-              value={recordText}
-              onChange={(e) => setRecordText(e.target.value)}
-              placeholder={M.overlays.recordPlaceholder}
-              rows={3}
-              style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid #EBEBEB', fontSize: 14, background: '#FAFAFA', color: '#111111', resize: 'none', lineHeight: 1.7, marginBottom: 10, outline: 'none', fontWeight: 300, fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", boxSizing: 'border-box', wordBreak: 'keep-all' }}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button onClick={() => fileRef.current?.click()} style={{ padding: '11px 13px', borderRadius: 10, background: '#F5F5F5', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="16" height="16" viewBox="0 0 15 15" fill="none"><rect x="1" y="2.5" width="13" height="10" rx="2" stroke="#555" strokeWidth="1.4"/><circle cx="5.2" cy="6.5" r="1.4" stroke="#555" strokeWidth="1.2"/><path d="M1.5 11.5l3.5-3.5 2.5 2.5 2-2 4 3.5" stroke="#555" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </button>
-              <button
-                data-testid="record-submit"
-                onClick={handleTextRecord}
-                disabled={uploading}
-                style={{ flex: 1, padding: 13, borderRadius: 10, background: uploading ? '#CCCCCC' : '#111111', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: uploading ? 'default' : 'pointer', letterSpacing: '.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
-              >
-                {uploading ? M.overlays.imageUploading : M.overlays.record}
-              </button>
             </div>
           </div>
-        </div>
+        )}
       </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageSelect}
+        style={{ display: 'none' }}
+      />
     </div>
   )
 }

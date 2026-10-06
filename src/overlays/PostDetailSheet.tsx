@@ -17,10 +17,13 @@ export default function PostDetailSheet() {
   const suggestedUsers = useAppStore((s) => s.suggestedUsers)
   const selectUser = useAppStore((s) => s.selectUser)
   const nickname = useAppStore((s) => s.nickname)
+  const userId = useAppStore((s) => s.userId)
   const reportPost = useAppStore((s) => s.reportPost)
+  const deletePost = useAppStore((s) => s.deletePost)
   const [comment, setComment] = useState('')
   const [reported, setReported] = useState(false)
   const [showReportConfirm, setShowReportConfirm] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   if (!showPostDetail || !selectedPost) return null
 
@@ -29,6 +32,18 @@ export default function PostDetailSheet() {
     setReported(true)
     setShowReportConfirm(false)
   }
+
+  const handleDelete = async () => {
+    const success = await deletePost(selectedPost.id)
+    if (success) {
+      closePostDetail()
+    } else {
+      alert(M.overlays.deletePostFailed)
+    }
+    setShowDeleteConfirm(false)
+  }
+
+  const isOwnPost = selectedPost.userId === userId
 
   const getReactionCount = (key: string) => selectedPost.reactions[key] ?? 0
   const isFollowing = selectedPost.userId ? followedUsers.has(selectedPost.userId) : false
@@ -112,6 +127,14 @@ export default function PostDetailSheet() {
           >
             {isFollowing ? M.overlays.following : M.overlays.follow}
           </button>
+          {isOwnPost && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', fontSize: 11, color: '#DC2626', fontWeight: 600 }}
+            >
+              {M.overlays.deletePost}
+            </button>
+          )}
           {selectedPost.user !== nickname && !reported && (
             <button onClick={() => setShowReportConfirm(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', fontSize: 11, color: '#AAAAAA', fontWeight: 600 }}>
               {M.overlays.report}
@@ -125,7 +148,31 @@ export default function PostDetailSheet() {
           </button>
         </div>
 
-        {showReportConfirm && (
+        {showDeleteConfirm && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)', padding: 24 }}>
+          <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 20, maxWidth: 320, width: '100%' }}>
+            <p style={{ margin: '0 0 16px', fontSize: 14, color: '#111111', lineHeight: 1.6 }}>
+              {M.overlays.deletePostConfirm}
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: 'transparent', color: '#AAAAAA', fontSize: 13, fontWeight: 600, border: '1px solid #EBEBEB', cursor: 'pointer' }}
+              >
+                {M.common.cancel}
+              </button>
+              <button
+                onClick={handleDelete}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: '#DC2626', color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+              >
+                {M.overlays.deletePost}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReportConfirm && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)', padding: 24 }}>
             <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 20, maxWidth: 300, width: '100%' }}>
               <p style={{ margin: '0 0 16px', fontSize: 14, color: '#111111', lineHeight: 1.6 }}>{M.overlays.reportConfirm}</p>

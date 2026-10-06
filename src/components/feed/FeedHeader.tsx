@@ -10,6 +10,9 @@ export function FeedHeader({
   tabs,
   hasUnread,
   onNavigateNotifications,
+  joinedCount,
+  onCreateGroup,
+  onOpenGroupSettings,
 }: {
   activeCommunityTab: string
   setActiveCommunityTab: (id: string) => void
@@ -18,6 +21,9 @@ export function FeedHeader({
   tabs: Community[]
   hasUnread: boolean
   onNavigateNotifications: () => void
+  joinedCount?: number
+  onCreateGroup?: () => void
+  onOpenGroupSettings?: (groupId: string) => void
 }) {
   const M = useMessages()
   const [logoError, setLogoError] = useState(false)
@@ -98,66 +104,69 @@ export function FeedHeader({
           ? <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: -0.5, color: '#111111' }}>WELLING</span>
           : <img src="/uploads/welling-black.png" style={{ height: 21, width: 'auto' }} alt={M.feed.logoAlt} onError={() => setLogoError(true)} />
         }
-        <button onClick={onNavigateNotifications} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M10 2a6 6 0 016 6v2l1.5 3H2.5L4 10V8a6 6 0 016-6z" stroke="#111111" strokeWidth="1.5" strokeLinejoin="round" />
-            <path d="M8.5 16a1.5 1.5 0 003 0" stroke="#111111" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          {hasUnread && (
-            <div style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: '#E53535', border: '1.5px solid #fff' }} />
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {onOpenGroupSettings && activeCommunityTab && activeCommunityTab !== 'all' && (
+            <button onClick={() => onOpenGroupSettings(activeCommunityTab)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" stroke="#111111" strokeWidth="1.5" />
+                <path d="M16.5 10a6.5 6.5 0 00-.29-1.94l1.31-.76-1-1.73-1.31.76a6.5 6.5 0 00-1.68-.97V4h-2v1.36c-.6.18-1.17.48-1.68.97l-1.31-.76-1 1.73 1.31.76A6.5 6.5 0 008.5 10c0 .68.1 1.33.29 1.94l-1.31.76 1 1.73 1.31-.76c.51.49 1.08.79 1.68.97V16h2v-1.36c.6-.18 1.17-.48 1.68-.97l1.31.76 1-1.73-1.31-.76A6.5 6.5 0 0016.5 10z" stroke="#111111" strokeWidth="1.5" />
+              </svg>
+            </button>
           )}
-        </button>
-      </div>
-      <div style={{ display: 'flex', gap: 6, padding: '0 20px 12px', overflowX: 'auto', alignItems: 'center' }}>
-        {/* ALL 버튼 */}
-        <div
-          data-testid="feed-community-tab"
-          data-community-id="all"
-          aria-pressed={activeCommunityTab === 'all'}
-          onClick={() => setActiveCommunityTab('all')}
-          style={{
-            flexShrink: 0, cursor: 'pointer', padding: '5px 14px', borderRadius: 20,
-            fontSize: 12, fontWeight: activeCommunityTab === 'all' ? 700 : 400,
-            background: activeCommunityTab === 'all' ? '#111111' : 'transparent',
-            color: activeCommunityTab === 'all' ? '#fff' : '#666666',
-            border: `1px solid ${activeCommunityTab === 'all' ? '#111111' : '#E0E0E0'}`,
-            whiteSpace: 'nowrap', userSelect: 'none',
-          }}
-        >
-          {M.feed.allTab}
+          <button onClick={onNavigateNotifications} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M10 2a6 6 0 016 6v2l1.5 3H2.5L4 10V8a6 6 0 016-6z" stroke="#111111" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="M8.5 16a1.5 1.5 0 003 0" stroke="#111111" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            {hasUnread && (
+              <div style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: '#E53535', border: '1.5px solid #fff' }} />
+            )}
+          </button>
         </div>
-        {tabs.map((ct, i) => {
-          const active = activeCommunityTab === ct.id
-          return (
-            <div
-              key={ct.id}
-              data-testid="feed-community-tab"
-              data-community-id={ct.id}
-              aria-pressed={active}
-              ref={(el) => { tabEls.current[i] = el }}
-              draggable
-              onDragStart={() => handleDragStart(i)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, i)}
-              onDrop={() => handleDrop(i)}
-              onTouchStart={(e) => handleTouchStart(i, e)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onClick={() => setActiveCommunityTab(ct.id)}
-              style={{
-                flexShrink: 0, cursor: 'pointer', padding: '5px 14px', borderRadius: 20,
-                fontSize: 12, fontWeight: active ? 700 : 400,
-                background: active ? '#111111' : dragOverIdx === i ? '#F0F0F0' : 'transparent',
-                color: active ? '#fff' : '#666666',
-                border: `1px solid ${active ? '#111111' : '#E0E0E0'}`,
-                whiteSpace: 'nowrap', userSelect: 'none', transition: 'all .15s',
-                opacity: dragIdx === i ? 0.4 : 1,
-              }}
-            >
-              {ct.name}
-            </div>
-          )
-        })}
+      </div>
+      <div style={{ padding: '0 20px 14px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        {joinedCount && joinedCount > 1 && (
+          <div onClick={() => setActiveCommunityTab('all')} style={{ padding: '6px 14px', borderRadius: 22, background: activeCommunityTab === 'all' ? '#111111' : 'transparent', color: activeCommunityTab === 'all' ? '#FFFFFF' : '#AAAAAA', fontSize: 13, fontWeight: 600, border: activeCommunityTab === 'all' ? 'none' : '1px solid #EBEBEB', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>{M.feed.allTab}</div>
+        )}
+
+        {tabs.map((c, i) => (
+          <div
+            key={c.id}
+            ref={(el) => { tabEls.current[i] = el }}
+            draggable
+            onDragStart={() => handleDragStart(i)}
+            onDragEnd={handleDragEnd}
+            onDragOver={(e) => handleDragOver(e, i)}
+            onDrop={() => handleDrop(i)}
+            onTouchStart={(e) => handleTouchStart(i, e)}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onClick={() => setActiveCommunityTab(c.id)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 22,
+              background: activeCommunityTab === c.id ? '#111111' : 'transparent',
+              color: activeCommunityTab === c.id ? '#FFFFFF' : '#111111',
+              fontSize: 13,
+              fontWeight: 600,
+              border: activeCommunityTab === c.id ? 'none' : '1px solid #EBEBEB',
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+              flexShrink: 0,
+              opacity: dragIdx === i ? 0.3 : 1,
+              transform: dragOverIdx === i ? 'scale(1.08)' : 'scale(1)',
+              transition: 'transform 150ms cubic-bezier(.25,.8,.25,1), opacity 100ms',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+            }}
+          >
+            {c.name}
+          </div>
+        ))}
+        
+        {onCreateGroup && (
+          <div onClick={onCreateGroup} style={{ padding: '6px 14px', borderRadius: 22, background: 'transparent', color: '#0984E3', fontSize: 13, fontWeight: 600, border: '1px solid #0984E3', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>{M.feed.createGroupButton}</div>
+        )}
       </div>
     </div>
   )

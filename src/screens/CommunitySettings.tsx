@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { supabase } from '../lib/supabaseClient'
+import { callRpc } from '../lib/rpc'
 
 interface Member {
   id: string
@@ -159,13 +160,16 @@ export default function CommunitySettings() {
     if (!selectedCommunity) return
     setRotating(true)
     
-    const { error } = await supabase.rpc('rotate_invite_code', {
+    const result = await callRpc('rotate_invite_code', {
       p_community_id: selectedCommunity.id,
     })
     
-    if (!error) {
+    if (!result.ok) {
+      alert(result.message)
+    } else {
       await loadSettings()
     }
+    
     setRotating(false)
   }
 
@@ -185,57 +189,66 @@ export default function CommunitySettings() {
   const handleApproveRequest = async (requestId: string, _userId: string) => {
     if (!selectedCommunity) return
     
-    // Use RPC (handles RLS + member_count trigger)
-    const { error } = await supabase.rpc('approve_join_request', {
+    const result = await callRpc('approve_join_request', {
       p_request_id: requestId,
     })
     
-    if (!error) {
-      await loadSettings()
+    if (!result.ok) {
+      alert(result.message)
+      return
     }
+    
+    await loadSettings()
   }
 
   const handleRejectRequest = async (requestId: string) => {
     if (!selectedCommunity) return
     
-    // Use RPC (handles RLS)
-    const { error } = await supabase.rpc('reject_join_request', {
+    const result = await callRpc('reject_join_request', {
       p_request_id: requestId,
     })
     
-    if (!error) {
-      await loadSettings()
+    if (!result.ok) {
+      alert(result.message)
+      return
     }
+    
+    await loadSettings()
   }
 
   const handlePromote = async (member: Member) => {
     if (!selectedCommunity || myRole !== 'owner') return
     
     const newRole = member.role === 'member' ? 'admin' : 'member'
-    // Use RPC (handles RLS)
-    const { error } = await supabase.rpc('set_member_role', {
+    const result = await callRpc('set_member_role', {
       p_community_id: selectedCommunity.id,
       p_user_id: member.id,
       p_role: newRole,
     })
     
-    if (!error) {
-      await loadSettings()
+    if (!result.ok) {
+      alert(result.message)
+      return
     }
+    
+    await loadSettings()
   }
 
   const handleKick = async (member: Member) => {
     if (!selectedCommunity || !['owner', 'admin'].includes(myRole)) return
     if (member.id === userId) return
     
-    const { error } = await supabase.rpc('remove_member', {
+    const result = await callRpc('remove_member', {
       p_community_id: selectedCommunity.id,
       p_user_id: member.id,
     })
     
-    if (!error) {
-      await loadSettings()
+    if (!result.ok) {
+      alert(result.message)
+      return
     }
+    
+    await loadSettings()
   }
 
   const handleLeave = async () => {
@@ -255,14 +268,17 @@ export default function CommunitySettings() {
   const handleTransfer = async () => {
     if (!selectedCommunity || !transferTarget || myRole !== 'owner') return
     
-    const { error } = await supabase.rpc('transfer_ownership', {
+    const result = await callRpc('transfer_ownership', {
       p_community_id: selectedCommunity.id,
       p_new_owner_id: transferTarget.id,
     })
     
-    if (!error) {
+    if (!result.ok) {
+      alert(result.message)
+    } else {
       await loadSettings()
     }
+    
     setShowTransferConfirm(false)
     setTransferTarget(null)
   }

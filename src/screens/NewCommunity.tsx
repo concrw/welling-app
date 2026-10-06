@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
-import { supabase } from '../lib/supabaseClient'
+import { callRpc } from '../lib/rpc'
 
 export default function NewCommunity() {
   const goBack = useAppStore((s) => s.goBack)
@@ -20,34 +20,26 @@ export default function NewCommunity() {
     setCreating(true)
     setError('')
     
-    try {
-      const { data, error: rpcError } = await supabase.rpc('create_group', {
+    const result = await callRpc<{ success: boolean; community_id: string; invite_code: string }>(
+      'create_group',
+      {
         p_name: trimmed,
         p_desc: '',
         p_visibility: 'private',
-      })
-      
-      if (rpcError || !data) {
-        setError(rpcError?.message || '그룹 생성에 실패했습니다')
-        setCreating(false)
-        return
       }
-      
-      const result = typeof data === 'string' ? JSON.parse(data) : data
-      if (result.status === 'success') {
-        const code = result.invite_code
-        const url = `${window.location.origin}/?invite=${code}`
-        setInviteUrl(url)
-        setShowShareScreen(true)
-        setCreating(false)
-      } else {
-        setError('그룹 생성에 실패했습니다')
-        setCreating(false)
-      }
-    } catch (err) {
-      setError('그룹 생성에 실패했습니다')
+    )
+    
+    if (!result.ok) {
+      setError(result.message)
       setCreating(false)
+      return
     }
+    
+    const code = result.data.invite_code
+    const url = `${window.location.origin}/?invite=${code}`
+    setInviteUrl(url)
+    setShowShareScreen(true)
+    setCreating(false)
   }
 
   const handleShare = async () => {

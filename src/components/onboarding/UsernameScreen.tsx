@@ -19,6 +19,7 @@ interface UsernameScreenProps {
   requestPasswordReset: () => void
   signInWithProvider: (provider: 'google' | 'kakao') => void
   goFeedDemo: () => void
+  invitePreview: { communityId: string; name: string; memberCount: number } | null
 }
 
 export function UsernameScreen({
@@ -38,6 +39,7 @@ export function UsernameScreen({
   requestPasswordReset,
   signInWithProvider,
   goFeedDemo,
+  invitePreview,
 }: UsernameScreenProps) {
   const M = useMessages()
   return (
@@ -47,6 +49,15 @@ export function UsernameScreen({
       <p style={{ margin: '0 0 48px', fontSize: 14, color: '#AAAAAA', textAlign: 'center', lineHeight: 1.8, fontWeight: 300 }}>
         {M.onboarding.taglineLine1}<br />{M.onboarding.taglineLine2}
       </p>
+      {invitePreview && (
+        <div style={{ width: '100%', padding: '12px 16px', marginBottom: 16, borderRadius: 10, background: '#F0F8FF', border: '1px solid #BBDEFB', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontSize: 20 }}>👥</div>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111111' }}>{M.onboarding.invitePreviewTitle(invitePreview.name)}</p>
+            <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>{M.onboarding.invitePreviewMembers(invitePreview.memberCount)}</p>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', width: '100%', marginBottom: 20, borderRadius: 10, background: '#FAFAFA', border: '1px solid #EBEBEB', padding: 3 }}>
         <button
           onClick={() => setAuthMode('signup')}

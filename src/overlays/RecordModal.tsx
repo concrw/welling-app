@@ -68,31 +68,36 @@ export default function RecordModal() {
   // Timer interval
   useEffect(() => {
     if (!activeTimer) return
+    let fired = false
     const tick = async () => {
       const remaining = activeTimer.endsAt - Date.now()
-      if (remaining <= 0) {
-        const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
-        // When posting to a group, map 'public' -> 'group' (legacy default from main)
-        let vis = defaultVisibility
-        if (communityId) {
-          vis = defaultVisibility === 'public' ? 'group' : defaultVisibility
-        } else if (defaultVisibility === 'group') {
-          vis = 'private'
-        }
-        const success = await addPost(activeTimer.btn.label, undefined, 'habit', vis, communityId)
-        if (success) {
-          showToast(M.overlays.recordDoneWithLabel(activeTimer.btn.label))
-        } else {
-          showToast(M.overlays.recordFailed)
-        }
-        setActiveTimer(null)
-        setTimerRemainingMs(0)
-      } else {
+      if (remaining > 0) {
         setTimerRemainingMs(remaining)
+        return
+      }
+      if (fired) return
+      fired = true
+      clearInterval(id)
+      const btn = activeTimer.btn
+      setActiveTimer(null)
+      setTimerRemainingMs(0)
+      const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
+      // When posting to a group, map 'public' -> 'group' (legacy default from main)
+      let vis = defaultVisibility
+      if (communityId) {
+        vis = defaultVisibility === 'public' ? 'group' : defaultVisibility
+      } else if (defaultVisibility === 'group') {
+        vis = 'private'
+      }
+      const success = await addPost(btn.label, undefined, 'habit', vis, communityId)
+      if (success) {
+        showToast(M.overlays.recordDoneWithLabel(btn.label))
+      } else {
+        showToast(M.overlays.recordFailed)
       }
     }
-    tick()
-    const id = setInterval(tick, 250)
+    void tick()
+    const id = setInterval(() => { void tick() }, 250)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTimer])

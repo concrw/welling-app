@@ -310,7 +310,7 @@ interface AppState {
   
   // Invite handling
   checkPendingInvite: () => Promise<void>
-  consumePendingInvite: () => Promise<void>
+  consumePendingInvite: (options?: { isNewSignup?: boolean }) => Promise<void>
   clearPendingInvite: () => void
   setNicknameInput: (v: string) => void
   setEmailInput: (v: string) => void
@@ -625,9 +625,11 @@ export const useAppStore = create<AppState>()(
     }
   },
   
-  consumePendingInvite: async () => {
-    const { pendingInviteCode, userId, screen } = get()
+  consumePendingInvite: async (options?: { isNewSignup?: boolean }) => {
+    const { pendingInviteCode, userId } = get()
     if (!pendingInviteCode || !userId) return
+    
+    const isNewSignup = options?.isNewSignup ?? false
     
     const { data, error } = await supabase.rpc('join_by_invite', { p_code: pendingInviteCode })
     if (error) {
@@ -635,8 +637,6 @@ export const useAppStore = create<AppState>()(
       alert(getMessages().store.inviteUnknownError(error.message))
       localStorage.removeItem('welling_pending_invite')
       set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
-      // Navigate based on whether this is a new signup (coming from nickname/username screens)
-      const isNewSignup = screen === 'social-nickname' || screen === 'onboarding-username'
       get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
       return
     }
@@ -679,9 +679,9 @@ export const useAppStore = create<AppState>()(
         pendingInviteCode: null,
         pendingInviteSavedAt: null,
         invitePreview: null,
-        screen: 'feed',
       })
       alert(M.store.invitePending)
+      get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
       return
     }
     
@@ -699,9 +699,6 @@ export const useAppStore = create<AppState>()(
     }
     
     alert(statusMessages[result.status] || M.store.inviteUnknownError(result.status))
-    
-    // Navigate to appropriate screen after failure
-    const isNewSignup = get().screen === 'social-nickname' || get().screen === 'onboarding-username'
     get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
   },
   
@@ -764,7 +761,7 @@ export const useAppStore = create<AppState>()(
     
     // Handle invite or normal onboarding
     if (pendingInviteCode) {
-      await get().consumePendingInvite()
+      await get().consumePendingInvite({ isNewSignup: true })
     } else {
       set({ screen: 'onboarding-preview', prevScreen: 'social-nickname' })
     }
@@ -816,7 +813,7 @@ export const useAppStore = create<AppState>()(
     
     // Handle invite or normal onboarding
     if (pendingInviteCode) {
-      await get().consumePendingInvite()
+      await get().consumePendingInvite({ isNewSignup: true })
     } else {
       set({ screen: 'onboarding-preview', prevScreen: 'onboarding-username' })
     }
@@ -853,7 +850,7 @@ export const useAppStore = create<AppState>()(
     
     // Handle invite or go to feed
     if (pendingInviteCode) {
-      await get().consumePendingInvite()
+      await get().consumePendingInvite({ isNewSignup: false })
     } else {
       set({ screen: 'feed', navTab: 'feed', prevScreen: null })
     }
@@ -898,7 +895,7 @@ export const useAppStore = create<AppState>()(
     
     // Handle invite or go to appropriate screen
     if (pendingInviteCode) {
-      await get().consumePendingInvite()
+      await get().consumePendingInvite({ isNewSignup: false })
     } else {
       set({ screen: recovering ? 'reset-password' : 'feed', navTab: 'feed' })
     }

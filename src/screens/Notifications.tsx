@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useMessages } from '../i18n'
+import { getNotificationText } from '../lib/notificationText'
 
 const PALETTE = ['#374151', '#0984E3', '#00B894', '#6C5CE7', '#B45309', '#047857', '#0369A1', '#7C3AED']
 
@@ -17,6 +19,11 @@ export default function Notifications() {
   const notifications = useAppStore((s) => s.notifications)
   const markAllRead = useAppStore((s) => s.markAllRead)
   const markSingleRead = useAppStore((s) => s.markSingleRead)
+  const loadNotifications = useAppStore((s) => s.loadNotifications)
+
+  useEffect(() => {
+    void loadNotifications()
+  }, [loadNotifications])
 
   return (
     <div>
@@ -43,7 +50,7 @@ export default function Notifications() {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ margin: '0 0 3px', fontSize: 13, color: '#111111', lineHeight: 1.45, WebkitLineClamp: 2, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                <span style={{ fontWeight: 700 }}>{n.user}</span>{n.text}
+                <span style={{ fontWeight: 700 }}>{n.user}</span>{getNotificationText(n, M)}
               </p>
               {n.preview && <p style={{ margin: '0 0 3px', fontSize: 12, color: '#AAAAAA', fontWeight: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.preview}</p>}
               <p style={{ margin: 0, fontSize: 11, color: '#CCCCCC', fontWeight: 300 }}>{n.time}</p>

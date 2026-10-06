@@ -142,6 +142,7 @@ export default function CommunityDetail() {
             <div onClick={() => openPostDetail(post)} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>
               <span style={{ fontSize: 13, color: '#555555' }}>{post.content}</span>
             </div>
+            {post.hasImg && post.imgUrl && <img src={post.imgUrl} alt="" onClick={() => openPostDetail(post)} style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }} />}
             <button
               onClick={() => toggleReaction(post.id, 'cheer')}
               style={{ flexShrink: 0, background: post.myReactions?.has('cheer') ? '#FFF4D6' : 'none', border: '1px solid #EBEBEB', borderRadius: 999, cursor: 'pointer', padding: '6px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#555555', fontSize: 12, fontWeight: 700 }}

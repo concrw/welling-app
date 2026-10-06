@@ -23,7 +23,7 @@ export function RoutineTab() {
               )}
               <div style={{ padding: '14px 16px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 17, fontWeight: 600, color: '#111111' }}>{item.name}</span>
+                  <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 17, fontWeight: 600, color: '#111111' }}>{M.myPage.routineLabel(item.name)}</span>
                   <div style={{ padding: '4px 10px', borderRadius: 100, background: item.isPublic ? 'rgba(0,0,0,.05)' : '#111111', cursor: 'pointer', flexShrink: 0, marginLeft: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 700, color: item.isPublic ? '#666666' : '#fff', whiteSpace: 'nowrap', lineHeight: 1 }}>{item.isPublic ? M.myPage.publicBadge : M.myPage.privateBadge}</span>
                   </div>

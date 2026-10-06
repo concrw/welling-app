@@ -39,6 +39,7 @@ export default function Feed() {
   const joinedCommunities = communities.filter((c) => c.joined)
   
   useEffect(() => {
+    const joinedIds = communities.filter((c) => c.joined).map((c) => c.id)
     // Load custom order from localStorage
     const stored = localStorage.getItem('welling_community_tab_order')
     if (stored) {
@@ -47,10 +48,10 @@ export default function Feed() {
         setCommunityTabOrder(order)
       } catch {
         // Fallback to joined order
-        setCommunityTabOrder(joinedCommunities.map((c) => c.id))
+        setCommunityTabOrder(joinedIds)
       }
     } else {
-      setCommunityTabOrder(joinedCommunities.map((c) => c.id))
+      setCommunityTabOrder(joinedIds)
     }
   }, [communities])
 
@@ -75,13 +76,9 @@ export default function Feed() {
   const activeMemberCount = activeComm?.members ?? 0
 
   const joinedCommunityIds = communities.filter((c) => c.joined).map((c) => c.id)
-  const myPosts = posts.filter((p) => p.user === nickname)
   const displayPosts = activeCommunityTab === 'all'
-    ? [...myPosts, ...posts.filter((p) => p.user !== nickname && (p.visibility === 'followers' || p.visibility === 'public' || joinedCommunityIds.includes(p.community)))]
-    : [
-        ...myPosts,
-        ...posts.filter((p) => p.community === activeCommunityTab && p.user !== nickname),
-      ]
+    ? posts.filter((p) => p.user === nickname || p.visibility === 'followers' || p.visibility === 'public' || joinedCommunityIds.includes(p.community))
+    : posts.filter((p) => p.community === activeCommunityTab)
 
   const handleTapUser = (userName: string, post?: { initials: string; color: string }) => {
     if (userName === nickname) return
@@ -130,7 +127,7 @@ export default function Feed() {
         onOpenGroupSettings={(groupId) => {
           const group = allTabs.find((t) => t.id === groupId)
           if (group) {
-            selectCommunity(group)
+            useAppStore.setState({ selectedCommunity: group })
             navigate('community-settings')
           }
         }}

@@ -26,7 +26,8 @@ export default function SettingsGoogleCalendar() {
       await connectGoogle()
       setConnected(true)
     } catch (e) {
-      setError((e as Error).message)
+      console.error('Google Calendar connection failed:', e)
+      setError(M.settings.calendarConnectionFailed)
     } finally {
       setLoading(false)
     }

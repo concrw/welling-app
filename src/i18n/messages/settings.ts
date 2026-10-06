@@ -35,6 +35,7 @@ const ko = {
   connecting: '연결 중...',
   disconnect: '연결 해제',
   connect: '연결하기',
+  calendarConnectionFailed: '캘린더를 연결하지 못했어요. 다시 시도해주세요.',
 
   // Home screen
   homeScreenGuide: '앱을 열었을 때 표시할 화면을 선택하세요.',
@@ -78,6 +79,7 @@ const en: typeof ko = {
   connecting: 'Connecting...',
   disconnect: 'Disconnect',
   connect: 'Connect',
+  calendarConnectionFailed: 'Could not connect the calendar. Please try again.',
 
   homeScreenGuide: 'Choose the screen to show when you open the app.',
   homeFeedOption: 'Feed',

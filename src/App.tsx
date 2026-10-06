@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAppStore } from './store/appStore'
 import Onboarding from './screens/Onboarding'
 import ResetPassword from './screens/ResetPassword'
@@ -41,13 +41,24 @@ import { useMessages } from './i18n'
 const ONBOARDING_SCREENS = ['onboarding-username', 'onboarding-preview', 'onboarding-follow', 'onboarding-firstrecord']
 const NAV_SCREENS = ['feed', 'explore', 'ranking', 'mypage']
 
+function removeInviteFromUrl() {
+  const url = new URL(window.location.href)
+  if (!url.searchParams.has('invite')) return
+  url.searchParams.delete('invite')
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  sessionStorage.removeItem('welling_processed_invite')
+}
+
 export default function App() {
   const M = useMessages()
   const screen = useAppStore((s) => s.screen)
   const authInitializing = useAppStore((s) => s.authInitializing)
   const isDemo = useAppStore((s) => s.isDemo)
   const checkPendingInvite = useAppStore((s) => s.checkPendingInvite)
+  const pendingInviteCode = useAppStore((s) => s.pendingInviteCode)
   const toastMessage = useAppStore((s) => s.toastMessage)
+  const inviteCheckFinished = useRef(false)
+  const hadPendingInvite = useRef(false)
 
   // Parse invite code from URL on mount
   useEffect(() => {
@@ -62,8 +73,24 @@ export default function App() {
       sessionStorage.setItem('welling_processed_invite', inviteCode)
     }
     // Check for pending invite after URL parsing
-    checkPendingInvite()
+    void checkPendingInvite().then(() => {
+      inviteCheckFinished.current = true
+      if (useAppStore.getState().pendingInviteCode) {
+        hadPendingInvite.current = true
+      } else if (inviteCode) {
+        removeInviteFromUrl()
+      }
+    })
   }, [checkPendingInvite])
+
+  useEffect(() => {
+    if (pendingInviteCode) {
+      hadPendingInvite.current = true
+    } else if (inviteCheckFinished.current && hadPendingInvite.current) {
+      removeInviteFromUrl()
+      hadPendingInvite.current = false
+    }
+  }, [pendingInviteCode])
 
   const isOnboarding = ONBOARDING_SCREENS.includes(screen)
   const showNav = NAV_SCREENS.includes(screen)
@@ -74,6 +101,11 @@ export default function App() {
         <img src="/uploads/welling-black.png" alt="WELLING" style={{ width: 112, height: 'auto' }} />
         <div aria-label={M.common.loading} style={{ width: 24, height: 24, border: '3px solid #E8F3F1', borderTopColor: '#00A389', borderRadius: '50%', animation: 'welling-spin .8s linear infinite' }} />
         <style>{'@keyframes welling-spin{to{transform:rotate(360deg)}}'}</style>
+        {toastMessage && (
+          <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', background: '#111111', color: '#fff', padding: '10px 20px', borderRadius: 30, fontSize: 13, fontWeight: 600, zIndex: 999, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+            {toastMessage}
+          </div>
+        )}
       </div>
     )
   }

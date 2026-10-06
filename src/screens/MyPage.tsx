@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useMessages } from '../i18n'
 import { computeAchievement, computeAchievementForRange } from '../lib/achievement'
+import { getNotificationText } from '../lib/notificationText'
 import { ProfileHeader } from '../components/mypage/ProfileHeader'
 import { TabBar } from '../components/mypage/TabBar'
 import { RoutineTab } from '../components/mypage/RoutineTab'
@@ -80,10 +81,8 @@ export default function MyPage() {
         followingCount={followingCount}
         hasUnread={hasUnread}
         unreadCount={unreadCount}
-        latestNotifText={latestNotif?.text}
-        mypageTab={mypageTab}
+        latestNotifText={latestNotif ? getNotificationText(latestNotif, M) : undefined}
         onNavigate={navigate}
-        onDashToggle={() => setMypageTab(mypageTab === 'routine' ? 'dashboard' : 'routine')}
       />
 
       <TabBar active={mypageTab} onChange={setMypageTab} />

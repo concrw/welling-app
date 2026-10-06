@@ -1,6 +1,6 @@
 const ko = {
   logoAlt: 'welling',
-  allTab: 'All',
+  allTab: '전체',
   quietBanner: (n: number) => `${n}일째 기록이 없어요. 오늘 기록해볼까요?`,
   createGroupButton: '+ 그룹',
   pendingApproval: (name: string) => `${name} 가입 승인 대기 중`,

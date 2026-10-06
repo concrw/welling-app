@@ -3,6 +3,7 @@ import { useAppStore } from '../store/appStore'
 import { supabase } from '../lib/supabaseClient'
 import { useMessages } from '../i18n'
 import { callRpc, getStatusMessage } from '../lib/rpc'
+import { SAMPLE_USERS, DEMO_GROUP_MEMBER_IDS } from '../data/demo'
 
 interface Member {
   id: string
@@ -24,7 +25,10 @@ export default function CommunitySettings() {
   const selectedCommunity = useAppStore((s) => s.selectedCommunity)
   const userId = useAppStore((s) => s.userId)
   const navigate = useAppStore((s) => s.navigate)
-  
+  const isDemo = useAppStore((s) => s.isDemo)
+  const nickname = useAppStore((s) => s.nickname)
+  const toggleJoinCommunity = useAppStore((s) => s.toggleJoinCommunity)
+
   const [inviteUrl, setInviteUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [rotating, setRotating] = useState(false)
@@ -38,12 +42,41 @@ export default function CommunitySettings() {
   const [showTransferConfirm, setShowTransferConfirm] = useState(false)
   const [transferTarget, setTransferTarget] = useState<Member | null>(null)
   const [isMuted, setIsMuted] = useState(false)
+  const selectedCommunityId = selectedCommunity?.id
 
   useEffect(() => {
-    if (!selectedCommunity || !userId) return
+    if (!selectedCommunityId) return
+    if (isDemo) {
+      loadDemoSettings()
+      return
+    }
+    if (!userId) return
     loadSettings()
     loadMuteStatus()
-  }, [selectedCommunity, userId])
+  // The loaders intentionally close over the current selected group and session.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCommunityId, userId, isDemo])
+
+  const loadDemoSettings = () => {
+    if (!selectedCommunity) return
+    setLoading(true)
+    const url = `${window.location.origin}/?invite=${selectedCommunity.inviteCode ?? 'demo'}`
+    setInviteUrl(url)
+    setRequiresApproval(false)
+
+    const memberIds = DEMO_GROUP_MEMBER_IDS[selectedCommunity.id] ?? []
+    const demoMembers: Member[] = memberIds.map((id, i) => {
+      const u = SAMPLE_USERS.find((su) => su.id === id)
+      return { id, nickname: u?.name ?? M.groupSettings.unknownMember, role: 'member', joined_at: new Date(Date.now() - (i + 1) * 86400000).toISOString() }
+    })
+    if (selectedCommunity.joined) {
+      demoMembers.push({ id: 'demo-me', nickname: nickname || 'Min', role: 'member', joined_at: new Date().toISOString() })
+    }
+    setMembers(demoMembers)
+    setMyRole('member')
+    setPendingRequests([])
+    setLoading(false)
+  }
 
   const loadMuteStatus = async () => {
     if (!selectedCommunity || !userId) return
@@ -91,6 +124,10 @@ export default function CommunitySettings() {
         joined_at: m.joined_at,
       }))
       setMembers(membersList)
+      useAppStore.setState((state) => ({
+        communities: state.communities.map((community) => community.id === selectedCommunity.id ? { ...community, members: membersList.length } : community),
+        selectedCommunity: state.selectedCommunity?.id === selectedCommunity.id ? { ...state.selectedCommunity, members: membersList.length } : state.selectedCommunity,
+      }))
       
       const me = membersList.find((m) => m.id === userId)
       if (me) setMyRole(me.role)
@@ -126,7 +163,7 @@ export default function CommunitySettings() {
       await navigator.clipboard.writeText(shareText)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
+    } catch {
       const textarea = document.createElement('textarea')
       textarea.value = shareText
       textarea.style.position = 'fixed'
@@ -255,7 +292,14 @@ export default function CommunitySettings() {
 
   const handleLeave = async () => {
     if (!selectedCommunity) return
-    
+
+    if (isDemo) {
+      await toggleJoinCommunity(selectedCommunity.id)
+      setShowLeaveConfirm(false)
+      navigate('feed')
+      return
+    }
+
     const result = await callRpc('leave_group', {
       p_community_id: selectedCommunity.id,
     })
@@ -292,6 +336,11 @@ export default function CommunitySettings() {
     if (!selectedCommunity) return
     
     const newMuted = !isMuted
+
+    if (isDemo) {
+      setIsMuted(newMuted)
+      return
+    }
     
     const result = await callRpc('toggle_community_notifications', {
       p_community_id: selectedCommunity.id,

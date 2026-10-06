@@ -29,7 +29,7 @@ export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, o
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        {ROUTINE_SYNC_ENABLED && <button
+        <button
           data-testid="other-profile-follow"
           aria-pressed={isFollowed}
           onClick={onToggleFollow}
@@ -42,8 +42,8 @@ export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, o
           }}
         >
           {isFollowed ? M.otherProfile.following : M.otherProfile.follow}
-        </button>}
-        <button
+        </button>
+        {ROUTINE_SYNC_ENABLED && <button
           data-testid="other-profile-sync"
           aria-pressed={isSynced}
           onClick={onOpenSync}
@@ -56,7 +56,7 @@ export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, o
           }}
         >
           {isSynced ? M.otherProfile.synced : M.otherProfile.syncRoutine}
-        </button>
+        </button>}
       </div>
     </div>
   )

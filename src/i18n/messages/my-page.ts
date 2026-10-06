@@ -1,9 +1,9 @@
 const ko = {
   // profile header
-  profileAlt: 'profile',
+  profileAlt: '프로필',
   handleLine: (nickname: string) => `@${nickname}.welling · WELLING`,
-  followersLabel: 'followers',
-  followingLabel: 'following',
+  followersLabel: '팔로워',
+  followingLabel: '팔로잉',
   editRoutine: '루틴편집',
   share: '공유',
   shareCopied: '링크 복사됨',
@@ -17,9 +17,16 @@ const ko = {
   tabDashboard: '대시보드',
   tabRoutine: '루틴',
   // routine tab
-  publicBadge: 'Public',
-  privateBadge: 'Private',
+  publicBadge: '공개',
+  privateBadge: '비공개',
   routineTabFooter: '공개 설정된 루틴이 팔로워 피드에 노출됩니다.',
+  routineLabel: (name: string) => ({
+    Morning: '아침', Meals: '식사', Evening: '저녁', Running: '러닝',
+    'Morning Routine': '아침 루틴', 'Evening Routine': '저녁 루틴',
+    'Morning Walk': '아침 산책', 'Cold Shower': '찬물 샤워', Meditation: '명상', Journaling: '일기 쓰기',
+    'Running 5km': '5km 러닝', Stretching: '스트레칭', Reading: '독서', 'Wake Up': '기상',
+    'Morning Stretch': '아침 스트레칭', 'Lunch Walk': '점심 산책',
+  }[name] ?? name),
   // sign out sheet
   signOutTitle: '로그아웃 하시겠습니까?',
   signOutDesc: '모든 로컬 데이터가 초기화됩니다.',
@@ -35,28 +42,28 @@ const ko = {
   // weekly recap
   weeklyRecapTitle: '이번 주 회고',
   deltaVsLastWeek: (delta: number) => `지난주 대비 ${delta > 0 ? '+' : ''}${delta}%p`,
-  streakBadge: (n: number) => `${n}-day streak`,
+  streakBadge: (n: number) => `${n}일 연속`,
   // period selector (values are store ids as well as display labels)
   periods: {
-    'This week': 'This week',
-    'This month': 'This month',
-    'All time': 'All time',
+    'This week': '이번 주',
+    'This month': '이번 달',
+    'All time': '전체 기간',
   } as Record<string, string>,
   // achievement card
-  currentRoutineTitle: (period: string) => `Current Routine · ${period}`,
+  currentRoutineTitle: (period: string) => `현재 루틴 · ${period}`,
   // past routines
-  pastRoutines: 'Past Routines',
+  pastRoutines: '지난 루틴',
   periodRange: (start: number, end: number) => {
     const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
     return `${new Date(start).toLocaleDateString('ko-KR', opts)} – ${new Date(end).toLocaleDateString('ko-KR', opts)}`
   },
   // dashboard section headers
-  sectionGoalVsActual: 'Goal vs. Actual',
-  sectionEveningReflection: 'Evening reflection',
-  sectionRoutineHistory: 'Routine history',
-  sectionRoutinePrivacy: 'Routine privacy',
-  sectionInsights: 'Insights',
-  sectionSettings: 'Settings',
+  sectionGoalVsActual: '목표와 실제',
+  sectionEveningReflection: '저녁 회고',
+  sectionRoutineHistory: '루틴 기록',
+  sectionRoutinePrivacy: '루틴 공개 설정',
+  sectionInsights: '루틴 인사이트',
+  sectionSettings: '설정',
   // evening reflection section
   eveningReflectionDesc: '오늘 하루를 돌아보며 기록하세요.',
   eveningReflectionCta: '기록하기',
@@ -67,14 +74,14 @@ const ko = {
   saveAsRoutine: 'Save as routine',
   // settings section
   settingsItems: {
-    notifications: 'Notifications',
+    notifications: '알림',
     ranking: '통계',
-    homeScreen: 'Home screen',
-    defaultVisibility: 'Default visibility',
-    profileVisibility: 'Profile visibility',
-    googleCalendar: 'Google Calendar',
-    changeUsername: 'Change username',
-    signOut: 'Sign out',
+    homeScreen: '홈 화면',
+    defaultVisibility: '기본 공개 범위',
+    profileVisibility: '프로필 공개 범위',
+    googleCalendar: 'Google 캘린더',
+    changeUsername: '사용자명 변경',
+    signOut: '로그아웃',
   },
 }
 
@@ -97,6 +104,7 @@ const en: typeof ko = {
   publicBadge: 'Public',
   privateBadge: 'Private',
   routineTabFooter: "Public routines are visible in your followers' feed.",
+  routineLabel: (name: string) => name,
   signOutTitle: 'Sign out?',
   signOutDesc: 'All local data will be reset.',
   signOut: 'Sign out',

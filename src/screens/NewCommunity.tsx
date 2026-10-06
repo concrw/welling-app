@@ -8,7 +8,8 @@ export default function NewCommunity() {
   const goBack = useAppStore((s) => s.goBack)
   const navigate = useAppStore((s) => s.navigate)
   const loadFeedData = useAppStore((s) => s.loadFeedData)
-  
+  const isDemo = useAppStore((s) => s.isDemo)
+
   const [groupName, setGroupName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -19,10 +20,38 @@ export default function NewCommunity() {
   const handleCreate = async () => {
     const trimmed = groupName.trim()
     if (trimmed.length < 1) return
-    
+
     setCreating(true)
     setError('')
-    
+
+    if (isDemo) {
+      const id = `comm-${Date.now()}`
+      const code = `demo-${id}`
+      const palette = ['#0984E3', '#00A389', '#7C3AED', '#B45309']
+      const { communities } = useAppStore.getState()
+      useAppStore.setState({
+        communities: [
+          ...communities,
+          {
+            id,
+            name: trimmed,
+            initial: trimmed[0]?.toUpperCase() ?? '?',
+            color: palette[communities.length % palette.length],
+            members: 1,
+            focus: '',
+            desc: '',
+            joined: true,
+            inviteCode: code,
+          },
+        ],
+      })
+      const url = `${window.location.origin}/?invite=${code}`
+      setInviteUrl(url)
+      setShowShareScreen(true)
+      setCreating(false)
+      return
+    }
+
     const result = await callRpc<{ success: boolean; community_id: string; invite_code: string }>(
       'create_group',
       {
@@ -31,13 +60,13 @@ export default function NewCommunity() {
         p_visibility: 'private',
       }
     )
-    
+
     if (!result.ok) {
       setError(getStatusMessage(result.message, M))
       setCreating(false)
       return
     }
-    
+
     const code = result.data.invite_code
     const url = `${window.location.origin}/?invite=${code}`
     setInviteUrl(url)
@@ -55,7 +84,7 @@ export default function NewCommunity() {
           text: shareText,
           url: inviteUrl,
         })
-      } catch (err) {
+      } catch {
         // User cancelled or error - fallback to copy
         handleCopy()
       }
@@ -71,7 +100,7 @@ export default function NewCommunity() {
       await navigator.clipboard.writeText(shareText)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
+    } catch {
       // Fallback for older browsers
       const textarea = document.createElement('textarea')
       textarea.value = shareText

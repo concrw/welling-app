@@ -106,16 +106,21 @@ export default function RecordModal() {
   // Auto-select target group
   useEffect(() => {
     if (!showRecordModal) return
-    if (pendingRecordCommunityId) {
+
+    const joinedCommunities = communities.filter((c) => c.joined)
+    if (pendingRecordCommunityId && joinedCommunities.some((c) => c.id === pendingRecordCommunityId)) {
       setRecordCommunityId(pendingRecordCommunityId)
       setPendingRecordCommunityId(null)
-    } else if (!recordCommunityId) {
-      const joinedCommunities = communities.filter((c) => c.joined)
-      if (activeCommunityTab && activeCommunityTab !== 'all') {
+    } else if (joinedCommunities.some((c) => c.id === recordCommunityId)) {
+      return
+    } else {
+      if (activeCommunityTab !== 'all' && joinedCommunities.some((c) => c.id === activeCommunityTab)) {
         setRecordCommunityId(activeCommunityTab)
       } else if (joinedCommunities.length > 0) {
         const recentId = localStorage.getItem('welling_last_record_community')
         setRecordCommunityId(joinedCommunities.some((c) => c.id === recentId) ? recentId! : joinedCommunities[0].id)
+      } else {
+        setRecordCommunityId('')
       }
     }
   }, [showRecordModal, pendingRecordCommunityId, setPendingRecordCommunityId, recordCommunityId, activeCommunityTab, communities])
@@ -353,10 +358,10 @@ export default function RecordModal() {
         )}
 
         {/* L1 Mode: Big [먹었어]/[운동했어] buttons */}
-        <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
+        <div style={{ marginBottom: 24, padding: '0 20px', display: 'flex', gap: 12, position: 'relative', zIndex: 1, pointerEvents: 'auto' }}>
           <button
             onClick={() => handleQuickPost('diet')}
-            data-testid="record-quick-button"
+            data-testid="record-quick-diet"
             style={{
               flex: 1,
               padding: '20px 16px',
@@ -378,7 +383,7 @@ export default function RecordModal() {
           </button>
           <button
             onClick={() => handleQuickPost('exercise')}
-            data-testid="record-quick-button"
+            data-testid="record-quick-exercise"
             style={{
               flex: 1,
               padding: '20px 16px',

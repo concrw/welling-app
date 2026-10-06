@@ -9,9 +9,7 @@ export function ProfileHeader({
   hasUnread,
   unreadCount,
   latestNotifText,
-  mypageTab,
   onNavigate,
-  onDashToggle,
 }: {
   nickname: string
   followersCount: number
@@ -19,9 +17,7 @@ export function ProfileHeader({
   hasUnread: boolean
   unreadCount: number
   latestNotifText?: string
-  mypageTab: 'dashboard' | 'routine'
   onNavigate: (screen: Screen) => void
-  onDashToggle: () => void
 }) {
   const M = useMessages()
   const [shareCopied, setShareCopied] = useState(false)
@@ -45,8 +41,6 @@ export function ProfileHeader({
       setShareCopied(false)
     }
   }
-  const dashBtnLabel = mypageTab === 'routine' ? M.myPage.tabDashboard : M.myPage.tabRoutine
-
   return (
     <div style={{ background: '#FFFFFF', padding: 'calc(24px + env(safe-area-inset-top)) 20px 20px', borderBottom: '1px solid #EBEBEB' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 20 }}>
@@ -73,7 +67,6 @@ export function ProfileHeader({
       <div style={{ display: 'flex', gap: 6 }}>
         <button data-testid="mypage-routine-edit" onClick={() => onNavigate('routine-edit')} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: '#0984E3', color: '#fff', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{M.myPage.editRoutine}</button>
         <button data-testid="mypage-share" onClick={handleShare} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: 'transparent', color: '#111111', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 600, border: '1.5px solid #DDDDDD', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{shareCopied ? M.myPage.shareCopied : M.myPage.share}</button>
-        <button data-testid="mypage-dashboard-toggle" onClick={onDashToggle} style={{ flex: 1, padding: '7px 0', borderRadius: 24, background: 'transparent', color: '#AAAAAA', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 10, fontWeight: 600, border: '1.5px solid #EBEBEB', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{dashBtnLabel}</button>
       </div>
     </div>
   )

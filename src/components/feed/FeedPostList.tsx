@@ -24,6 +24,14 @@ export function FeedPostList({
             {/* 닉네임이 길면 본문을 밀어내 내용이 안 보인다. 최대 너비를 두고 말줄임 처리한다. */}
             <span style={{ fontSize: 13, fontWeight: 700, color: '#111111', maxWidth: 92, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.user}</span>
           </div>
+          {post.hasImg && post.imgUrl && (
+            <img
+              src={post.imgUrl}
+              alt=""
+              onClick={() => onTapPost(post)}
+              style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
+            />
+          )}
           <div data-testid="feed-post-content" onClick={() => onTapPost(post)} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>
             <span style={{ fontSize: 13, color: '#555555' }}>{post.content}</span>
           </div>

@@ -45,9 +45,11 @@ export function getTimeOfDayKey(): 'morning' | 'lunch' | 'dinner' | 'snack' {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Seoul',
     hour: 'numeric',
-    hour12: false,
+    hourCycle: 'h23',
   })
-  const hour = parseInt(formatter.format(new Date()))
+  const parts = formatter.formatToParts(new Date())
+  const hourPart = parts.find((p) => p.type === 'hour')
+  const hour = hourPart ? parseInt(hourPart.value, 10) : 0
   
   if (hour >= 5 && hour < 11) {
     return 'morning'

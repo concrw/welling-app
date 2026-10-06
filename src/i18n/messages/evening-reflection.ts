@@ -9,6 +9,7 @@ const ko = {
   questionNo: (n: number) => `Q${n}`,
   placeholder: '자유롭게 적어보세요.',
   publicToFeed: '피드에 공개',
+  postFailed: '기록 게시 실패',
   savedMessage: '저장됐습니다.',
   saveButton: '저장하기',
 }
@@ -24,6 +25,7 @@ const en: typeof ko = {
   questionNo: (n: number) => `Q${n}`,
   placeholder: 'Write freely.',
   publicToFeed: 'Share to feed',
+  postFailed: 'Failed to post',
   savedMessage: 'Saved.',
   saveButton: 'Save',
 }

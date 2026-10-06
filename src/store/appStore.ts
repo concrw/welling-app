@@ -696,6 +696,10 @@ export const useAppStore = create<AppState>()(
     }
     
     alert(statusMessages[result.status] || M.store.inviteUnknownError(result.status))
+    
+    // Navigate to appropriate screen after failure
+    const isNewSignup = get().screen === 'onboarding-preview'
+    get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
   },
   
   clearPendingInvite: () => {
@@ -1236,21 +1240,30 @@ export const useAppStore = create<AppState>()(
 
   deletePost: async (postId) => {
     const { userId, isDemo, posts } = get()
-    if (isDemo || !userId) return false
+    if (!userId) return false
+    
+    if (isDemo) {
+      set((s) => ({
+        posts: s.posts.filter((p) => p.id !== postId),
+        selectedPost: s.selectedPost?.id === postId ? null : s.selectedPost,
+      }))
+      return true
+    }
     
     // Find the post to get image URL before deleting
     const post = posts.find((p) => p.id === postId)
-    if (!post) return false
+    if (!post || post.userId !== userId) return false
     
-    // Delete from database
-    const { error } = await supabase
+    // Delete from database with .select('id') to check affected rows
+    const { data, error } = await supabase
       .from('posts')
       .delete()
       .eq('id', postId)
       .eq('user_id', userId)
+      .select('id')
     
-    if (error) {
-      console.error('Failed to delete post:', error)
+    if (error || !data || data.length === 0) {
+      console.error('Failed to delete post (RLS or error):', error)
       return false
     }
     
@@ -1260,7 +1273,10 @@ export const useAppStore = create<AppState>()(
         const urlParts = post.imgUrl.split('/')
         const fileName = urlParts[urlParts.length - 1]
         const path = `${userId}/${fileName}`
-        await supabase.storage.from('post-images').remove([path])
+        const { error: storageError } = await supabase.storage.from('post-images').remove([path])
+        if (storageError) {
+          console.warn('Failed to remove post image from storage:', storageError)
+        }
       } catch (err) {
         console.error('Failed to delete post image:', err)
       }
@@ -1980,6 +1996,10 @@ export const useAppStore = create<AppState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return
+        // Migrate legacy 'public' defaultVisibility to 'group'
+        if (state.defaultVisibility === 'public') {
+          state.defaultVisibility = 'group'
+        }
         const updates: Partial<AppState> = {
           mypageTab: 'dashboard',
           expandedPrev: true,

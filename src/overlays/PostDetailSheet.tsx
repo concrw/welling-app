@@ -43,7 +43,7 @@ export default function PostDetailSheet() {
     setShowDeleteConfirm(false)
   }
 
-  const isOwnPost = selectedPost.userId === userId || selectedPost.user === nickname
+  const isOwnPost = selectedPost.userId === userId
 
   const getReactionCount = (key: string) => selectedPost.reactions[key] ?? 0
   const isFollowing = selectedPost.userId ? followedUsers.has(selectedPost.userId) : false

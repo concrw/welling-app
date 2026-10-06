@@ -30,10 +30,16 @@ export default function EveningReflection() {
     if (isPublic) {
       const content = prompts.map((p, i) => answers[i].trim() ? `${p}\n${answers[i].trim()}` : '').filter(Boolean).join('\n\n')
       if (content) {
-        // Use 'private' for evening reflections (no group needed)
-        const success = await addPost(content, undefined, 'reflection', 'private', null)
+        // Get current community for group posting, fall back to private if no group or toggle is off
+        const communities = useAppStore.getState().communities
+        const joinedCommunities = communities.filter(c => c.joined)
+        const currentCommunityId = joinedCommunities.length > 0 ? joinedCommunities[0].id : null
+        const visibility: 'group' | 'private' = currentCommunityId ? 'group' : 'private'
+        
+        const success = await addPost(content, undefined, 'reflection', visibility, currentCommunityId)
         if (!success) {
-          console.error('Failed to post evening reflection')
+          alert(M.eveningReflection.postFailed)
+          return
         }
       }
     }

@@ -341,7 +341,7 @@ interface AppState {
   toggleLikePost: (postId: string) => Promise<void>
   toggleReaction: (postId: string, reactionType: string) => Promise<void>
   addComment: (postId: string, text: string) => Promise<void>
-  addPost: (content: string, imgUrl?: string, category?: PostCategory, visibility?: PostVisibility, communityId?: string | null, instaUrl?: string) => Promise<void>
+  addPost: (content: string, imgUrl?: string, category?: PostCategory, visibility?: PostVisibility, communityId?: string | null, instaUrl?: string) => Promise<boolean>
   loadFeedData: () => Promise<void>
   selectCommunity: (c: Community) => void
   selectUser: (u: User) => void
@@ -1178,6 +1178,7 @@ export const useAppStore = create<AppState>()(
       posts: [newPost, ...s.posts],
       ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
     }))
+    return true
   },
 
   loadFeedData: async () => {

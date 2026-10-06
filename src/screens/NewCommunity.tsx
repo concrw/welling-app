@@ -7,6 +7,7 @@ export default function NewCommunity() {
   const M = useMessages()
   const goBack = useAppStore((s) => s.goBack)
   const navigate = useAppStore((s) => s.navigate)
+  const loadFeedData = useAppStore((s) => s.loadFeedData)
   
   const [groupName, setGroupName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -45,12 +46,12 @@ export default function NewCommunity() {
   }
 
   const handleShare = async () => {
-    const shareText = `${groupName} 그룹에 초대합니다!\n\n함께 건강한 습관을 만들어요 💪\n\n${inviteUrl}`
+    const shareText = `${M.newCommunity.shareTextTemplate(groupName)}${inviteUrl}`
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${groupName} 그룹 초대`,
+          title: M.newCommunity.shareTitleTemplate(groupName),
           text: shareText,
           url: inviteUrl,
         })
@@ -64,7 +65,7 @@ export default function NewCommunity() {
   }
 
   const handleCopy = async () => {
-    const shareText = `${groupName} 그룹에 초대합니다!\n\n함께 건강한 습관을 만들어요 💪\n\n${inviteUrl}`
+    const shareText = `${M.newCommunity.shareTextTemplate(groupName)}${inviteUrl}`
     
     try {
       await navigator.clipboard.writeText(shareText)
@@ -85,17 +86,16 @@ export default function NewCommunity() {
     }
   }
 
-  const handleDone = () => {
-    // Reload feed to show new group
+  const handleDone = async () => {
+    await loadFeedData()
     navigate('feed')
-    window.location.reload()
   }
 
   if (showShareScreen) {
     return (
       <div style={{ minHeight: '100dvh', background: '#FFFFFF', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: 'calc(14px + env(safe-area-inset-top)) 20px 14px', borderBottom: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ flex: 1, fontSize: 18, fontWeight: 800, color: '#111111' }}>그룹 생성 완료!</span>
+          <span style={{ flex: 1, fontSize: 18, fontWeight: 800, color: '#111111' }}>{M.newCommunity.titleCreated}</span>
         </div>
 
         <div style={{ flex: 1, padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -104,12 +104,12 @@ export default function NewCommunity() {
             {groupName}
           </h2>
           <p style={{ margin: '0 0 32px', fontSize: 14, color: '#666666', textAlign: 'center' }}>
-            그룹이 생성되었습니다!<br />친구들을 초대해보세요
+            {M.newCommunity.shareTitle}<br />{M.newCommunity.shareSubtitle}
           </p>
 
           <div style={{ width: '100%', maxWidth: 400, padding: 20, background: '#F8F9FA', borderRadius: 16, marginBottom: 24 }}>
             <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 700, color: '#666666', textAlign: 'center' }}>
-              초대 링크
+              {M.newCommunity.shareLinkLabel}
             </p>
             <div style={{ padding: '12px 16px', background: '#FFFFFF', borderRadius: 8, border: '1px solid #E0E0E0', marginBottom: 16, wordBreak: 'break-all', fontSize: 13, color: '#111111', textAlign: 'center' }}>
               {inviteUrl}
@@ -129,7 +129,7 @@ export default function NewCommunity() {
                   cursor: 'pointer',
                 }}
               >
-                {copied ? '✓ 복사 완료' : '📋 복사'}
+                {copied ? M.newCommunity.shareCopied : M.newCommunity.shareCopy}
               </button>
               <button
                 onClick={handleShare}
@@ -145,13 +145,13 @@ export default function NewCommunity() {
                   cursor: 'pointer',
                 }}
               >
-                🔗 링크 보내기
+                {M.newCommunity.shareButton}
               </button>
             </div>
           </div>
 
           <p style={{ margin: '0 0 16px', fontSize: 13, color: '#999999', textAlign: 'center', maxWidth: 320 }}>
-            💡 KakaoTalk이나 문자로 링크를 공유하면<br />친구가 클릭만으로 그룹에 가입할 수 있어요
+            {M.newCommunity.shareTip}<br />{M.newCommunity.shareTipDetail}
           </p>
 
           <button
@@ -169,7 +169,7 @@ export default function NewCommunity() {
               cursor: 'pointer',
             }}
           >
-            완료
+            {M.newCommunity.done}
           </button>
         </div>
       </div>
@@ -184,17 +184,17 @@ export default function NewCommunity() {
             <path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <span style={{ flex: 1, fontSize: 18, fontWeight: 800, color: '#111111' }}>새 그룹 만들기</span>
+        <span style={{ flex: 1, fontSize: 18, fontWeight: 800, color: '#111111' }}>{M.newCommunity.title}</span>
       </div>
 
       <div style={{ flex: 1, padding: '32px 20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ marginBottom: 32, textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>👥</div>
           <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: '#111111' }}>
-            그룹 이름을 정해주세요
+            {M.newCommunity.promptName}
           </h2>
           <p style={{ margin: 0, fontSize: 14, color: '#666666' }}>
-            함께할 사람들과 공유할 이름이에요
+            {M.newCommunity.promptDesc}
           </p>
         </div>
 
@@ -202,7 +202,7 @@ export default function NewCommunity() {
           <input
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            placeholder="우리 셋 식단운동"
+            placeholder={M.newCommunity.namePlaceholder}
             maxLength={30}
             autoFocus
             onKeyDown={(e) => {
@@ -224,7 +224,7 @@ export default function NewCommunity() {
             }}
           />
           <p style={{ margin: '8px 0 0', fontSize: 12, color: '#999999' }}>
-            예: 우리 셋 식단운동, 헬스 메이트, 다이어트 챌린지
+            {M.newCommunity.nameExample}
           </p>
         </div>
 
@@ -249,13 +249,13 @@ export default function NewCommunity() {
             cursor: groupName.trim().length >= 1 && !creating ? 'pointer' : 'not-allowed',
           }}
         >
-          {creating ? '생성 중...' : '그룹 만들기'}
+          {creating ? M.newCommunity.btnCreating : M.newCommunity.btnCreate}
         </button>
 
         <div style={{ marginTop: 'auto', paddingTop: 32 }}>
           <p style={{ margin: 0, fontSize: 12, color: '#999999', textAlign: 'center' }}>
-            그룹은 비공개로 생성됩니다<br />
-            초대받은 사람만 참여할 수 있어요
+            {M.newCommunity.privacyNote}<br />
+            {M.newCommunity.privacyDetail}
           </p>
         </div>
       </div>

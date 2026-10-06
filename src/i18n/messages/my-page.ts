@@ -8,6 +8,10 @@ const ko = {
   share: '공유',
   shareCopied: '링크 복사됨',
   messages: '메시지',
+  emptyTitle: '아직 시작한 루틴이 없어요',
+  emptyBody: '첫 루틴을 만들거나 오늘의 건강 기록을 남겨보세요.',
+  emptyRoutineCta: '루틴 만들기',
+  emptyRecordCta: '기록하기',
   shareText: (nickname: string) => `${nickname}님의 루틴을 확인해보세요`,
   // tabs
   tabDashboard: '대시보드',
@@ -64,6 +68,7 @@ const ko = {
   // settings section
   settingsItems: {
     notifications: 'Notifications',
+    ranking: '통계',
     homeScreen: 'Home screen',
     defaultVisibility: 'Default visibility',
     profileVisibility: 'Profile visibility',
@@ -82,6 +87,10 @@ const en: typeof ko = {
   share: 'Share',
   shareCopied: 'Link copied',
   messages: 'Messages',
+  emptyTitle: 'No routines yet',
+  emptyBody: 'Create your first routine or share a healthy moment from today.',
+  emptyRoutineCta: 'Create routine',
+  emptyRecordCta: 'Record now',
   shareText: (nickname: string) => `Check out ${nickname}'s routines`,
   tabDashboard: 'Dashboard',
   tabRoutine: 'Routine',
@@ -126,6 +135,7 @@ const en: typeof ko = {
   saveAsRoutine: 'Save as routine',
   settingsItems: {
     notifications: 'Notifications',
+    ranking: 'Stats',
     homeScreen: 'Home screen',
     defaultVisibility: 'Default visibility',
     profileVisibility: 'Profile visibility',

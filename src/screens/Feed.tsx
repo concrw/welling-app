@@ -4,15 +4,17 @@ import { daysSinceLastPost } from '../lib/achievement'
 import { FeedHeader } from '../components/feed/FeedHeader'
 import { FeedQuietBanner, FeedFocusNote } from '../components/feed/FeedBanners'
 import { FeedPostList } from '../components/feed/FeedPostList'
+import { useMessages } from '../i18n'
 
 const QUIET_DAY_THRESHOLD = 2
 
 export default function Feed() {
+  const M = useMessages()
   const posts = useAppStore((s) => s.posts)
   const communities = useAppStore((s) => s.communities)
   const activeCommunityTab = useAppStore((s) => s.activeCommunityTab)
   const setActiveCommunityTab = useAppStore((s) => s.setActiveCommunityTab)
-  const toggleLikePost = useAppStore((s) => s.toggleLikePost)
+  const toggleReaction = useAppStore((s) => s.toggleReaction)
   const openPostDetail = useAppStore((s) => s.openPostDetail)
   const selectUser = useAppStore((s) => s.selectUser)
   const suggestedUsers = useAppStore((s) => s.suggestedUsers)
@@ -22,6 +24,9 @@ export default function Feed() {
   const openRecordModal = useAppStore((s) => s.openRecordModal)
   const loadFeedData = useAppStore((s) => s.loadFeedData)
   const selectCommunity = useAppStore((s) => s.selectCommunity)
+  const pendingJoinRequests = useAppStore((s) => s.pendingJoinRequests)
+  const feedLoading = useAppStore((s) => s.feedLoading)
+  const feedError = useAppStore((s) => s.feedError)
   
   const [quietBannerDismissed, setQuietBannerDismissed] = useState(false)
   const [communityTabOrder, setCommunityTabOrder] = useState<string[]>([])
@@ -67,11 +72,12 @@ export default function Feed() {
   // Focus note from active tab
   const activeComm = allTabs.find((c) => c.id === activeCommunityTab)
   const focusNote = activeComm?.desc || activeComm?.focus || ''
+  const activeMemberCount = activeComm?.members ?? 0
 
   const joinedCommunityIds = communities.filter((c) => c.joined).map((c) => c.id)
   const myPosts = posts.filter((p) => p.user === nickname)
   const displayPosts = activeCommunityTab === 'all'
-    ? [...myPosts, ...posts.filter((p) => p.user !== nickname && joinedCommunityIds.includes(p.community))]
+    ? [...myPosts, ...posts.filter((p) => p.user !== nickname && (p.visibility === 'followers' || p.visibility === 'public' || joinedCommunityIds.includes(p.community)))]
     : [
         ...myPosts,
         ...posts.filter((p) => p.community === activeCommunityTab && p.user !== nickname),
@@ -130,6 +136,12 @@ export default function Feed() {
         }}
       />
 
+      {pendingJoinRequests.map((request) => (
+        <div key={request.communityId} style={{ margin: '10px 20px 0', padding: '10px 12px', borderRadius: 10, background: '#FFF8E1', color: '#6B4F00', fontSize: 12, fontWeight: 700 }}>
+          {M.feed.pendingApproval(request.communityName)}
+        </div>
+      ))}
+
       {showQuietBanner && (
         <FeedQuietBanner
           quietDays={quietDays}
@@ -140,12 +152,32 @@ export default function Feed() {
 
       {focusNote && <FeedFocusNote focusNote={focusNote} />}
 
-      <FeedPostList
-        posts={displayPosts}
-        onTapUser={handleTapUser}
-        onTapPost={openPostDetail}
-        onToggleLike={toggleLikePost}
-      />
+      {feedLoading ? (
+        <div style={{ padding: '56px 24px', textAlign: 'center', color: '#777777', fontSize: 14 }}>{M.feed.loading}</div>
+      ) : feedError ? (
+        <div role="alert" style={{ padding: '56px 24px', textAlign: 'center' }}>
+          <p style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 800 }}>{M.feed.errorTitle}</p>
+          <p style={{ margin: '0 0 18px', color: '#777777', fontSize: 14 }}>{M.feed.errorBody}</p>
+          <button onClick={() => loadFeedData()} style={{ padding: '11px 18px', border: 0, borderRadius: 10, background: '#111111', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>{M.feed.retry}</button>
+        </div>
+      ) : displayPosts.length === 0 ? (
+        <div style={{ padding: '52px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 34, marginBottom: 12 }}>🌱</div>
+          <p style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800 }}>{M.feed.emptyTitle}</p>
+          <p style={{ margin: '0 0 18px', color: '#777777', fontSize: 14 }}>{M.feed.emptyBody}</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+            <button onClick={openRecordModal} style={{ padding: '11px 16px', border: 0, borderRadius: 10, background: '#111111', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>{M.feed.recordCta}</button>
+            {activeComm && activeMemberCount <= 1 && <button onClick={() => { selectCommunity(activeComm); navigate('community-settings') }} style={{ padding: '11px 16px', border: '1px solid #D8D8D8', borderRadius: 10, background: '#FFFFFF', color: '#333333', fontWeight: 700, cursor: 'pointer' }}>{M.feed.inviteCta}</button>}
+          </div>
+        </div>
+      ) : (
+        <FeedPostList
+          posts={displayPosts}
+          onTapUser={handleTapUser}
+          onTapPost={openPostDetail}
+          onToggleCheer={(postId) => toggleReaction(postId, 'cheer')}
+        />
+      )}
     </div>
   )
 }

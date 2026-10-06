@@ -15,6 +15,9 @@ const ko = {
   inviteFull: '그룹 가입 상한(50개)에 도달했습니다',
   inviteInvalid: '유효하지 않은 초대 코드입니다',
   inviteUnknownError: (status: string) => `초대 처리 실패: ${status}`,
+  joinFailed: '그룹에 가입하지 못했어요. 다시 시도해주세요.',
+  leaveFailed: '그룹에서 나가지 못했어요. 다시 시도해주세요.',
+  groupFallback: '그룹',
 }
 
 const en: typeof ko = {
@@ -34,6 +37,9 @@ const en: typeof ko = {
   inviteFull: 'Group limit reached (50 groups)',
   inviteInvalid: 'Invalid invitation code',
   inviteUnknownError: (status: string) => `Invitation failed: ${status}`,
+  joinFailed: 'Could not join the group. Please try again.',
+  leaveFailed: 'Could not leave the group. Please try again.',
+  groupFallback: 'Group',
 }
 
 export const store = { ko, en }

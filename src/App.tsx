@@ -36,11 +36,13 @@ import SyncConfirmSheet from './overlays/SyncConfirmSheet'
 import SyncAlarm from './overlays/SyncAlarm'
 import HomePrompt from './overlays/HomePrompt'
 import WelcomeAnimation from './overlays/WelcomeAnimation'
+import { useMessages } from './i18n'
 
 const ONBOARDING_SCREENS = ['onboarding-username', 'onboarding-preview', 'onboarding-follow', 'onboarding-firstrecord']
 const NAV_SCREENS = ['feed', 'explore', 'ranking', 'mypage']
 
 export default function App() {
+  const M = useMessages()
   const screen = useAppStore((s) => s.screen)
   const authInitializing = useAppStore((s) => s.authInitializing)
   const isDemo = useAppStore((s) => s.isDemo)
@@ -51,15 +53,13 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const inviteCode = params.get('invite')
-    if (inviteCode) {
+    const processedInvite = sessionStorage.getItem('welling_processed_invite')
+    if (inviteCode && processedInvite !== inviteCode) {
       localStorage.setItem('welling_pending_invite', JSON.stringify({
         code: inviteCode,
         savedAt: Date.now(),
       }))
-      // Remove invite from URL without reload
-      const url = new URL(window.location.href)
-      url.searchParams.delete('invite')
-      window.history.replaceState({}, '', url.toString())
+      sessionStorage.setItem('welling_processed_invite', inviteCode)
     }
     // Check for pending invite after URL parsing
     checkPendingInvite()
@@ -69,7 +69,13 @@ export default function App() {
   const showNav = NAV_SCREENS.includes(screen)
 
   if (authInitializing && !isDemo) {
-    return <div style={{ minHeight: '100dvh', background: '#FFFFFF' }} />
+    return (
+      <div style={{ minHeight: '100dvh', background: '#FFFFFF', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
+        <img src="/uploads/welling-black.png" alt="WELLING" style={{ width: 112, height: 'auto' }} />
+        <div aria-label={M.common.loading} style={{ width: 24, height: 24, border: '3px solid #E8F3F1', borderTopColor: '#00A389', borderRadius: '50%', animation: 'welling-spin .8s linear infinite' }} />
+        <style>{'@keyframes welling-spin{to{transform:rotate(360deg)}}'}</style>
+      </div>
+    )
   }
 
   return (

@@ -1,16 +1,18 @@
 import type { Post } from '../../store/appStore'
+import { useMessages } from '../../i18n'
 
 export function FeedPostList({
   posts,
   onTapUser,
   onTapPost,
-  onToggleLike,
+  onToggleCheer,
 }: {
   posts: Post[]
   onTapUser: (userName: string, post?: { initials: string; color: string }) => void
   onTapPost: (post: Post) => void
-  onToggleLike: (postId: string) => void
+  onToggleCheer: (postId: string) => void
 }) {
+  const M = useMessages()
   return (
     <>
       {posts.map((post) => (
@@ -26,12 +28,12 @@ export function FeedPostList({
             <span style={{ fontSize: 13, color: '#555555' }}>{post.content}</span>
           </div>
           <button
-            onClick={() => onToggleLike(post.id)}
-            style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 13, margin: '-9px -9px -9px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => onToggleCheer(post.id)}
+            style={{ flexShrink: 0, background: post.myReactions?.has('cheer') ? '#FFF4D6' : 'none', border: '1px solid #EBEBEB', borderRadius: 999, cursor: 'pointer', padding: '6px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#555555', fontSize: 12, fontWeight: 700 }}
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill={post.liked ? '#E53535' : 'none'}>
-              <path d="M9 15S2 10.5 2 6A4 4 0 019 3.2 4 4 0 0116 6C16 10.5 9 15 9 15z" stroke={post.liked ? '#E53535' : '#CCCCCC'} strokeWidth="1.4" strokeLinejoin="round" />
-            </svg>
+            <span aria-hidden="true">👏</span>
+            <span>{M.feed.cheer}</span>
+            <span>{post.reactions.cheer ?? 0}</span>
           </button>
         </div>
       ))}

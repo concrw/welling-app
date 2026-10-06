@@ -28,6 +28,7 @@ export default function MyPage() {
   const routinePrivacy = useAppStore((s) => s.routinePrivacy)
   const saveRoutinePrivacy = useAppStore((s) => s.saveRoutinePrivacy)
   const signOut = useAppStore((s) => s.signOut)
+  const openRecordModal = useAppStore((s) => s.openRecordModal)
 
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
@@ -65,6 +66,7 @@ export default function MyPage() {
   const hasUnread = notifications.some((n) => !n.read)
   const unreadCount = notifications.filter((n) => !n.read).length
   const latestNotif = notifications.find((n) => !n.read)
+  const hasOwnData = routineGroups.some((group) => group.items.length > 0) || posts.some((post) => post.user === nickname)
 
   return (
     <div data-testid="mypage-screen">
@@ -86,9 +88,19 @@ export default function MyPage() {
 
       <TabBar active={mypageTab} onChange={setMypageTab} />
 
-      {mypageTab === 'routine' && <RoutineTab />}
+      {!hasOwnData ? (
+        <div style={{ padding: '64px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 14 }}>🌱</div>
+          <h2 style={{ margin: '0 0 8px', fontSize: 19, color: '#111111' }}>{M.myPage.emptyTitle}</h2>
+          <p style={{ margin: '0 auto 20px', maxWidth: 300, color: '#777777', fontSize: 14, lineHeight: 1.55 }}>{M.myPage.emptyBody}</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+            <button onClick={() => navigate('routine-edit')} style={{ padding: '11px 16px', border: 0, borderRadius: 10, background: '#111111', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>{M.myPage.emptyRoutineCta}</button>
+            <button onClick={openRecordModal} style={{ padding: '11px 16px', border: '1px solid #D8D8D8', borderRadius: 10, background: '#FFFFFF', color: '#333333', fontWeight: 700, cursor: 'pointer' }}>{M.myPage.emptyRecordCta}</button>
+          </div>
+        </div>
+      ) : mypageTab === 'routine' ? <RoutineTab /> : null}
 
-      {mypageTab === 'dashboard' && (
+      {hasOwnData && mypageTab === 'dashboard' && (
         <DashboardTab
           isAdmin={isAdmin}
           thisWeek={thisWeek}

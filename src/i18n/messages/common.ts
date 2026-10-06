@@ -9,6 +9,7 @@ const ko = {
   done: '완료',
   next: '다음',
   skip: '건너뛰기',
+  loading: '불러오는 중',
 }
 
 const en: typeof ko = {
@@ -22,6 +23,7 @@ const en: typeof ko = {
   done: 'Done',
   next: 'Next',
   skip: 'Skip',
+  loading: 'Loading',
 }
 
 export const common = { ko, en }

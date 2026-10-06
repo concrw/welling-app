@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useMessages } from '../../i18n'
 
 type AuthMode = 'signup' | 'login' | 'forgot'
@@ -42,6 +43,32 @@ export function UsernameScreen({
   invitePreview,
 }: UsernameScreenProps) {
   const M = useMessages()
+  const [showInAppNotice, setShowInAppNotice] = useState(false)
+  const [externalNotice, setExternalNotice] = useState('')
+  const userAgent = navigator.userAgent.toLowerCase()
+  const isKakaoInApp = userAgent.includes('kakaotalk')
+  const isInAppBrowser = isKakaoInApp || /instagram|fbav|fban|line\/|naver/.test(userAgent)
+
+  const handleGoogle = () => {
+    if (isInAppBrowser) {
+      setShowInAppNotice(true)
+      return
+    }
+    signInWithProvider('google')
+  }
+
+  const handleExternalBrowser = async () => {
+    if (isKakaoInApp) {
+      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(window.location.href)}`
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setExternalNotice(M.onboarding.linkCopied)
+    } catch {
+      setExternalNotice(M.onboarding.linkCopyFailed)
+    }
+  }
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 'calc(40px + env(safe-area-inset-top)) 32px 40px', background: '#FFFFFF', minHeight: '100dvh' }}>
       <img src="/uploads/welling-black.png" style={{ height: 58, width: 'auto', marginBottom: 20 }} alt={M.onboarding.logoAlt} />
@@ -101,7 +128,11 @@ export function UsernameScreen({
             type="password"
             value={passwordInput}
             onChange={(e) => setPasswordInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') (authMode === 'signup' ? submitNickname() : submitLogin()) }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return
+              if (authMode === 'signup') submitNickname()
+              else submitLogin()
+            }}
             placeholder={M.onboarding.passwordPlaceholder}
             style={{ width: '100%', padding: '13px 16px', borderRadius: 10, border: '1px solid #EBEBEB', fontSize: 16, background: '#FAFAFA', color: '#111111', outline: 'none', boxSizing: 'border-box' }}
           />
@@ -137,8 +168,17 @@ export function UsernameScreen({
             <span style={{ fontSize: 11, color: '#CCCCCC', letterSpacing: '.06em', textTransform: 'uppercase' }}>{M.onboarding.orDivider}</span>
             <div style={{ flex: 1, height: 1, background: '#EBEBEB' }} />
           </div>
+          {isInAppBrowser && (
+            <button
+              onClick={() => signInWithProvider('kakao')}
+              style={{ width: '100%', padding: 13, borderRadius: 10, background: '#FEE500', color: '#191919', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24"><path fill="#191919" d="M12 3C6.48 3 2 6.48 2 10.77c0 2.76 1.85 5.18 4.62 6.55l-1.18 4.33c-.1.38.33.68.66.46l5.18-3.43c.24.02.48.03.72.03 5.52 0 10-3.48 10-7.77S17.52 3 12 3z"/></svg>
+              {M.onboarding.continueWithKakao}
+            </button>
+          )}
           <button
-            onClick={() => signInWithProvider('google')}
+            onClick={handleGoogle}
             style={{ width: '100%', padding: 13, borderRadius: 10, background: '#FFFFFF', color: '#111111', fontSize: 14, fontWeight: 600, border: '1px solid #DDDDDD', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}
           >
             <svg width="17" height="17" viewBox="0 0 48 48">
@@ -149,7 +189,7 @@ export function UsernameScreen({
             </svg>
             {M.onboarding.continueWithGoogle}
           </button>
-          <button
+          {!isInAppBrowser && <button
             onClick={() => signInWithProvider('kakao')}
             style={{ width: '100%', padding: 13, borderRadius: 10, background: '#FEE500', color: '#191919', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
           >
@@ -157,7 +197,16 @@ export function UsernameScreen({
               <path fill="#191919" d="M12 3C6.48 3 2 6.48 2 10.77c0 2.76 1.85 5.18 4.62 6.55l-1.18 4.33c-.1.38.33.68.66.46l5.18-3.43c.24.02.48.03.72.03 5.52 0 10-3.48 10-7.77S17.52 3 12 3z"/>
             </svg>
             {M.onboarding.continueWithKakao}
-          </button>
+          </button>}
+          {showInAppNotice && (
+            <div style={{ width: '100%', boxSizing: 'border-box', padding: 12, marginTop: 4, borderRadius: 10, background: '#FFF8E1', color: '#6B4F00', fontSize: 12, lineHeight: 1.6 }}>
+              <p style={{ margin: '0 0 8px' }}>{M.onboarding.inAppGoogleNotice}</p>
+              <button onClick={handleExternalBrowser} style={{ border: 'none', borderRadius: 8, background: '#111111', color: '#FFFFFF', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                {isKakaoInApp ? M.onboarding.openExternalBrowser : M.onboarding.copyLink}
+              </button>
+              {externalNotice && <p style={{ margin: '8px 0 0' }}>{externalNotice}</p>}
+            </div>
+          )}
         </>
       )}
       <p style={{ marginTop: 20, fontSize: 11, color: '#CCCCCC', textAlign: 'center', lineHeight: 1.7, fontWeight: 300 }}>
@@ -168,7 +217,7 @@ export function UsernameScreen({
         {M.onboarding.termsNoticeSuffix}
       </p>
       <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #EBEBEB', width: '100%', textAlign: 'center' }}>
-        <button onClick={goFeedDemo} style={{ background: 'none', border: 'none', fontSize: 11, color: '#CCCCCC', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+        <button onClick={goFeedDemo} style={{ width: '100%', padding: '12px 16px', background: '#FFFFFF', border: '1px solid #D8D8D8', borderRadius: 10, fontSize: 14, fontWeight: 700, color: '#333333', cursor: 'pointer' }}>
           {M.onboarding.skipToDemo}
         </button>
       </div>

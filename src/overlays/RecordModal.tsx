@@ -114,7 +114,8 @@ export default function RecordModal() {
       if (activeCommunityTab && activeCommunityTab !== 'all') {
         setRecordCommunityId(activeCommunityTab)
       } else if (joinedCommunities.length > 0) {
-        setRecordCommunityId(joinedCommunities[0].id)
+        const recentId = localStorage.getItem('welling_last_record_community')
+        setRecordCommunityId(joinedCommunities.some((c) => c.id === recentId) ? recentId! : joinedCommunities[0].id)
       }
     }
   }, [showRecordModal, pendingRecordCommunityId, setPendingRecordCommunityId, recordCommunityId, activeCommunityTab, communities])
@@ -201,8 +202,8 @@ export default function RecordModal() {
   }
 
   const handleTextRecord = () => {
-    if (!recordText.trim()) return
-    if (recordVisibility === 'public' && looksUnrelatedToCategory(recordText, recordCategory)) {
+    if (!recordText.trim() && !imageFile) return
+    if (recordText.trim() && recordVisibility === 'public' && looksUnrelatedToCategory(recordText, recordCategory)) {
       setShowGuidelineWarning(true)
       return
     }
@@ -298,7 +299,6 @@ export default function RecordModal() {
   }
 
   const joinedCommunities = communities.filter((c) => c.joined)
-  const selectedComm = joinedCommunities.find((c) => c.id === recordCommunityId)
 
   return (
     <div data-testid="record-modal" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -342,6 +342,15 @@ export default function RecordModal() {
             </svg>
           </button>
         </div>
+
+        {joinedCommunities.length > 0 && (
+          <div style={{ padding: '0 20px 16px' }}>
+            <label htmlFor="record-target-group" style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700, color: '#666666' }}>{M.overlays.selectGroup}</label>
+            <select id="record-target-group" value={recordCommunityId} onChange={(e) => setRecordCommunityId(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: '1px solid #D8D8D8', borderRadius: 10, background: '#FFFFFF', color: '#111111', fontSize: 14, fontWeight: 700 }}>
+              {joinedCommunities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* L1 Mode: Big [먹었어]/[운동했어] buttons */}
         <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
@@ -392,13 +401,6 @@ export default function RecordModal() {
         </div>
 
 
-        {/* Target group display */}
-        {selectedComm && (
-          <div style={{ padding: '0 20px 8px', fontSize: 13, color: '#666666' }}>
-            {M.overlays.recordingTo(selectedComm.name)}
-          </div>
-        )}
-
         {/* Optional photo & text */}
         <div style={{ padding: '0 20px 16px' }}>
           <textarea
@@ -435,7 +437,7 @@ export default function RecordModal() {
             >
               {M.overlays.photo}
             </button>
-            {recordText.trim() && (
+            {(recordText.trim() || imageFile) && (
               <button
                 onClick={handleTextRecord}
                 disabled={uploading}

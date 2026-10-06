@@ -15,6 +15,8 @@ const ko = {
     inviteRotateWarning: '링크가 유출되었다면 재생성하세요. 기존 링크는 무효화됩니다.',
     inviteShareText: (groupName: string) => `${groupName} 그룹에 초대합니다!\n\n함께 건강한 습관을 만들어요 💪\n\n`,
     inviteShareTitle: (groupName: string) => `${groupName} 그룹 초대`,
+    muteTitle: '알림 끄기',
+    muteDesc: '이 그룹의 알림을 받지 않습니다',
     
     // Approval
     approvalTitle: '가입 승인',
@@ -44,6 +46,15 @@ const ko = {
     cancel: '취소',
   leave: '나가기',
   transfer: '위임하기',
+  unknownMember: '알 수 없음',
 }
 
-export const groupSettings = { ko, en: ko }
+const en: typeof ko = {
+  title: 'Group settings', tabInvite: 'Invite', tabMembers: 'Members', tabRequests: 'Requests', loading: 'Loading...',
+  inviteLinkLabel: 'Invitation link', inviteCopied: '✓ Copied', inviteCopy: '📋 Copy', inviteShare: '🔗 Share', inviteRotate: '🔄 Reset invitation link', inviteRotating: 'Resetting...', inviteRotateWarning: 'Reset the link if it has been shared accidentally. The old link will stop working.',
+  inviteShareText: (groupName: string) => `Join my ${groupName} group!\n\nLet's build healthy habits together 💪\n\n`, inviteShareTitle: (groupName: string) => `${groupName} group invitation`, muteTitle: 'Mute notifications', muteDesc: 'Do not receive notifications from this group',
+  approvalTitle: 'Approve new members', approvalDesc: 'Review new members before they join', memberMe: ' (you)', roleOwner: '👑 Owner', roleAdmin: '⭐ Admin', roleMember: 'Member', actionPromote: 'Make admin', actionDemote: 'Make member', actionTransfer: 'Transfer ownership', actionKick: 'Remove', leaveGroup: 'Leave group', leaveGroupOwner: 'Leave group (transfer ownership)',
+  noRequests: 'No pending requests', approve: 'Approve', reject: 'Reject', leaveConfirmOwner: 'If you leave, ownership will automatically transfer to another member. Continue?', leaveConfirm: 'Leave this group?', transferConfirm: (nickname: string) => `Transfer ownership to ${nickname}? This cannot be undone.`, cancel: 'Cancel', leave: 'Leave', transfer: 'Transfer', unknownMember: 'Unknown',
+}
+
+export const groupSettings = { ko, en }

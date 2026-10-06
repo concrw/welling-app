@@ -1,20 +1,20 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * Smoke test: Create group -> Share screen -> Post "먹었어"
+ * Smoke test: Demo mode quick post
  * 
- * This test validates the core group-first flow using demo mode.
+ * Validates entering demo mode and posting using quick buttons.
  */
 
-test('Smoke: Create group -> Share screen -> Post 먹었어', async ({ page }) => {
+test('Demo mode: Navigate to demo and post using quick button', async ({ page }) => {
   // Navigate to app
   await page.goto('/')
   
   // Wait for the app to load
   await page.waitForLoadState('networkidle')
   
-  // Look for demo button at bottom of page
-  const demoButton = page.locator('button:has-text("SKIP")')
+  // Look for demo button - i18n key is 'skipToDemo' = '데모 보기' (ko) or 'Skip to demo' (en)
+  const demoButton = page.locator('button:has-text("데모 보기"), button:has-text("Skip to demo")')
   
   // Wait for button and click it
   await expect(demoButton).toBeVisible({ timeout: 5000 })
@@ -31,13 +31,13 @@ test('Smoke: Create group -> Share screen -> Post 먹었어', async ({ page }) =
   const recordModal = page.getByTestId('record-modal')
   await expect(recordModal).toBeVisible({ timeout: 5000 })
 
-  // 2. Click quick post button "먹었어" or "운동했어"
+  // 2. Click quick post button "먹었어" or "운동했어" 
   const quickButtons = page.getByTestId('record-quick-button')
   await expect(quickButtons.first()).toBeVisible()
   
   // Verify button contains meal or exercise text
   const buttonText = await quickButtons.first().textContent()
-  expect(buttonText).toMatch(/먹었어|운동했어/)
+  expect(buttonText).toMatch(/먹었어|운동했어|Ate|Worked out/)
 
   // In demo mode, posts are added locally without network calls
   await quickButtons.first().click()
@@ -45,10 +45,10 @@ test('Smoke: Create group -> Share screen -> Post 먹었어', async ({ page }) =
   // Verify modal closes (toast shows and modal disappears)
   await expect(recordModal).toBeHidden({ timeout: 5000 })
 
-  console.log('✓ Smoke test passed: Core flow functional')
+  console.log('✓ Smoke test passed: Demo mode and quick post functional')
 })
 
-test('Smoke: Record Modal renders quick buttons', async ({ page }) => {
+test('Demo mode: Record modal quick buttons render correctly', async ({ page }) => {
   // Navigate to app
   await page.goto('/')
   
@@ -56,7 +56,7 @@ test('Smoke: Record Modal renders quick buttons', async ({ page }) => {
   await page.waitForLoadState('networkidle')
   
   // Click demo button
-  const demoButton = page.locator('button:has-text("SKIP")')
+  const demoButton = page.locator('button:has-text("데모 보기"), button:has-text("Skip to demo")')
   await expect(demoButton).toBeVisible({ timeout: 5000 })
   await demoButton.click()
 
@@ -78,8 +78,8 @@ test('Smoke: Record Modal renders quick buttons', async ({ page }) => {
   const button1Text = await quickButtons.nth(0).textContent()
   const button2Text = await quickButtons.nth(1).textContent()
 
-  expect(button1Text).toMatch(/먹었어|운동했어/)
-  expect(button2Text).toMatch(/먹었어|운동했어/)
+  expect(button1Text).toMatch(/먹었어|운동했어|Ate|Worked out/)
+  expect(button2Text).toMatch(/먹었어|운동했어|Ate|Worked out/)
 
   console.log('✓ Quick post buttons render correctly')
 })

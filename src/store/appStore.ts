@@ -342,6 +342,7 @@ interface AppState {
   toggleReaction: (postId: string, reactionType: string) => Promise<void>
   addComment: (postId: string, text: string) => Promise<void>
   addPost: (content: string, imgUrl?: string, category?: PostCategory, visibility?: PostVisibility, communityId?: string | null, instaUrl?: string) => Promise<boolean>
+  deletePost: (postId: string) => Promise<boolean>
   loadFeedData: () => Promise<void>
   selectCommunity: (c: Community) => void
   selectUser: (u: User) => void

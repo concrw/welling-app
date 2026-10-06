@@ -170,40 +170,50 @@ export default function RecordModal() {
         </div>
 
         {/* L1 Mode: Big [먹었어]/[운동했어] buttons */}
-        <div style={{ padding: '0 20px 16px', display: 'flex', gap: 10 }}>
+        <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
           <button
             onClick={() => handleQuickPost('diet')}
+            data-testid="record-quick-button"
             style={{
               flex: 1,
-              padding: '20px 0',
+              padding: '20px 16px',
               borderRadius: 12,
-              background: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)',
+              background: 'linear-gradient(135deg, #0E9F6E 0%, #00D9A3 100%)',
               color: '#FFFFFF',
-              fontSize: 17,
+              fontSize: 18,
               fontWeight: 700,
               border: 'none',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(255, 107, 107, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
-            🍽️ 먹었어
+            <span style={{ fontSize: 32 }}>🍽️</span>
+            먹었어
           </button>
           <button
             onClick={() => handleQuickPost('exercise')}
+            data-testid="record-quick-button"
             style={{
               flex: 1,
-              padding: '20px 0',
+              padding: '20px 16px',
               borderRadius: 12,
-              background: 'linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%)',
+              background: 'linear-gradient(135deg, #0984E3 0%, #00BCFF 100%)',
               color: '#FFFFFF',
-              fontSize: 17,
+              fontSize: 18,
               fontWeight: 700,
               border: 'none',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(78, 205, 196, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
-            💪 운동했어
+            <span style={{ fontSize: 32 }}>💪</span>
+            운동했어
           </button>
         </div>
 

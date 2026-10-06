@@ -59,9 +59,17 @@ export default function RecordModal() {
     const content = category === 'diet' 
       ? `점심 먹었어 · ${timeLabel}` 
       : `운동했어 · ${timeLabel}`
-    const vis = defaultVisibility === 'public' ? 'group' : defaultVisibility
     const communityId = recordCommunityId || (communities.filter((c) => c.joined)[0]?.id ?? null)
-    addPost(content, undefined, category, vis, communityId)
+    
+    // If no group, must use private visibility
+    const vis = communityId ? (defaultVisibility === 'public' ? 'group' : defaultVisibility) : 'private'
+    
+    const success = await addPost(content, undefined, category, vis, communityId)
+    if (!success) {
+      showToast('기록 실패')
+      return
+    }
+    
     showToast(content)
     setTimeout(() => closeRecordModal(), 400)
   }
@@ -79,7 +87,17 @@ export default function RecordModal() {
         return
       }
     }
-    addPost(recordText.trim(), finalImgUrl, recordCategory, recordVisibility, recordCommunityId || null, validInsta)
+    
+    const communityId = recordCommunityId || null
+    // If no group, must use private visibility
+    const finalVisibility = communityId ? recordVisibility : 'private'
+    
+    const success = await addPost(recordText.trim(), finalImgUrl, recordCategory, finalVisibility, communityId, validInsta)
+    if (!success) {
+      showToast('기록 실패')
+      return
+    }
+    
     showToast(M.overlays.recordDone)
     setRecordText('')
     setImagePreview(null)

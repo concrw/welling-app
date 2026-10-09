@@ -166,7 +166,6 @@ export default function Feed() {
         </div>
       ) : displayPosts.length === 0 ? (
         <div style={{ padding: '52px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 34, marginBottom: 12 }}>🌱</div>
           <p style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800 }}>{M.feed.emptyTitle}</p>
           <p style={{ margin: '0 0 18px', color: '#777777', fontSize: 14 }}>{M.feed.emptyBody}</p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>

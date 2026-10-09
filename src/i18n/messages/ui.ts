@@ -3,6 +3,7 @@ const ko = {
   navFeed: '피드',
   navExplore: '탐색',
   navRecord: '기록',
+  navRanking: '랭킹',
   navMyPage: '마이',
 }
 
@@ -11,6 +12,7 @@ const en: typeof ko = {
   navFeed: 'Feed',
   navExplore: 'Explore',
   navRecord: 'Record',
+  navRanking: 'Ranking',
   navMyPage: 'Me',
 }
 

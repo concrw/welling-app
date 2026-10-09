@@ -1,5 +1,4 @@
 import { useAppStore } from '../store/appStore'
-import { useMessages } from '../i18n'
 import { computeAchievement } from '../lib/achievement'
 import { RankingTabs } from '../components/ranking/RankingTabs'
 import { RankingPodium } from '../components/ranking/RankingPodium'
@@ -10,8 +9,6 @@ const RANKING_PERIOD_DAYS = 14
 const AVATAR_COLORS = ['#10B981', '#6366F1', '#F59E0B', '#0EA5E9', '#EC4899', '#EF4444', '#047857', '#14B8A6', '#111111', '#8B5CF6']
 
 export default function Ranking() {
-  const M = useMessages()
-  const goBack = useAppStore((s) => s.goBack)
   const rankingTab = useAppStore((s) => s.rankingTab)
   const setRankingTab = useAppStore((s) => s.setRankingTab)
   const selectUser = useAppStore((s) => s.selectUser)
@@ -59,13 +56,6 @@ export default function Ranking() {
 
   return (
     <div data-testid="ranking-screen">
-      <div style={{ padding: 'calc(14px + env(safe-area-inset-top)) 20px 14px', background: '#FFFFFF', borderBottom: '1px solid #EBEBEB', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 10 }}>
-        <button onClick={goBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4l-6 6 6 6" stroke="#111111" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
-        <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#111111' }}>{M.ranking.title}</span>
-      </div>
-
       <RankingTabs tabs={RANKING_TABS} active={rankingTab} onChange={setRankingTab} />
 
       <RankingPodium top3={TOP3} onTapProfile={handleTapProfile} />

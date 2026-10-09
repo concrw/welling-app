@@ -10,8 +10,7 @@ export function RoutineTab() {
 
   if (items.length === 0) return (
     <div style={{ padding: '64px 24px', textAlign: 'center', background: '#FAF8F4' }}>
-      <div style={{ fontSize: 40, marginBottom: 14 }}>🌱</div>
-      <h2 style={{ margin: '0 0 8px', fontSize: 19 }}>{M.myPage.emptyTitle}</h2>
+      <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800 }}>{M.myPage.emptyTitle}</h2>
       <p style={{ margin: '0 auto 20px', maxWidth: 300, color: '#777777', fontSize: 14, lineHeight: 1.55 }}>{M.myPage.emptyBody}</p>
       <button onClick={() => navigate('routine-edit')} style={{ padding: '11px 16px', border: 0, borderRadius: 10, background: '#111111', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>{M.myPage.emptyRoutineCta}</button>
     </div>

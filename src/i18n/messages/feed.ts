@@ -13,7 +13,7 @@ const ko = {
   emptyBody: '첫 기록을 남겨보세요.',
   recordCta: '기록하기',
   inviteCta: '친구 초대하기',
-  todaySummary: (friends: number, streak: number) => [friends > 0 ? `오늘 친구 ${friends}명이 기록했어요` : '', streak > 0 ? `나 🔥 ${streak}일 연속` : ''].filter(Boolean).join(' · '),
+  todaySummary: (friends: number, streak: number) => [friends > 0 ? `오늘 친구 ${friends}명이 기록했어요` : '', streak > 0 ? `나 ${streak}일 연속` : ''].filter(Boolean).join(' · '),
 }
 
 const en: typeof ko = {
@@ -31,7 +31,7 @@ const en: typeof ko = {
   emptyBody: 'Be the first to share one.',
   recordCta: 'Record now',
   inviteCta: 'Invite friends',
-  todaySummary: (friends: number, streak: number) => [friends > 0 ? `${friends} ${friends === 1 ? 'friend' : 'friends'} recorded today` : '', streak > 0 ? `🔥 ${streak}-day streak` : ''].filter(Boolean).join(' · '),
+  todaySummary: (friends: number, streak: number) => [friends > 0 ? `${friends} ${friends === 1 ? 'friend' : 'friends'} recorded today` : '', streak > 0 ? `${streak}-day streak` : ''].filter(Boolean).join(' · '),
 }
 
 export const feed = { ko, en }

@@ -89,8 +89,7 @@ export default function MyPage() {
 
       {!hasOwnData ? (
         <div style={{ padding: '64px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}>🌱</div>
-          <h2 style={{ margin: '0 0 8px', fontSize: 19, color: '#111111' }}>{M.myPage.emptyTitle}</h2>
+          <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#111111' }}>{M.myPage.emptyTitle}</h2>
           <p style={{ margin: '0 auto 20px', maxWidth: 300, color: '#777777', fontSize: 14, lineHeight: 1.55 }}>{M.myPage.emptyBody}</p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
             <button onClick={() => navigate('routine-edit')} style={{ padding: '11px 16px', border: 0, borderRadius: 10, background: '#111111', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>{M.myPage.emptyRoutineCta}</button>

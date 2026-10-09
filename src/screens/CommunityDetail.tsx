@@ -147,7 +147,6 @@ export default function CommunityDetail() {
               onClick={() => toggleReaction(post.id, 'cheer')}
               style={{ flexShrink: 0, background: post.myReactions?.has('cheer') ? '#FFF4D6' : 'none', border: '1px solid #EBEBEB', borderRadius: 999, cursor: 'pointer', padding: '6px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#555555', fontSize: 12, fontWeight: 700 }}
             >
-              <span aria-hidden="true">👏</span>
               <span>{M.feed.cheer}</span>
               <span>{post.reactions.cheer ?? 0}</span>
             </button>

@@ -218,7 +218,7 @@ export function UsernameScreen({
         {M.onboarding.termsNoticeSuffix}
       </p>
       <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #EBEBEB', width: '100%', textAlign: 'center' }}>
-        <button onClick={goFeedDemo} style={{ width: '100%', padding: '12px 16px', background: '#FFFFFF', border: '1px solid #D8D8D8', borderRadius: 10, fontSize: 14, fontWeight: 700, color: '#333333', cursor: 'pointer' }}>
+        <button onClick={goFeedDemo} style={{ background: 'none', border: 'none', fontSize: 11, color: '#CCCCCC', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, letterSpacing: '.04em', textTransform: 'uppercase' }}>
           {M.onboarding.skipToDemo}
         </button>
       </div>

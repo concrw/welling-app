@@ -45,7 +45,7 @@ export function GoalVsActualTimeGroups({
               <div key={ii} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', borderRadius: 8, background: status.statusBg, marginBottom: 5, border: `1px solid ${status.statusBorder}` }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: status.statusColor, background: status.statusLabelBg, padding: '2px 6px', borderRadius: 4, flexShrink: 0, marginTop: 1, letterSpacing: '.04em' }}>{status.statusLabel}</span>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 600, color: '#111111' }}>{ti.name}</p>
+                  <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 600, color: '#111111' }}>{M.myPage.routineLabel(ti.name)}</p>
                   {ti.desc ? <p style={{ margin: 0, fontSize: 11, color: '#AAAAAA', fontWeight: 300 }}>{ti.desc}</p> : null}
                 </div>
               </div>

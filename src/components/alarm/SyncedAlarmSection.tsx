@@ -29,7 +29,7 @@ export function SyncedAlarmSection({ synced, onToggle }: { synced: SyncedAlarmIt
               <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700, color: '#111111' }}>{item.userName}</p>
               <p style={{ margin: 0, fontSize: 11, color: '#AAAAAA', fontWeight: 300 }}>{item.time} · {item.items}</p>
             </div>
-            <Toggle on={item.on} onToggle={() => onToggle(item.id)} />
+            <Toggle on={item.on} onToggle={() => onToggle(item.id)} label={item.userName} />
           </div>
         ))
       )}

@@ -1,16 +1,18 @@
 import type { Post } from '../../store/appStore'
+import { useMessages } from '../../i18n'
 
 export function FeedPostList({
   posts,
   onTapUser,
   onTapPost,
-  onToggleLike,
+  onToggleCheer,
 }: {
   posts: Post[]
   onTapUser: (userName: string, post?: { initials: string; color: string }) => void
   onTapPost: (post: Post) => void
-  onToggleLike: (postId: string) => void
+  onToggleCheer: (postId: string) => void
 }) {
+  const M = useMessages()
   return (
     <>
       {posts.map((post) => (
@@ -22,16 +24,23 @@ export function FeedPostList({
             {/* 닉네임이 길면 본문을 밀어내 내용이 안 보인다. 최대 너비를 두고 말줄임 처리한다. */}
             <span style={{ fontSize: 13, fontWeight: 700, color: '#111111', maxWidth: 92, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.user}</span>
           </div>
+          {post.hasImg && post.imgUrl && (
+            <img
+              src={post.imgUrl}
+              alt=""
+              onClick={() => onTapPost(post)}
+              style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
+            />
+          )}
           <div data-testid="feed-post-content" onClick={() => onTapPost(post)} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>
             <span style={{ fontSize: 13, color: '#555555' }}>{post.content}</span>
           </div>
           <button
-            onClick={() => onToggleLike(post.id)}
-            style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 13, margin: '-9px -9px -9px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => onToggleCheer(post.id)}
+            style={{ flexShrink: 0, background: post.myReactions?.has('cheer') ? '#FFF4D6' : 'none', border: '1px solid #EBEBEB', borderRadius: 999, cursor: 'pointer', padding: '6px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#555555', fontSize: 12, fontWeight: 700 }}
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill={post.liked ? '#E53535' : 'none'}>
-              <path d="M9 15S2 10.5 2 6A4 4 0 019 3.2 4 4 0 0116 6C16 10.5 9 15 9 15z" stroke={post.liked ? '#E53535' : '#CCCCCC'} strokeWidth="1.4" strokeLinejoin="round" />
-            </svg>
+            <span>{M.feed.cheer}</span>
+            <span>{post.reactions.cheer ?? 0}</span>
           </button>
         </div>
       ))}

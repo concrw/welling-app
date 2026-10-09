@@ -79,6 +79,12 @@ export interface Community {
   joined: boolean
   ownerId?: string | null
   visibility?: 'public' | 'private'
+  inviteCode?: string
+}
+
+export interface PendingJoinRequest {
+  communityId: string
+  communityName: string
 }
 
 export interface User {
@@ -99,8 +105,12 @@ export interface User {
 export interface Notification {
   id: string
   user: string
-  type: 'like' | 'follow' | 'comment'
+  type: 'like' | 'follow' | 'comment' | 'reaction' | 'copy' | 'report' | 'group_join'
+  // 'comment' 타입을 커뮤니티 레벨 알림(새 글 N개 / 가입 승인)과 구분하기 위한 보조 필드.
+  // 지정하지 않으면 type 기반 i18n 문구를 사용한다.
+  kind?: 'newPosts' | 'joinApproved'
   text: string
+  count?: number
   read: boolean
   time: string
   bgColor?: string
@@ -244,7 +254,8 @@ interface AppState {
   // 초대 링크 처리
   pendingInviteCode: string | null
   pendingInviteSavedAt: number | null
-  invitePreview: { communityId: string; name: string; memberCount: number } | null
+  invitePreview: { communityId: string; name: string; memberCount: number; ownerNickname?: string } | null
+  pendingJoinRequests: PendingJoinRequest[]
 
   selectedCommunity: Community | null
   selectedUser: User | null
@@ -252,6 +263,10 @@ interface AppState {
   isAdmin: boolean
   showRecordModal: boolean
   toastMessage: string | null
+  feedLoading: boolean
+  feedError: string | null
+  notificationsLoading: boolean
+  notificationsError: boolean
 
   syncedList: Set<string>
   showSyncSheet: boolean
@@ -449,6 +464,121 @@ let inviteCheckInFlight: Promise<void> | null = null
 // App-level toast auto-hide timer; cleared/reset on each new toast so rapid successive toasts don't fight each other
 let appToastTimer: ReturnType<typeof setTimeout> | null = null
 
+const createAccountScopedState = (): Partial<AppState> => ({
+  authMode: 'signup',
+  authNotice: '',
+  isPasswordRecovery: false,
+  authError: '',
+  authLoading: false,
+  followedUsers: new Set(),
+  onboardingFollowed: new Set(),
+  posts: [...SAMPLE_POSTS, ...generateHistoricalPosts()],
+  communities: SAMPLE_COMMUNITIES,
+  suggestedUsers: SAMPLE_USERS,
+  notifications: SAMPLE_NOTIFS,
+  myFollowersCount: 0,
+  myFollowingCount: 0,
+  activeCommunityTab: 'all',
+  communityTabOrder: ['morning-runners', 'clean-eaters', 'book-club', 'office-workout'],
+  mypageTab: 'dashboard',
+  rankingTab: 'All',
+  dashboardPeriod: 'All time',
+  expandedPrev: true,
+  pendingRecordCommunityId: null,
+  pendingInviteCode: null,
+  pendingInviteSavedAt: null,
+  invitePreview: null,
+  pendingJoinRequests: [],
+  selectedCommunity: null,
+  selectedUser: null,
+  syncedList: new Set(),
+  selectedSyncUser: null,
+  selectedPost: null,
+  showRecordModal: false,
+  showPostDetail: false,
+  showSyncSheet: false,
+  showSyncConfirm: false,
+  showSyncAlarm: false,
+  showHomePrompt: false,
+  hasPromptedHome: false,
+  homeScreenIsRecord: false,
+  feedVisitCount: 0,
+  recordUseCount: 0,
+  showWelcomeAnimation: false,
+  pendingRecordAfterWelcome: false,
+  onboardingAnimating: false,
+  defaultVisibility: 'group',
+  profileVisibility: 'public',
+  nicknameEditInput: '',
+  feedLoading: false,
+  feedError: null,
+  notificationsLoading: false,
+  notificationsError: false,
+  toastMessage: null,
+  newCommName: '',
+  newCommDesc: '',
+  commVisibility: 'public',
+  searchQuery: '',
+  routineGroups: DEMO_ROUTINE_GROUPS,
+  routineHistory: [],
+  currentRoutineStartDate: daysAgo(20, 0, 0),
+  currentRoutineGroupIds: [],
+  routineItemIdByName: new Map(),
+  routinePrivacy: [
+    {
+      name: 'Morning Routine',
+      on: true,
+      items: [{ name: 'Morning Walk', on: true }, { name: 'Cold Shower', on: true }, { name: 'Meditation', on: false }, { name: 'Journaling', on: false }],
+    },
+    {
+      name: 'Evening Routine',
+      on: true,
+      items: [{ name: 'Running 5km', on: true }, { name: 'Stretching', on: true }, { name: 'Reading', on: true }],
+    },
+  ],
+  eveningReflections: [],
+  calendarSnapshots: [],
+  commNotifSettings: [],
+  alarmSyncedSettings: [
+    { id: 's1', on: true },
+    { id: 's2', on: false },
+  ],
+  alarmCommSettings: [
+    { id: 'c1', on: true },
+    { id: 'c2', on: true },
+    { id: 'c3', on: false },
+  ],
+  adminUsers: [
+    { id: 'u1', name: 'Jay', followers: 1243, suspended: false },
+    { id: 'u2', name: 'Sora', followers: 892, suspended: false },
+    { id: 'u3', name: 'Tom', followers: 231, suspended: true },
+    { id: 'u4', name: 'Mina', followers: 567, suspended: false },
+    { id: 'u5', name: 'Kevin', followers: 412, suspended: false },
+    { id: 'u6', name: 'Dana', followers: 334, suspended: false },
+    { id: 'u7', name: 'Ryan', followers: 789, suspended: false },
+    { id: 'u8', name: 'Lily', followers: 102, suspended: true },
+    { id: 'u9', name: 'Eric', followers: 1501, suspended: false },
+    { id: 'u10', name: 'Nina', followers: 655, suspended: false },
+  ],
+  adminReports: DEMO_ADMIN_REPORTS,
+  adminPostReports: [],
+  customQuickButtons: [],
+  chatUser: '',
+  syncSheetUserName: '',
+  syncSheetAlarms: [],
+  syncAlarmHasImg: false,
+  syncAlarmBgImg: '',
+  syncAlarmFallbackGrad: 'linear-gradient(160deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)',
+  syncAlarmStatusTime: '9:41',
+  syncAlarmClockDisplay: '09:41',
+  syncAlarmDate: DEMO_SYNC_ALARM_DATE,
+  syncAlarmUserColor: '#6366F1',
+  syncAlarmUserInitial: 'W',
+  syncAlarmUserDisplay: '',
+  syncAlarmGroupLabel: '',
+  syncAlarmContent: '',
+})
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -497,10 +627,15 @@ export const useAppStore = create<AppState>()(
   isAdmin: false,
   showRecordModal: false,
   toastMessage: null,
+  feedLoading: false,
+  feedError: null,
+  notificationsLoading: false,
+  notificationsError: false,
 
   pendingInviteCode: null,
   pendingInviteSavedAt: null,
   invitePreview: null,
+  pendingJoinRequests: [],
 
   syncedList: new Set(),
   showSyncSheet: false,
@@ -608,6 +743,7 @@ export const useAppStore = create<AppState>()(
       const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
       if (Date.now() - savedAt > sevenDaysMs) {
         localStorage.removeItem('welling_pending_invite')
+        get().showAppToast(getMessages().store.inviteExpired)
         return
       }
       
@@ -615,6 +751,7 @@ export const useAppStore = create<AppState>()(
       const { data, error } = await supabase.rpc('get_invite_preview', { p_code: code })
       if (error || !data) {
         localStorage.removeItem('welling_pending_invite')
+        get().showAppToast(getMessages().store.inviteInvalid)
         return
       }
       
@@ -627,30 +764,33 @@ export const useAppStore = create<AppState>()(
             communityId: result.community_id,
             name: result.name,
             memberCount: result.member_count,
+            ...(result.owner_nickname ? { ownerNickname: result.owner_nickname } : {}),
           },
         })
+      } else {
+        localStorage.removeItem('welling_pending_invite')
+        get().showAppToast(result.status === 'expired' ? getMessages().store.inviteExpired : getMessages().store.inviteInvalid)
       }
     } catch {
       localStorage.removeItem('welling_pending_invite')
+      get().showAppToast(getMessages().store.inviteInvalid)
     }
     })()
     inviteCheckInFlight = run
     try { await run } finally { if (inviteCheckInFlight === run) inviteCheckInFlight = null }
   },
   
-  consumePendingInvite: async (options?: { isNewSignup?: boolean }) => {
+  consumePendingInvite: async (_options?: { isNewSignup?: boolean }) => {
     const { pendingInviteCode, userId } = get()
     if (!pendingInviteCode || !userId) return
-    
-    const isNewSignup = options?.isNewSignup ?? false
     
     const { data, error } = await supabase.rpc('join_by_invite', { p_code: pendingInviteCode })
     if (error) {
       console.error('Failed to join by invite:', error)
-      alert(getMessages().store.inviteUnknownError(error.message))
+      alert(getMessages().store.inviteUnexpectedError)
       localStorage.removeItem('welling_pending_invite')
       set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
-      get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
+      get().navigate('feed')
       return
     }
     
@@ -687,14 +827,18 @@ export const useAppStore = create<AppState>()(
     }
     
     if (result.status === 'pending') {
+      const pendingNames = JSON.parse(localStorage.getItem('welling_pending_join_names') || '{}') as Record<string, string>
+      pendingNames[result.community_id] = result.name
+      localStorage.setItem('welling_pending_join_names', JSON.stringify(pendingNames))
       localStorage.removeItem('welling_pending_invite')
       set({
         pendingInviteCode: null,
         pendingInviteSavedAt: null,
         invitePreview: null,
+        pendingJoinRequests: [{ communityId: result.community_id, communityName: result.name }, ...get().pendingJoinRequests.filter((r) => r.communityId !== result.community_id)],
       })
       alert(M.store.invitePending)
-      get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
+      get().navigate('feed')
       return
     }
     
@@ -711,8 +855,8 @@ export const useAppStore = create<AppState>()(
       invalid_code: M.store.inviteInvalid,
     }
     
-    alert(statusMessages[result.status] || M.store.inviteUnknownError(result.status))
-    get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
+    alert(statusMessages[result.status] || M.store.inviteUnexpectedError)
+    get().navigate('feed')
   },
   
   clearPendingInvite: () => {
@@ -732,7 +876,8 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: true, authError: '', authNotice: '' })
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
     if (error) {
-      set({ authLoading: false, authError: error.message })
+      console.error('Password reset request failed:', error)
+      set({ authLoading: false, authError: getMessages().store.resetFailed })
       return
     }
     set({ authLoading: false, authNotice: getMessages().store.resetEmailSent })
@@ -742,9 +887,12 @@ export const useAppStore = create<AppState>()(
     set({ authError: '', authNotice: '' })
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: window.location.href },
     })
-    if (error) set({ authError: error.message })
+    if (error) {
+      console.error('Social sign-in failed:', error)
+      set({ authError: getMessages().store.socialLoginFailed })
+    }
   },
 
   submitSocialNickname: async () => {
@@ -754,7 +902,8 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: true, authError: '' })
     const { error } = await supabase.from('profiles').insert({ id: userId, nickname: trimmed })
     if (error) {
-      set({ authLoading: false, authError: error.message })
+      console.error('Profile creation failed:', error)
+      set({ authLoading: false, authError: getMessages().store.signupFailed })
       return
     }
     set({
@@ -776,7 +925,7 @@ export const useAppStore = create<AppState>()(
     if (pendingInviteCode) {
       await get().consumePendingInvite({ isNewSignup: true })
     } else {
-      set({ screen: 'onboarding-preview', prevScreen: 'social-nickname' })
+      set({ screen: 'feed', navTab: 'feed', prevScreen: null })
     }
   },
 
@@ -784,7 +933,8 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: true, authError: '' })
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) {
-      set({ authLoading: false, authError: error.message })
+      console.error('Password update failed:', error)
+      set({ authLoading: false, authError: getMessages().store.passwordUpdateFailed })
       return false
     }
     set({ authLoading: false, isPasswordRecovery: false, authMode: 'login', emailInput: '', passwordInput: '' })
@@ -799,12 +949,14 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: true, authError: '' })
     const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput })
     if (error || !data.user) {
-      set({ authLoading: false, authError: error?.message ?? getMessages().store.signupFailed })
+      if (error) console.error('Sign-up failed:', error)
+      set({ authLoading: false, authError: getMessages().store.signupFailed })
       return
     }
     const { error: profileError } = await supabase.from('profiles').insert({ id: data.user.id, nickname: trimmed })
     if (profileError) {
-      set({ authLoading: false, authError: profileError.message })
+      console.error('Profile creation failed:', profileError)
+      set({ authLoading: false, authError: getMessages().store.signupFailed })
       return
     }
     set({
@@ -828,7 +980,7 @@ export const useAppStore = create<AppState>()(
     if (pendingInviteCode) {
       await get().consumePendingInvite({ isNewSignup: true })
     } else {
-      set({ screen: 'onboarding-preview', prevScreen: 'onboarding-username' })
+      set({ screen: 'feed', navTab: 'feed', prevScreen: null })
     }
   },
 
@@ -837,7 +989,8 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: true, authError: '' })
     const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput })
     if (error || !data.user) {
-      set({ authLoading: false, authError: error?.message ?? getMessages().store.loginFailed })
+      if (error) console.error('Login failed:', error)
+      set({ authLoading: false, authError: getMessages().store.loginFailed })
       return
     }
     const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', data.user.id).single()
@@ -915,7 +1068,24 @@ export const useAppStore = create<AppState>()(
     }
   },
 
-  goFeedDemo: () => set({ nickname: 'Min', isDemo: true, userId: null, screen: 'feed', navTab: 'feed', prevScreen: null }),
+  goFeedDemo: () => {
+    localStorage.removeItem('welling_pending_invite')
+    localStorage.removeItem('welling_pending_join_names')
+    localStorage.removeItem('welling_last_record_community')
+    set({
+      ...createAccountScopedState(),
+      nickname: 'Min',
+      nicknameInput: '',
+      emailInput: '',
+      passwordInput: '',
+      isDemo: true,
+      userId: null,
+      isAdmin: false,
+      screen: 'feed',
+      navTab: 'feed',
+      prevScreen: null,
+    })
+  },
 
   goToMain: () => {
     set({ screen: 'feed', navTab: 'feed', prevScreen: null, showWelcomeAnimation: true })
@@ -1074,21 +1244,55 @@ export const useAppStore = create<AppState>()(
 
   toggleJoinCommunity: async (communityId) => {
     const { userId, isDemo, communities } = get()
-    const nextJoined = !communities.find((c) => c.id === communityId)?.joined
+    const community = communities.find((c) => c.id === communityId)
+    if (!community) return
+    const nextJoined = !community.joined
+    const memberDelta = nextJoined ? 1 : -1
     set((s) => ({
       communities: s.communities.map((c) =>
-        c.id === communityId ? { ...c, joined: !c.joined } : c
+        c.id === communityId ? { ...c, joined: nextJoined, members: Math.max(0, c.members + memberDelta) } : c
       ),
       selectedCommunity:
         s.selectedCommunity?.id === communityId
-          ? { ...s.selectedCommunity, joined: !s.selectedCommunity.joined }
+          ? { ...s.selectedCommunity, joined: nextJoined, members: Math.max(0, s.selectedCommunity.members + memberDelta) }
           : s.selectedCommunity,
     }))
     if (isDemo || !userId) return
     if (nextJoined) {
-      await supabase.from('community_members').insert({ user_id: userId, community_id: communityId })
+      if (!community.inviteCode) {
+        set((s) => ({
+          communities: s.communities.map((c) => c.id === communityId ? { ...c, joined: false, members: community.members } : c),
+          selectedCommunity: s.selectedCommunity?.id === communityId ? { ...s.selectedCommunity, joined: false, members: community.members } : s.selectedCommunity,
+        }))
+        get().showAppToast(getMessages().store.joinFailed)
+        return
+      }
+      const { data, error } = await supabase.rpc('join_by_invite', { p_code: community.inviteCode })
+      const result = !error && data ? (typeof data === 'string' ? JSON.parse(data) : data) : null
+      if (error || !result || !['success', 'already', 'already_member'].includes(result.status)) {
+        set((s) => ({
+          communities: s.communities.map((c) => c.id === communityId ? { ...c, joined: false, members: community.members } : c),
+          selectedCommunity: s.selectedCommunity?.id === communityId ? { ...s.selectedCommunity, joined: false, members: community.members } : s.selectedCommunity,
+        }))
+        if (result?.status === 'pending') {
+          const pendingNames = JSON.parse(localStorage.getItem('welling_pending_join_names') || '{}') as Record<string, string>
+          pendingNames[communityId] = result.name ?? community.name
+          localStorage.setItem('welling_pending_join_names', JSON.stringify(pendingNames))
+          set((s) => ({ pendingJoinRequests: [{ communityId, communityName: result.name ?? community.name }, ...s.pendingJoinRequests.filter((r) => r.communityId !== communityId)] }))
+          get().showAppToast(getMessages().store.invitePending)
+        } else {
+          get().showAppToast(getMessages().store.joinFailed)
+        }
+      }
     } else {
-      await supabase.from('community_members').delete().eq('user_id', userId).eq('community_id', communityId)
+      const { error } = await supabase.from('community_members').delete().eq('user_id', userId).eq('community_id', communityId)
+      if (error) {
+        set((s) => ({
+          communities: s.communities.map((c) => c.id === communityId ? { ...c, joined: true, members: community.members } : c),
+          selectedCommunity: s.selectedCommunity?.id === communityId ? { ...s.selectedCommunity, joined: true, members: community.members } : s.selectedCommunity,
+        }))
+        get().showAppToast(getMessages().store.leaveFailed)
+      }
     }
   },
 
@@ -1144,9 +1348,11 @@ export const useAppStore = create<AppState>()(
     }))
     if (isDemo || !userId) return
     if (alreadyReacted) {
-      await supabase.from('post_reactions').delete().eq('user_id', userId).eq('post_id', postId).eq('reaction_type', reactionType)
+      const { error } = await supabase.from('post_reactions').delete().eq('user_id', userId).eq('post_id', postId).eq('reaction_type', reactionType)
+      if (error) await get().loadFeedData()
     } else {
-      await supabase.from('post_reactions').insert({ user_id: userId, post_id: postId, reaction_type: reactionType })
+      const { error } = await supabase.from('post_reactions').insert({ user_id: userId, post_id: postId, reaction_type: reactionType })
+      if (error) await get().loadFeedData()
     }
   },
 
@@ -1175,7 +1381,7 @@ export const useAppStore = create<AppState>()(
   },
 
   addPost: async (content, imgUrl, category, visibility, communityId, instaUrl) => {
-    const { userId, isDemo, nickname, hasPromptedHome, defaultVisibility, feedVisitCount, recordUseCount } = get()
+    const { userId, isDemo, nickname, hasPromptedHome, defaultVisibility, recordUseCount } = get()
     const displayName = nickname || 'Min'
     const finalCategory: PostCategory = category ?? 'habit'
     let finalVisibility: PostVisibility = visibility ?? defaultVisibility
@@ -1185,7 +1391,8 @@ export const useAppStore = create<AppState>()(
       finalVisibility = 'private'
     }
     
-    const shouldPrompt = !hasPromptedHome && recordUseCount > feedVisitCount
+    const nextRecordUseCount = recordUseCount + 1
+    const shouldPromptLater = !hasPromptedHome && nextRecordUseCount >= 3
     if (isDemo || !userId) {
       const newPost: Post = {
         id: `p${Date.now()}`,
@@ -1205,8 +1412,13 @@ export const useAppStore = create<AppState>()(
       }
       set((s) => ({
         posts: [newPost, ...s.posts],
-        ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
+        recordUseCount: nextRecordUseCount,
       }))
+      if (communityId) localStorage.setItem('welling_last_record_community', communityId)
+      if (shouldPromptLater) setTimeout(() => {
+        const state = useAppStore.getState()
+        if (!state.showRecordModal && !state.toastMessage) useAppStore.setState({ showHomePrompt: true, hasPromptedHome: true })
+      }, 2600)
       return true
     }
     const { data, error } = await supabase
@@ -1247,15 +1459,19 @@ export const useAppStore = create<AppState>()(
     }
     set((s) => ({
       posts: [newPost, ...s.posts],
-      ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
+      recordUseCount: nextRecordUseCount,
     }))
+    if (communityId) localStorage.setItem('welling_last_record_community', communityId)
+    if (shouldPromptLater) setTimeout(() => {
+      const state = useAppStore.getState()
+      if (!state.showRecordModal && !state.toastMessage) useAppStore.setState({ showHomePrompt: true, hasPromptedHome: true })
+    }, 2600)
     return true
   },
 
   deletePost: async (postId) => {
     const { userId, isDemo, posts } = get()
-    if (!userId) return false
-    
+
     if (isDemo) {
       set((s) => ({
         posts: s.posts.filter((p) => p.id !== postId),
@@ -1263,6 +1479,8 @@ export const useAppStore = create<AppState>()(
       }))
       return true
     }
+
+    if (!userId) return false
     
     // Find the post to get image URL before deleting
     const post = posts.find((p) => p.id === postId)
@@ -1308,12 +1526,25 @@ export const useAppStore = create<AppState>()(
   loadFeedData: async () => {
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
-    const [{ data: communityRows }, { data: memberRows }, { data: postRows }, { data: likeRows }] = await Promise.all([
+    set({ feedLoading: true, feedError: null })
+    const [communitiesResult, membersResult, postsResult, likesResult, joinRequestsResult] = await Promise.all([
       supabase.from('communities').select('*'),
       supabase.from('community_members').select('community_id, user_id'),
       supabase.from('posts').select('*, profiles(nickname)').order('created_at', { ascending: false }),
       supabase.from('post_likes').select('post_id').eq('user_id', userId),
+      supabase.from('community_join_requests').select('community_id, status').eq('user_id', userId).eq('status', 'pending'),
     ])
+    const firstError = [communitiesResult.error, membersResult.error, postsResult.error, likesResult.error, joinRequestsResult.error].find(Boolean)
+    if (firstError) {
+      console.error('Failed to load feed:', firstError)
+      set({ feedLoading: false, feedError: firstError.message })
+      return
+    }
+    const communityRows = communitiesResult.data
+    const memberRows = membersResult.data
+    const postRows = postsResult.data
+    const likeRows = likesResult.data
+    const joinRequestRows = joinRequestsResult.data
     const postIds = (postRows ?? []).map((p) => p.id)
     const [{ data: reactionRows }, { data: commentRows }] = await Promise.all([
       postIds.length ? supabase.from('post_reactions').select('post_id, user_id, reaction_type').in('post_id', postIds) : Promise.resolve({ data: [] }),
@@ -1353,12 +1584,13 @@ export const useAppStore = create<AppState>()(
       name: c.name,
       initial: c.initial,
       color: c.color,
-      members: memberCountById.get(c.id) ?? c.members,
+      members: memberCountById.get(c.id) ?? c.member_count ?? c.members,
       focus: c.focus,
       desc: c.desc,
       joined: joinedIds.has(c.id),
       ownerId: c.owner_id ?? null,
       visibility: c.visibility ?? 'public',
+      inviteCode: c.invite_code,
     }))
     const posts: Post[] = (postRows ?? []).map((p) => {
       const authorNickname = (p as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.deletedUser
@@ -1382,7 +1614,13 @@ export const useAppStore = create<AppState>()(
         ...(p.has_insta ? { hasInsta: true, instaUrl: p.insta_url } : {}),
       }
     })
-    set({ communities, posts })
+    const pendingNames = JSON.parse(localStorage.getItem('welling_pending_join_names') || '{}') as Record<string, string>
+    const communityNameById = new Map(communities.map((c) => [c.id, c.name]))
+    const pendingJoinRequests: PendingJoinRequest[] = (joinRequestRows ?? []).map((r) => ({
+      communityId: r.community_id,
+      communityName: communityNameById.get(r.community_id) ?? pendingNames[r.community_id] ?? getMessages().store.groupFallback,
+    }))
+    set({ communities, posts, pendingJoinRequests, feedLoading: false, feedError: null })
   },
 
   selectCommunity: (c) => set((s) => ({ selectedCommunity: c, prevScreen: s.screen, screen: 'community-detail' })),
@@ -1459,11 +1697,12 @@ export const useAppStore = create<AppState>()(
       ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
     }).eq('id', id)
     if (error) {
+      console.error('Community update failed:', error)
       set((s) => ({
         communities: s.communities.map((c) => (c.id === id ? prev : c)),
         selectedCommunity: s.selectedCommunity?.id === id ? prev : s.selectedCommunity,
       }))
-      return error.message
+      return getMessages().communityEdit.saveFailed
     }
     return null
   },
@@ -1488,26 +1727,41 @@ export const useAppStore = create<AppState>()(
   loadNotifications: async () => {
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
-    const { data } = await supabase
+    set({ notificationsLoading: true, notificationsError: false })
+    const { data, error } = await supabase
       .from('notifications')
       .select('*, profiles!notifications_actor_id_fkey(nickname)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Failed to load notifications:', error)
+      set({ notificationsLoading: false, notificationsError: true })
+      return
+    }
     const notifications: Notification[] = (data ?? []).map((n) => {
       const actorNickname = (n as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.someone
+      const M = getMessages()
+      const type = n.type as Notification['type']
+      const text =
+        type === 'reaction' ? M.notifications.reactionText(n.actor_count ?? 1)
+        : type === 'like' ? M.notifications.likeText(n.actor_count ?? 1)
+        : type === 'follow' ? M.notifications.followText
+        : type === 'comment' ? M.notifications.commentText
+        : n.text
       return {
         id: n.id,
         user: actorNickname,
-        type: n.type as Notification['type'],
-        text: n.text,
+        type,
+        text,
+        count: n.actor_count ?? 1,
         read: n.read,
         time: '',
       }
     })
-    set({ notifications })
+    set({ notifications, notificationsLoading: false, notificationsError: false })
   },
 
-  openRecordModal: () => set((s) => ({ showRecordModal: true, recordUseCount: s.recordUseCount + 1 })),
+  openRecordModal: () => set({ showRecordModal: true }),
   closeRecordModal: () => set({ showRecordModal: false }),
 
   showAppToast: (msg) => {
@@ -1975,8 +2229,17 @@ export const useAppStore = create<AppState>()(
   },
 
   signOut: () => {
-    supabase.auth.signOut()
+    const wasDemo = get().isDemo
+    void (async () => {
+      try {
+        const { error } = await supabase.auth.signOut(wasDemo ? { scope: 'local' } : undefined)
+        if (error) console.error(error)
+      } catch (error) {
+        console.error(error)
+      }
+    })()
     set({
+      ...createAccountScopedState(),
       nickname: '',
       nicknameInput: '',
       emailInput: '',
@@ -1985,12 +2248,8 @@ export const useAppStore = create<AppState>()(
       isDemo: false,
       userId: null,
       isAdmin: false,
-      posts: [...SAMPLE_POSTS, ...generateHistoricalPosts()],
-      notifications: SAMPLE_NOTIFS,
-      followedUsers: new Set(),
-      onboardingFollowed: new Set(),
-      syncedList: new Set(),
       homeScreenIsRecord: false,
+      hasPromptedHome: false,
       feedVisitCount: 0,
       recordUseCount: 0,
       defaultVisibility: 'group',
@@ -2000,7 +2259,12 @@ export const useAppStore = create<AppState>()(
       prevScreen: null,
       navTab: 'feed',
     })
-    try { localStorage.removeItem('welling_v1') } catch (_) {}
+    try {
+      localStorage.removeItem('welling_v1')
+      localStorage.removeItem('welling_pending_invite')
+      localStorage.removeItem('welling_pending_join_names')
+      localStorage.removeItem('welling_last_record_community')
+    } catch {}
   },
     }),
     {
@@ -2040,6 +2304,7 @@ export const useAppStore = create<AppState>()(
         } else {
           updates.screen = 'onboarding-username'
         }
+        if (!state.hasPromptedHome && state.recordUseCount >= 3) updates.showHomePrompt = true
         // zustand 5.0.14: onRehydrateStorage 콜백 안에서 동기적으로 setState를 호출하면
         // hydrate()의 내부 Promise 체인이 currentVersion 불일치로 중단되어 hasHydrated가
         // 영원히 false로 남는 결함이 있음. 다음 tick으로 미뤄 우회.

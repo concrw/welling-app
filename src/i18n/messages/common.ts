@@ -9,6 +9,9 @@ const ko = {
   done: '완료',
   next: '다음',
   skip: '건너뛰기',
+  loading: '불러오는 중',
+  loadError: '새 버전을 불러오지 못했어요. 다시 시도해 주세요.',
+  retry: '다시 시도',
 }
 
 const en: typeof ko = {
@@ -22,6 +25,9 @@ const en: typeof ko = {
   done: 'Done',
   next: 'Next',
   skip: 'Skip',
+  loading: 'Loading',
+  loadError: 'Could not load the latest version. Please try again.',
+  retry: 'Try again',
 }
 
 export const common = { ko, en }

@@ -16,7 +16,9 @@ export default function Ranking() {
   const communities = useAppStore((s) => s.communities)
   const posts = useAppStore((s) => s.posts)
 
-  const RANKING_TABS = ['All', ...communities.map((c) => c.name)]
+  // 피드와 같은 그룹 칩을 쓴다: 가입한 커뮤니티만.
+  const joinedCommunities = communities.filter((c) => c.joined)
+  const RANKING_TABS = ['All', ...joinedCommunities.map((c) => c.name)]
 
   // Derive which community ids each user has posted in
   const userCommunityMap = new Map<string, Set<string>>()

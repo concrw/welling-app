@@ -1,4 +1,5 @@
-import type { Post, RoutineGroupData } from '../store/appStore'
+import type { Post, PostCategory, RoutineGroupData } from '../store/appStore'
+import { DIET_HINTS, EXERCISE_HINTS } from '../data/achievementKeywords'
 
 const DAY_MS = 86400000
 
@@ -19,12 +20,24 @@ export interface AchievementResult {
   streak: number
 }
 
+// 루틴 항목 이름에서 '운동'/'식사' 중 어느 쪽에 가까운지 추측한다. 퀵 기록(운동했어/먹었어)이
+// 구체적인 키워드 없이 올라와도 해당 카테고리의 항목은 달성으로 인정하기 위함이다.
+function inferItemCategory(itemName: string): PostCategory | null {
+  const lower = itemName.toLowerCase()
+  if (EXERCISE_HINTS.some((h) => lower.includes(h))) return 'exercise'
+  if (DIET_HINTS.some((h) => lower.includes(h))) return 'diet'
+  return null
+}
+
 // 게시글 내용에 루틴 항목 이름이 포함돼 있는지 판정한다.
 // 항목 이름의 첫 단어(예: "달리기 5km" -> "달리기")를 기준으로 매칭한다.
-export function matchesItem(postContent: string, itemName: string): boolean {
+// category가 주어지면, 구체적인 키워드가 없는 퀵 기록(예: "운동했어")도 같은 카테고리의
+// 항목은 달성으로 인정한다.
+export function matchesItem(postContent: string, itemName: string, category?: PostCategory): boolean {
   const keyword = itemName.trim().split(' ')[0]?.toLowerCase()
-  if (!keyword) return false
-  return postContent.toLowerCase().includes(keyword)
+  if (keyword && postContent.toLowerCase().includes(keyword)) return true
+  if (category && category === inferItemCategory(itemName)) return true
+  return false
 }
 
 function dayKey(ts: number): string {
@@ -48,7 +61,7 @@ export function computeAchievementForRange(
     const items: ItemAchievement[] = group.items.map((item) => {
       const completedDays = new Set<string>()
       for (const post of userPosts) {
-        if (matchesItem(post.content, item.name)) completedDays.add(dayKey(post.createdAt))
+        if (matchesItem(post.content, item.name, post.category)) completedDays.add(dayKey(post.createdAt))
       }
       const rate = Math.round((completedDays.size / periodDays) * 100)
       return { name: item.name, rate: Math.min(100, rate) }
@@ -65,7 +78,7 @@ export function computeAchievementForRange(
   for (let d = 0; d < periodDays; d++) {
     const targetKey = dayKey(endDate - d * DAY_MS)
     const hasHit = userPosts.some(
-      (p) => dayKey(p.createdAt) === targetKey && allItemNames.some((name) => matchesItem(p.content, name))
+      (p) => dayKey(p.createdAt) === targetKey && allItemNames.some((name) => matchesItem(p.content, name, p.category))
     )
     if (!hasHit) break
     streak++
@@ -82,7 +95,17 @@ export function computeAchievement(
   periodDays: number
 ): AchievementResult {
   const now = Date.now()
-  return computeAchievementForRange(routineGoals, posts, userName, now - periodDays * DAY_MS, now)
+  const windowStart = now - periodDays * DAY_MS
+  const firstPostInWindow = posts
+    .filter((post) => post.user === userName && post.createdAt >= windowStart && post.createdAt <= now)
+    .reduce<number | null>((earliest, post) => earliest === null ? post.createdAt : Math.min(earliest, post.createdAt), null)
+
+  // A current routine should not be scored against days before the user began recording.
+  // This also ensures a valid record made today produces a visible non-zero result.
+  const effectiveStart = firstPostInWindow === null
+    ? windowStart
+    : Math.max(windowStart, new Date(firstPostInWindow).setHours(0, 0, 0, 0))
+  return computeAchievementForRange(routineGoals, posts, userName, effectiveStart, now)
 }
 
 // 해당 유저의 마지막 게시물로부터 며칠이 지났는지. 게시물이 전혀 없으면 Infinity.

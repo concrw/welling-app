@@ -1,14 +1,7 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useMessages } from '../i18n'
-
-function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  return (
-    <div onClick={onToggle} style={{ width: 40, height: 22, borderRadius: 11, background: on ? '#111111' : '#DDDDDD', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background .2s' }}>
-      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: on ? 20 : 2, boxShadow: '0 1px 3px rgba(0,0,0,.2)', transition: 'left .2s' }} />
-    </div>
-  )
-}
+import { Toggle } from '../components/ui/Toggle'
 
 export default function RoutinePrivacy() {
   const M = useMessages()
@@ -44,12 +37,12 @@ export default function RoutinePrivacy() {
           <div key={pg.name} style={{ borderRadius: 12, background: '#FAFAFA', border: '1px solid #EBEBEB', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #EBEBEB' }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: pg.on ? '#111111' : '#AAAAAA' }}>{pg.name}</span>
-              <Toggle on={pg.on} onToggle={() => toggleGroup(gi)} />
+              <Toggle on={pg.on} onToggle={() => toggleGroup(gi)} label={pg.name} />
             </div>
             {pg.items.map((pgi, ii) => (
               <div key={pgi.name} style={{ padding: '10px 16px 10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F5F5F5' }}>
                 <span style={{ fontSize: 12, color: pgi.on ? '#111111' : '#AAAAAA', fontWeight: 300 }}>· {pgi.name}</span>
-                <Toggle on={pgi.on} onToggle={() => toggleItem(gi, ii)} />
+                <Toggle on={pgi.on} onToggle={() => toggleItem(gi, ii)} label={pgi.name} />
               </div>
             ))}
           </div>

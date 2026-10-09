@@ -13,22 +13,22 @@ export function daysAgo(n: number, hour = 8, minute = 0): number {
 export const SAMPLE_POSTS: Post[] = [
   { id: 'p0a', user: 'Min', initials: 'M', color: '#00A389', content: '새벽 러닝 4km 완료. 컨디션 좋아요.', community: 'morning-runners', time: '방금', createdAt: daysAgo(0, 7, 40), liked: true, reactions: {} },
   { id: 'p0b', user: 'Min', initials: 'M', color: '#00A389', content: '스쿼트 30개 완료. 오늘도 꾸준히 갑니다.', community: 'morning-runners', time: '방금', createdAt: daysAgo(0, 7, 55), liked: false, reactions: {} },
-  { id: 'p1', user: '정도윤', initials: '정', color: '#1A6B4A', content: '오늘 아침 달리기 5km. 날씨 좋아서 더 잘 됐어요.', community: 'morning-runners', time: '5분', createdAt: daysAgo(0, 6, 5), liked: false, reactions: { Cheer: 8, Inspired: 12, Nice: 5 }, comments: [{ user: '한다솜', text: '저도 오늘 뛰었어요! 같이 해요.' }, { user: '김민준', text: '5km 대단해요.' }] },
-  { id: 'p2', user: '한다솜', initials: '한', color: '#C2600A', content: '기상 직후 스트레칭 10분 + 조깅 3km 완료.', community: 'morning-runners', time: '22분', createdAt: daysAgo(0, 6, 30), liked: false, reactions: { Cheer: 4, Inspired: 6, Nice: 3 } },
+  { id: 'p1', user: '정도윤', initials: '정', color: '#1A6B4A', content: '오늘 아침 달리기 5km. 날씨 좋아서 더 잘 됐어요.', community: 'morning-runners', time: '5분', createdAt: daysAgo(0, 6, 5), liked: false, reactions: { cheer: 8, inspired: 12, nice: 5 }, comments: [{ user: '한다솜', text: '저도 오늘 뛰었어요! 같이 해요.' }, { user: '김민준', text: '5km 대단해요.' }] },
+  { id: 'p2', user: '한다솜', initials: '한', color: '#C2600A', content: '기상 직후 스트레칭 10분 + 조깅 3km 완료.', community: 'morning-runners', time: '22분', createdAt: daysAgo(0, 6, 30), liked: false, reactions: { cheer: 4, inspired: 6, nice: 3 } },
   { id: 'p3', user: '김민준', initials: '김', color: '#555555', content: '새벽 6시 달리기. 어제보다 0.5km 늘었어요.', community: 'morning-runners', time: '1시간', createdAt: daysAgo(0, 6, 0), liked: false, reactions: {} },
-  { id: 'p4', user: '이서연', initials: '이', color: '#C2600A', content: '그릭 요거트 + 블루베리 + 견과류 아침 식사. 칼로리 계산하면서 먹는 것도 이제 습관이 됐어요.', community: 'clean-eaters', time: '8분', createdAt: daysAgo(0, 8, 10), liked: false, reactions: { Cheer: 3, Inspired: 11, Nice: 7 }, comments: [{ user: '김민준', text: '저도 들어가도 될까요?' }] },
-  { id: 'p5', user: '최수아', initials: '최', color: '#C2600A', content: '점심 현미밥 + 두부구이 + 나물 3종. 탄단지 비율 맞추는 중.', community: 'clean-eaters', time: '1시간', createdAt: daysAgo(0, 12, 20), liked: false, reactions: { Cheer: 6, Inspired: 9, Nice: 4 } },
+  { id: 'p4', user: '이서연', initials: '이', color: '#C2600A', content: '그릭 요거트 + 블루베리 + 견과류 아침 식사. 칼로리 계산하면서 먹는 것도 이제 습관이 됐어요.', community: 'clean-eaters', time: '8분', createdAt: daysAgo(0, 8, 10), liked: false, reactions: { cheer: 3, inspired: 11, nice: 7 }, comments: [{ user: '김민준', text: '저도 들어가도 될까요?' }] },
+  { id: 'p5', user: '최수아', initials: '최', color: '#C2600A', content: '점심 현미밥 + 두부구이 + 나물 3종. 탄단지 비율 맞추는 중.', community: 'clean-eaters', time: '1시간', createdAt: daysAgo(0, 12, 20), liked: false, reactions: { cheer: 6, inspired: 9, nice: 4 } },
   { id: 'p5b', user: '한다솜', initials: '한', color: '#C2600A', content: '하루 물 2L 챌린지 14일째. 매일 알람 맞춰놓고 마시고 있어요.', community: 'clean-eaters', time: '3시간', createdAt: daysAgo(0, 9, 0), liked: false, reactions: {} },
   { id: 'p6', user: '박지호', initials: '박', color: '#1A6B4A', content: '독서 30분 완료. "아주 작은 습관의 힘" 읽는 중. 공감되는 내용 너무 많아요.', community: 'book-club', time: '23분', createdAt: daysAgo(0, 21, 0), liked: false, reactions: {} },
-  { id: 'p7', user: '김민준', initials: '김', color: '#555555', content: '스쿼트 50개 완료. 오늘도 좋은 시작이에요.', community: 'morning-runners', time: '방금', createdAt: daysAgo(0, 6, 15), liked: false, reactions: { Cheer: 12, Inspired: 5, Nice: 8 }, comments: [{ user: '이서연', text: '매일 하시는 거예요? 대단해요.' }, { user: '박지호', text: '저도 자극받았어요.' }] },
+  { id: 'p7', user: '김민준', initials: '김', color: '#555555', content: '스쿼트 50개 완료. 오늘도 좋은 시작이에요.', community: 'morning-runners', time: '방금', createdAt: daysAgo(0, 6, 15), liked: false, reactions: { cheer: 12, inspired: 5, nice: 8 }, comments: [{ user: '이서연', text: '매일 하시는 거예요? 대단해요.' }, { user: '박지호', text: '저도 자극받았어요.' }] },
   { id: 'p8', user: '정도윤', initials: '정', color: '#1A6B4A', content: '아침: 물 한 잔 + 스트레칭 / 점심: 계단 오르기 성공.', community: 'morning-runners', time: '5분', createdAt: daysAgo(0, 12, 30), liked: false, reactions: {} },
   { id: 'p9', user: '오재원', initials: '오', color: '#6B6B6B', content: '명상 10분 완료. 아침을 이렇게 시작하니 하루가 달라요.', community: 'morning-runners', time: '44분', createdAt: daysAgo(0, 7, 0), liked: false, reactions: {} },
   { id: 'p10', user: '강지우', initials: '강', color: '#1A6B4A', content: '기상 직후 찬물 세수. 별거 아닌 것 같지만 확실히 깨요.', community: 'morning-runners', time: '1시간', createdAt: daysAgo(0, 6, 45), liked: false, reactions: {} },
-  { id: 'p11', user: '이서연', initials: '이', color: '#C2600A', content: '아침 공복 물 한 잔 + 레몬즙. 3개월째 지속 중.', community: 'clean-eaters', time: '2시간', createdAt: daysAgo(0, 7, 30), liked: false, reactions: { Cheer: 7, Inspired: 3 } },
-  { id: 'p12', user: '김민준', initials: '김', color: '#555555', content: '웨이트 풀 데이 완료. 데드리프트 120kg 성공.', community: 'strength-lab', time: '2시간', createdAt: daysAgo(0, 18, 0), liked: false, reactions: { Cheer: 14, Inspired: 9, Nice: 6 } },
-  { id: 'p13', user: '박지호', initials: '박', color: '#1A6B4A', content: '명상 15분 + 감사 일기 작성. 루틴에 저널링 추가해봤어요.', community: 'mind-first', time: '3시간', createdAt: daysAgo(0, 22, 0), liked: false, reactions: { Inspired: 8, Nice: 4 } },
-  { id: 'p14', user: '최수아', initials: '최', color: '#C2600A', content: '스쿼트 100개 챌린지 7일째. 허벅지가 비명을 질러요.', community: 'strength-lab', time: '4시간', createdAt: daysAgo(0, 19, 0), liked: false, reactions: { Cheer: 11, Inspired: 5 } },
-  { id: 'p15', user: '한다솜', initials: '한', color: '#C2600A', content: '"아주 작은 습관의 힘" 완독. 오늘부터 2% 개선 실천.', community: 'book-club', time: '5시간', createdAt: daysAgo(0, 20, 0), liked: false, reactions: { Inspired: 16, Nice: 7 } },
+  { id: 'p11', user: '이서연', initials: '이', color: '#C2600A', content: '아침 공복 물 한 잔 + 레몬즙. 3개월째 지속 중.', community: 'clean-eaters', time: '2시간', createdAt: daysAgo(0, 7, 30), liked: false, reactions: { cheer: 7, inspired: 3 } },
+  { id: 'p12', user: '김민준', initials: '김', color: '#555555', content: '웨이트 풀 데이 완료. 데드리프트 120kg 성공.', community: 'strength-lab', time: '2시간', createdAt: daysAgo(0, 18, 0), liked: false, reactions: { cheer: 14, inspired: 9, nice: 6 } },
+  { id: 'p13', user: '박지호', initials: '박', color: '#1A6B4A', content: '명상 15분 + 감사 일기 작성. 루틴에 저널링 추가해봤어요.', community: 'mind-first', time: '3시간', createdAt: daysAgo(0, 22, 0), liked: false, reactions: { inspired: 8, nice: 4 } },
+  { id: 'p14', user: '최수아', initials: '최', color: '#C2600A', content: '스쿼트 100개 챌린지 7일째. 허벅지가 비명을 질러요.', community: 'strength-lab', time: '4시간', createdAt: daysAgo(0, 19, 0), liked: false, reactions: { cheer: 11, inspired: 5 } },
+  { id: 'p15', user: '한다솜', initials: '한', color: '#C2600A', content: '"아주 작은 습관의 힘" 완독. 오늘부터 2% 개선 실천.', community: 'book-club', time: '5시간', createdAt: daysAgo(0, 20, 0), liked: false, reactions: { inspired: 16, nice: 7 } },
 ]
 
 // 랭킹/대시보드 달성률 계산이 실제 여러 날에 걸친 기록을 근거로 할 수 있도록,
@@ -215,13 +215,19 @@ export function generateHistoricalPosts(): Post[] {
   const posts: Post[] = []
   for (const hu of HISTORICAL_RECORDS) {
     hu.entries.forEach((entry, ei) => {
+      // days.length가 contents.length보다 크면 d % length가 겹쳐 같은 문구가 여러 번
+      // 나온다(near-duplicate 피드). 같은 문구 인덱스는 엔트리당 한 번만 사용한다.
+      const usedContentIdx = new Set<number>()
       entry.days.forEach((d) => {
+        const contentIdx = d % entry.contents.length
+        if (usedContentIdx.has(contentIdx)) return
+        usedContentIdx.add(contentIdx)
         posts.push({
           id: `hist-${hu.user}-${ei}-${d}`,
           user: hu.user,
           initials: entry.initials,
           color: entry.color,
-          content: entry.contents[d % entry.contents.length],
+          content: entry.contents[contentIdx],
           community: entry.community,
           time: `${d}일 전`,
           createdAt: daysAgo(d, 7, 30),
@@ -234,11 +240,20 @@ export function generateHistoricalPosts(): Post[] {
   return posts
 }
 
+// 데모 커뮤니티별 실제 멤버 명단(그룹 상세의 멤버 수와 그룹 설정의 멤버 탭이 같은 숫자를
+// 가리키도록 단일 소스로 관리한다). "나"는 가입한 그룹에서만 명단에 포함된다.
+export const DEMO_GROUP_MEMBER_IDS: Record<string, string[]> = {
+  'morning-runners': ['u1', 'u3', 'u6', 'u8'],
+  'clean-eaters': ['u2', 'u4', 'u5'],
+  'book-club': ['u5', 'u7'],
+  'office-workout': ['u1'],
+}
+
 export const SAMPLE_COMMUNITIES: Community[] = [
-  { id: 'morning-runners', name: 'Morning Runners', initial: 'R', color: '#0984E3', members: 1243, focus: 'exercise & movement records', desc: '운동과 러닝 루틴만 공유하는 새벽 커뮤니티.', joined: true },
-  { id: 'clean-eaters', name: 'Clean Eaters', initial: 'C', color: '#00A389', members: 892, focus: 'nutrition & meal records', desc: '식단 기록과 건강한 음식 루틴 공유.', joined: true },
-  { id: 'book-club', name: 'Book Club 30m', initial: 'B', color: '#7C3AED', members: 567, focus: 'reading records', desc: '하루 30분 독서 습관을 함께 만드는 클럽.', joined: false },
-  { id: 'office-workout', name: 'Office Workout', initial: 'W', color: '#B45309', members: 388, focus: 'exercise records', desc: '사무실 틈새 운동 루틴 공유.', joined: false },
+  { id: 'morning-runners', name: 'Morning Runners', initial: 'R', color: '#0984E3', members: DEMO_GROUP_MEMBER_IDS['morning-runners'].length + 1, focus: 'exercise & movement records', desc: '운동과 러닝 루틴만 공유하는 새벽 커뮤니티.', joined: true, inviteCode: 'demo-morning-runners' },
+  { id: 'clean-eaters', name: 'Clean Eaters', initial: 'C', color: '#00A389', members: DEMO_GROUP_MEMBER_IDS['clean-eaters'].length + 1, focus: 'nutrition & meal records', desc: '식단 기록과 건강한 음식 루틴 공유.', joined: true, inviteCode: 'demo-clean-eaters' },
+  { id: 'book-club', name: 'Book Club 30m', initial: 'B', color: '#7C3AED', members: DEMO_GROUP_MEMBER_IDS['book-club'].length, focus: 'reading records', desc: '하루 30분 독서 습관을 함께 만드는 클럽.', joined: false, inviteCode: 'demo-book-club' },
+  { id: 'office-workout', name: 'Office Workout', initial: 'W', color: '#B45309', members: DEMO_GROUP_MEMBER_IDS['office-workout'].length, focus: 'exercise records', desc: '사무실 틈새 운동 루틴 공유.', joined: false, inviteCode: 'demo-office-workout' },
 ]
 
 export const SAMPLE_USERS: User[] = [
@@ -272,14 +287,16 @@ export const SAMPLE_USERS: User[] = [
   ] },
 ]
 
+// text는 타입을 식별할 수 없는 경우의 폴백일 뿐, 실제 표시 문구는 Notifications 화면에서
+// type/kind 기반으로 i18n 카탈로그를 거쳐 계산된다(언어 토글에 즉시 반응하도록).
 export const SAMPLE_NOTIFS: Notification[] = [
-  { id: 'n1', user: '박지호', type: 'follow', text: '회원님을 팔로우하기 시작했어요.', read: false, time: '5분' },
-  { id: 'n2', user: '이서연', type: 'like', text: '회원님의 게시물에 반응했어요.', read: false, time: '12분' },
-  { id: 'n3', user: 'Morning Runners', type: 'comment', text: '커뮤니티에 새 게시물이 10개 있어요.', read: false, time: '1시간' },
-  { id: 'n4', user: '김민준', type: 'follow', text: '회원님을 팔로우하기 시작했어요.', read: false, time: '2시간' },
-  { id: 'n5', user: '최수아', type: 'like', text: '달리기 기록 게시물에 반응했어요.', read: true, time: '3시간' },
-  { id: 'n6', user: 'Clean Eaters', type: 'comment', text: '커뮤니티에 새 게시물이 5개 있어요.', read: true, time: '4시간' },
-  { id: 'n7', user: '오재원', type: 'follow', text: '회원님을 팔로우하기 시작했어요.', read: true, time: '어제' },
-  { id: 'n8', user: '한다솜', type: 'comment', text: '루틴 게시물에 댓글을 남겼어요: "저도 같이 해요!"', read: true, time: '어제' },
-  { id: 'n9', user: 'Book Club 30m', type: 'comment', text: '커뮤니티에 가입 승인되었어요.', read: true, time: '2일' },
+  { id: 'n1', user: '박지호', type: 'follow', text: '', read: false, time: '5분' },
+  { id: 'n2', user: '이서연', type: 'like', text: '', count: 1, read: false, time: '12분' },
+  { id: 'n3', user: 'Morning Runners', type: 'comment', kind: 'newPosts', count: 10, text: '', read: false, time: '1시간' },
+  { id: 'n4', user: '김민준', type: 'follow', text: '', read: false, time: '2시간' },
+  { id: 'n5', user: '최수아', type: 'like', text: '', count: 1, read: true, time: '3시간' },
+  { id: 'n6', user: 'Clean Eaters', type: 'comment', kind: 'newPosts', count: 5, text: '', read: true, time: '4시간' },
+  { id: 'n7', user: '오재원', type: 'follow', text: '', read: true, time: '어제' },
+  { id: 'n8', user: '한다솜', type: 'comment', text: '', read: true, time: '어제' },
+  { id: 'n9', user: 'Book Club 30m', type: 'comment', kind: 'joinApproved', text: '', read: true, time: '2일' },
 ]

@@ -7,6 +7,7 @@ const LANG_OPTIONS = (['ko', 'en'] as Lang[]).map((value) => ({ value, label: LA
 
 type SettingsItemKey =
   | 'notifications'
+  | 'ranking'
   | 'homeScreen'
   | 'defaultVisibility'
   | 'profileVisibility'
@@ -16,6 +17,7 @@ type SettingsItemKey =
 
 const SETTINGS_ITEMS: { key: SettingsItemKey; color: string; nav?: Screen; isSignOut?: boolean }[] = [
   { key: 'notifications', color: '#111111', nav: 'alarm' },
+  { key: 'ranking', color: '#111111', nav: 'ranking' },
   { key: 'homeScreen', color: '#111111', nav: 'settings-home-screen' },
   { key: 'defaultVisibility', color: '#111111', nav: 'settings-default-visibility' },
   { key: 'profileVisibility', color: '#111111', nav: 'settings-profile-visibility' },

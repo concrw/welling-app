@@ -4,7 +4,7 @@ const ko = {
   syncing: '동기화 중...',
   syncPartial: (success: number, failed: number) => `${success}개 완료, ${failed}개 실패`,
   syncSuccess: (n: number) => `${n}개 이벤트를 캘린더에 추가했어요`,
-  authExpired: 'Google 인증이 만료됐어요. Settings에서 다시 연결해주세요.',
+  authExpired: 'Google 인증이 만료됐어요. 설정에서 다시 연결해주세요.',
   addItem: '+ 추가',
   addGroup: '+ 루틴 그룹 추가',
   groupNamePlaceholder: '그룹 이름 (예: 아침 루틴)',

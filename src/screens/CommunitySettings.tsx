@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { supabase } from '../lib/supabaseClient'
-import { useMessages } from '../i18n'
+import { useLangStore, useMessages } from '../i18n'
 import { callRpc, getStatusMessage } from '../lib/rpc'
+import { SAMPLE_USERS, DEMO_GROUP_MEMBER_IDS } from '../data/demo'
 
 interface Member {
   id: string
@@ -20,11 +21,15 @@ interface JoinRequest {
 
 export default function CommunitySettings() {
   const M = useMessages()
+  const lang = useLangStore((s) => s.lang)
   const goBack = useAppStore((s) => s.goBack)
   const selectedCommunity = useAppStore((s) => s.selectedCommunity)
   const userId = useAppStore((s) => s.userId)
   const navigate = useAppStore((s) => s.navigate)
-  
+  const isDemo = useAppStore((s) => s.isDemo)
+  const nickname = useAppStore((s) => s.nickname)
+  const toggleJoinCommunity = useAppStore((s) => s.toggleJoinCommunity)
+
   const [inviteUrl, setInviteUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [rotating, setRotating] = useState(false)
@@ -38,12 +43,41 @@ export default function CommunitySettings() {
   const [showTransferConfirm, setShowTransferConfirm] = useState(false)
   const [transferTarget, setTransferTarget] = useState<Member | null>(null)
   const [isMuted, setIsMuted] = useState(false)
+  const selectedCommunityId = selectedCommunity?.id
 
   useEffect(() => {
-    if (!selectedCommunity || !userId) return
+    if (!selectedCommunityId) return
+    if (isDemo) {
+      loadDemoSettings()
+      return
+    }
+    if (!userId) return
     loadSettings()
     loadMuteStatus()
-  }, [selectedCommunity, userId])
+  // The loaders intentionally close over the current selected group and session.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCommunityId, userId, isDemo])
+
+  const loadDemoSettings = () => {
+    if (!selectedCommunity) return
+    setLoading(true)
+    const url = `${window.location.origin}/?invite=${selectedCommunity.inviteCode ?? 'demo'}`
+    setInviteUrl(url)
+    setRequiresApproval(false)
+
+    const memberIds = DEMO_GROUP_MEMBER_IDS[selectedCommunity.id] ?? []
+    const demoMembers: Member[] = memberIds.map((id, i) => {
+      const u = SAMPLE_USERS.find((su) => su.id === id)
+      return { id, nickname: u?.name ?? M.groupSettings.unknownMember, role: 'member', joined_at: new Date(Date.now() - (i + 1) * 86400000).toISOString() }
+    })
+    if (selectedCommunity.joined) {
+      demoMembers.push({ id: 'demo-me', nickname: nickname || 'Min', role: 'member', joined_at: new Date().toISOString() })
+    }
+    setMembers(demoMembers)
+    setMyRole('member')
+    setPendingRequests([])
+    setLoading(false)
+  }
 
   const loadMuteStatus = async () => {
     if (!selectedCommunity || !userId) return
@@ -86,11 +120,15 @@ export default function CommunitySettings() {
     if (memberData) {
       const membersList: Member[] = memberData.map((m: any) => ({
         id: m.user_id,
-        nickname: m.profiles?.nickname ?? 'Unknown',
+        nickname: m.profiles?.nickname ?? M.groupSettings.unknownMember,
         role: m.role,
         joined_at: m.joined_at,
       }))
       setMembers(membersList)
+      useAppStore.setState((state) => ({
+        communities: state.communities.map((community) => community.id === selectedCommunity.id ? { ...community, members: membersList.length } : community),
+        selectedCommunity: state.selectedCommunity?.id === selectedCommunity.id ? { ...state.selectedCommunity, members: membersList.length } : state.selectedCommunity,
+      }))
       
       const me = membersList.find((m) => m.id === userId)
       if (me) setMyRole(me.role)
@@ -109,7 +147,7 @@ export default function CommunitySettings() {
         const requestsList: JoinRequest[] = requestData.map((r: any) => ({
           id: r.id,
           user_id: r.user_id,
-          nickname: r.profiles?.nickname ?? 'Unknown',
+          nickname: r.profiles?.nickname ?? M.groupSettings.unknownMember,
           requested_at: r.requested_at,
         }))
         setPendingRequests(requestsList)
@@ -120,13 +158,13 @@ export default function CommunitySettings() {
   }
 
   const handleCopy = async () => {
-    const shareText = `${selectedCommunity?.name} 그룹에 초대합니다!\n\n함께 건강한 습관을 만들어요 💪\n\n${inviteUrl}`
+    const shareText = `${M.groupSettings.inviteShareText(selectedCommunity?.name ?? '')}${inviteUrl}`
     
     try {
       await navigator.clipboard.writeText(shareText)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
+    } catch {
       const textarea = document.createElement('textarea')
       textarea.value = shareText
       textarea.style.position = 'fixed'
@@ -141,12 +179,12 @@ export default function CommunitySettings() {
   }
 
   const handleShare = async () => {
-    const shareText = `${selectedCommunity?.name} 그룹에 초대합니다!\n\n함께 건강한 습관을 만들어요 💪\n\n${inviteUrl}`
+    const shareText = `${M.groupSettings.inviteShareText(selectedCommunity?.name ?? '')}${inviteUrl}`
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${selectedCommunity?.name} 그룹 초대`,
+          title: M.groupSettings.inviteShareTitle(selectedCommunity?.name ?? ''),
           text: shareText,
           url: inviteUrl,
         })
@@ -255,7 +293,14 @@ export default function CommunitySettings() {
 
   const handleLeave = async () => {
     if (!selectedCommunity) return
-    
+
+    if (isDemo) {
+      await toggleJoinCommunity(selectedCommunity.id)
+      setShowLeaveConfirm(false)
+      navigate('feed')
+      return
+    }
+
     const result = await callRpc('leave_group', {
       p_community_id: selectedCommunity.id,
     })
@@ -292,6 +337,11 @@ export default function CommunitySettings() {
     if (!selectedCommunity) return
     
     const newMuted = !isMuted
+
+    if (isDemo) {
+      setIsMuted(newMuted)
+      return
+    }
     
     const result = await callRpc('toggle_community_notifications', {
       p_community_id: selectedCommunity.id,
@@ -331,7 +381,7 @@ export default function CommunitySettings() {
             <path d="M15 18l-6-6 6-6" stroke="#111111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <span style={{ fontSize: 18, fontWeight: 800, color: '#111111' }}>그룹 설정</span>
+        <span style={{ fontSize: 18, fontWeight: 800, color: '#111111' }}>{M.groupSettings.title}</span>
       </div>
 
       {/* Tabs */}
@@ -350,7 +400,7 @@ export default function CommunitySettings() {
             cursor: 'pointer',
           }}
         >
-          초대
+          {M.groupSettings.tabInvite}
         </button>
         <button
           onClick={() => setActiveTab('members')}
@@ -366,7 +416,7 @@ export default function CommunitySettings() {
             cursor: 'pointer',
           }}
         >
-          멤버 ({members.length})
+          {M.groupSettings.tabMembers} ({members.length})
         </button>
         {requiresApproval && isOwnerOrAdmin && (
           <button
@@ -383,19 +433,19 @@ export default function CommunitySettings() {
               cursor: 'pointer',
             }}
           >
-            요청 ({pendingRequests.length})
+            {M.groupSettings.tabRequests} ({pendingRequests.length})
           </button>
         )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-        {loading && <p style={{ textAlign: 'center', color: '#999999' }}>로딩 중...</p>}
+        {loading && <p style={{ textAlign: 'center', color: '#999999' }}>{M.groupSettings.loading}</p>}
 
         {/* Invite Tab */}
         {activeTab === 'invite' && !loading && (
           <div>
             <div style={{ marginBottom: 24 }}>
-              <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 700, color: '#666666' }}>초대 링크</p>
+              <p style={{ margin: '0 0 12px', fontSize: 12, fontWeight: 700, color: '#666666' }}>{M.groupSettings.inviteLinkLabel}</p>
               <div style={{ padding: '12px 16px', background: '#F8F9FA', borderRadius: 8, border: '1px solid #E0E0E0', marginBottom: 12, wordBreak: 'break-all', fontSize: 13, color: '#111111' }}>
                 {inviteUrl}
               </div>
@@ -414,7 +464,7 @@ export default function CommunitySettings() {
                     cursor: 'pointer',
                   }}
                 >
-                  {copied ? '✓ 복사 완료' : '📋 복사'}
+                  {copied ? M.groupSettings.inviteCopied : M.groupSettings.inviteCopy}
                 </button>
                 <button
                   onClick={handleShare}
@@ -430,7 +480,7 @@ export default function CommunitySettings() {
                     cursor: 'pointer',
                   }}
                 >
-                  🔗 공유하기
+                  {M.groupSettings.inviteShare}
                 </button>
               </div>
               {isOwnerOrAdmin && (
@@ -449,11 +499,11 @@ export default function CommunitySettings() {
                     cursor: rotating ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {rotating ? '재생성 중...' : '🔄 초대 링크 재생성'}
+                  {rotating ? M.groupSettings.inviteRotating : M.groupSettings.inviteRotate}
                 </button>
               )}
               <p style={{ margin: '8px 0 0', fontSize: 12, color: '#999999' }}>
-                링크가 유출되었다면 재생성하세요. 기존 링크는 무효화됩니다.
+                {M.groupSettings.inviteRotateWarning}
               </p>
             </div>
 
@@ -461,11 +511,13 @@ export default function CommunitySettings() {
             <div style={{ padding: '16px', background: '#F8F9FA', borderRadius: 12, marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111111' }}>알림 끄기</p>
-                  <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>이 그룹의 알림을 받지 않습니다</p>
+                  <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111111' }}>{M.groupSettings.muteTitle}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>{M.groupSettings.muteDesc}</p>
                 </div>
                 <button
                   onClick={handleToggleMute}
+                  aria-pressed={isMuted}
+                  aria-label={M.groupSettings.muteTitle}
                   style={{
                     width: 48,
                     height: 28,
@@ -497,11 +549,13 @@ export default function CommunitySettings() {
               <div style={{ padding: '16px', background: '#F8F9FA', borderRadius: 12, marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111111' }}>가입 승인</p>
-                    <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>새 멤버를 수동으로 승인합니다</p>
+                    <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: '#111111' }}>{M.groupSettings.approvalTitle}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: '#666666' }}>{M.groupSettings.approvalDesc}</p>
                   </div>
                   <button
                     onClick={handleToggleApproval}
+                    aria-pressed={requiresApproval}
+                    aria-label={M.groupSettings.approvalTitle}
                     style={{
                       width: 48,
                       height: 28,
@@ -549,10 +603,10 @@ export default function CommunitySettings() {
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: '#111111' }}>
                     {member.nickname}
-                    {member.id === userId && ' (나)'}
+                    {member.id === userId && M.groupSettings.memberMe}
                   </p>
                   <p style={{ margin: 0, fontSize: 12, color: '#999999' }}>
-                    {member.role === 'owner' ? '👑 그룹장' : member.role === 'admin' ? '⭐ 부그룹장' : '멤버'}
+                    {member.role === 'owner' ? M.groupSettings.roleOwner : member.role === 'admin' ? M.groupSettings.roleAdmin : M.groupSettings.roleMember}
                   </p>
                 </div>
                 {isOwnerOrAdmin && member.id !== userId && (
@@ -571,7 +625,7 @@ export default function CommunitySettings() {
                           cursor: 'pointer',
                         }}
                       >
-                        {member.role === 'admin' ? '멤버로' : '부그룹장'}
+                        {member.role === 'admin' ? M.groupSettings.actionDemote : M.groupSettings.actionPromote}
                       </button>
                     )}
                     {myRole === 'owner' && member.role !== 'owner' && (
@@ -588,7 +642,7 @@ export default function CommunitySettings() {
                           cursor: 'pointer',
                         }}
                       >
-                        그룹장 위임
+                        {M.groupSettings.actionTransfer}
                       </button>
                     )}
                     <button
@@ -604,7 +658,7 @@ export default function CommunitySettings() {
                         cursor: 'pointer',
                       }}
                     >
-                      내보내기
+                      {M.groupSettings.actionKick}
                     </button>
                   </div>
                 )}
@@ -626,7 +680,7 @@ export default function CommunitySettings() {
                   cursor: 'pointer',
                 }}
               >
-                {myRole === 'owner' ? '그룹 나가기 (소유권 자동 이전)' : '그룹 나가기'}
+                {myRole === 'owner' ? M.groupSettings.leaveGroupOwner : M.groupSettings.leaveGroup}
               </button>
             </div>
           </div>
@@ -636,7 +690,7 @@ export default function CommunitySettings() {
         {activeTab === 'requests' && !loading && (
           <div>
             {pendingRequests.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#999999', padding: '32px 0' }}>대기 중인 요청이 없습니다</p>
+              <p style={{ textAlign: 'center', color: '#999999', padding: '32px 0' }}>{M.groupSettings.noRequests}</p>
             ) : (
               pendingRequests.map((request) => (
                 <div
@@ -654,7 +708,7 @@ export default function CommunitySettings() {
                       {request.nickname}
                     </p>
                     <p style={{ margin: 0, fontSize: 12, color: '#999999' }}>
-                      {new Date(request.requested_at).toLocaleDateString('ko-KR')}
+                      {new Date(request.requested_at).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US')}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: 4 }}>
@@ -671,7 +725,7 @@ export default function CommunitySettings() {
                         cursor: 'pointer',
                       }}
                     >
-                      승인
+                      {M.groupSettings.approve}
                     </button>
                     <button
                       onClick={() => handleRejectRequest(request.id)}
@@ -686,7 +740,7 @@ export default function CommunitySettings() {
                         cursor: 'pointer',
                       }}
                     >
-                      거절
+                      {M.groupSettings.reject}
                     </button>
                   </div>
                 </div>
@@ -701,22 +755,20 @@ export default function CommunitySettings() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)', padding: 24 }}>
           <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 20, maxWidth: 320, width: '100%' }}>
             <p style={{ margin: '0 0 16px', fontSize: 14, color: '#111111', lineHeight: 1.6, wordBreak: 'keep-all' }}>
-              {myRole === 'owner'
-                ? '그룹을 나가면 소유권이 다른 멤버에게 자동으로 이전됩니다. 계속하시겠습니까?'
-                : '그룹을 나가시겠습니까?'}
+              {myRole === 'owner' ? M.groupSettings.leaveConfirmOwner : M.groupSettings.leaveConfirm}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => setShowLeaveConfirm(false)}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: 'transparent', color: '#666666', fontSize: 13, fontWeight: 600, border: '1px solid #E0E0E0', cursor: 'pointer' }}
               >
-                취소
+                {M.groupSettings.cancel}
               </button>
               <button
                 onClick={handleLeave}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: '#DC2626', color: '#FFFFFF', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
               >
-                나가기
+                {M.groupSettings.leave}
               </button>
             </div>
           </div>
@@ -728,20 +780,20 @@ export default function CommunitySettings() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.5)', padding: 24 }}>
           <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 20, maxWidth: 320, width: '100%' }}>
             <p style={{ margin: '0 0 16px', fontSize: 14, color: '#111111', lineHeight: 1.6, wordBreak: 'keep-all' }}>
-              <strong>{transferTarget.nickname}</strong>님에게 그룹장 권한을 이전하시겠습니까? 이 작업은 취소할 수 없습니다.
+              {M.groupSettings.transferConfirm(transferTarget.nickname)}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => { setShowTransferConfirm(false); setTransferTarget(null) }}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: 'transparent', color: '#666666', fontSize: 13, fontWeight: 600, border: '1px solid #E0E0E0', cursor: 'pointer' }}
               >
-                취소
+                {M.groupSettings.cancel}
               </button>
               <button
                 onClick={handleTransfer}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: '#7C3AED', color: '#FFFFFF', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
               >
-                위임하기
+                {M.groupSettings.transfer}
               </button>
             </div>
           </div>

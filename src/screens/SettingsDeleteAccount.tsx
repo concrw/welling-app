@@ -8,6 +8,7 @@ export default function SettingsDeleteAccount() {
   const goBack = useAppStore((s) => s.goBack)
   const nickname = useAppStore((s) => s.nickname)
   const signOut = useAppStore((s) => s.signOut)
+  const isDemo = useAppStore((s) => s.isDemo)
   
   const [showConfirm, setShowConfirm] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -23,10 +24,16 @@ export default function SettingsDeleteAccount() {
     setDeleting(true)
     setError('')
 
+    if (isDemo) {
+      signOut()
+      return
+    }
+
     try {
       const { error: rpcError } = await supabase.rpc('delete_account')
       if (rpcError) {
-        setError(rpcError.message || M.deleteAccount.errorGeneric)
+        console.error('Account deletion failed:', rpcError)
+        setError(M.deleteAccount.errorGeneric)
         setDeleting(false)
         return
       }
@@ -35,6 +42,7 @@ export default function SettingsDeleteAccount() {
       await supabase.auth.signOut()
       signOut()
     } catch (err) {
+      console.error('Account deletion failed:', err)
       setError(M.deleteAccount.errorGeneric)
       setDeleting(false)
     }

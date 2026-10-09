@@ -1,18 +1,7 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useMessages } from '../i18n'
-
-function Toggle({ on, onToggle, small }: { on: boolean; onToggle: () => void; small?: boolean }) {
-  const w = small ? 34 : 40
-  const h = small ? 19 : 22
-  const r = h / 2
-  const knob = small ? 15 : 18
-  return (
-    <div onClick={onToggle} style={{ width: w, height: h, borderRadius: r, background: on ? '#111111' : '#DDDDDD', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background .2s' }}>
-      <div style={{ width: knob, height: knob, borderRadius: '50%', background: '#fff', position: 'absolute', top: (h - knob) / 2, left: on ? w - knob - (h - knob) / 2 : (h - knob) / 2, boxShadow: '0 1px 3px rgba(0,0,0,.2)', transition: 'left .2s' }} />
-    </div>
-  )
-}
+import { Toggle } from '../components/ui/Toggle'
 
 export default function CommNotifications() {
   const M = useMessages()
@@ -56,6 +45,7 @@ export default function CommNotifications() {
 
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p style={{ margin: '0 0 4px', fontSize: 12, color: '#AAAAAA', fontWeight: 300, lineHeight: 1.7 }}>{M.commNotifications.guide}</p>
+        <p style={{ margin: '0 0 8px', padding: '10px 12px', borderRadius: 8, background: '#FFF8E1', color: '#6B4F00', fontSize: 12, lineHeight: 1.6 }}>{M.commNotifications.comingSoon}</p>
 
         {list.map((cn) => (
           <div key={cn.id} style={{ borderRadius: 12, background: '#FAFAFA', border: '1px solid #EBEBEB', overflow: 'hidden' }}>
@@ -64,13 +54,13 @@ export default function CommNotifications() {
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{cn.initial}</span>
               </div>
               <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#111111' }}>{cn.name}</span>
-              <Toggle on={cn.master} onToggle={() => toggleMaster(cn.id)} />
+              <Toggle on={cn.master} onToggle={() => toggleMaster(cn.id)} label={cn.name} />
             </div>
 
             {cn.master && SUB_OPTIONS.map((label, idx) => (
               <div key={idx} style={{ padding: '10px 16px 10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #F0F0F0' }}>
                 <span style={{ fontSize: 12, color: '#666666', fontWeight: 300 }}>{label}</span>
-                <Toggle on={cn.options[idx]} onToggle={() => toggleOption(cn.id, idx)} small />
+                <Toggle on={cn.options[idx]} onToggle={() => toggleOption(cn.id, idx)} label={`${cn.name} ${label}`} small />
               </div>
             ))}
           </div>

@@ -28,7 +28,6 @@ export default function RecordModal() {
   const routineGroups = useAppStore((s) => s.routineGroups)
   const showAppToast = useAppStore((s) => s.showAppToast)
 
-  const [toast, setToast] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -70,6 +69,7 @@ export default function RecordModal() {
   useEffect(() => {
     if (!activeTimer) return
     let fired = false
+    let intervalId: ReturnType<typeof setInterval> | null = null
     const tick = async () => {
       const remaining = activeTimer.endsAt - Date.now()
       if (remaining > 0) {
@@ -78,7 +78,7 @@ export default function RecordModal() {
       }
       if (fired) return
       fired = true
-      clearInterval(id)
+      if (intervalId) clearInterval(intervalId)
       const btn = activeTimer.btn
       setActiveTimer(null)
       setTimerRemainingMs(0)
@@ -92,39 +92,40 @@ export default function RecordModal() {
       }
       const success = await addPost(btn.label, undefined, 'habit', vis, communityId)
       if (success) {
-        showToast(M.overlays.recordDoneWithLabel(btn.label))
+        showAppToast(M.overlays.recordDoneWithLabel(btn.label))
       } else {
-        showToast(M.overlays.recordFailed)
+        showAppToast(M.overlays.recordFailed)
       }
     }
     void tick()
-    const id = setInterval(() => { void tick() }, 250)
-    return () => clearInterval(id)
+    intervalId = setInterval(() => { void tick() }, 250)
+    return () => { if (intervalId) clearInterval(intervalId) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTimer])
 
   // Auto-select target group
   useEffect(() => {
     if (!showRecordModal) return
-    if (pendingRecordCommunityId) {
+
+    const joinedCommunities = communities.filter((c) => c.joined)
+    if (pendingRecordCommunityId && joinedCommunities.some((c) => c.id === pendingRecordCommunityId)) {
       setRecordCommunityId(pendingRecordCommunityId)
       setPendingRecordCommunityId(null)
-    } else if (!recordCommunityId) {
-      const joinedCommunities = communities.filter((c) => c.joined)
-      if (activeCommunityTab && activeCommunityTab !== 'all') {
+    } else if (joinedCommunities.some((c) => c.id === recordCommunityId)) {
+      return
+    } else {
+      if (activeCommunityTab !== 'all' && joinedCommunities.some((c) => c.id === activeCommunityTab)) {
         setRecordCommunityId(activeCommunityTab)
       } else if (joinedCommunities.length > 0) {
-        setRecordCommunityId(joinedCommunities[0].id)
+        const recentId = localStorage.getItem('welling_last_record_community')
+        setRecordCommunityId(joinedCommunities.some((c) => c.id === recentId) ? recentId! : joinedCommunities[0].id)
+      } else {
+        setRecordCommunityId('')
       }
     }
   }, [showRecordModal, pendingRecordCommunityId, setPendingRecordCommunityId, recordCommunityId, activeCommunityTab, communities])
 
   if (!showRecordModal) return null
-
-  const showToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(null), 2000)
-  }
 
   const handleQuickPost = async (category: 'diet' | 'exercise') => {
     // Get Asia/Seoul time for HH:MM
@@ -154,7 +155,7 @@ export default function RecordModal() {
     
     const success = await addPost(content, undefined, category, vis, communityId)
     if (!success) {
-      showToast(M.overlays.recordFailed)
+      showAppToast(M.overlays.recordFailed)
       return
     }
     
@@ -171,7 +172,7 @@ export default function RecordModal() {
       finalImgUrl = (await uploadPostImage(imageFile, userId)) ?? undefined
       setUploading(false)
       if (!finalImgUrl) {
-        showToast(M.overlays.imageUploadFailed)
+        showAppToast(M.overlays.imageUploadFailed)
         return
       }
     }
@@ -187,7 +188,7 @@ export default function RecordModal() {
     
     const success = await addPost(recordText.trim(), finalImgUrl, recordCategory, finalVisibility, communityId, validInsta)
     if (!success) {
-      showToast(M.overlays.recordFailed)
+      showAppToast(M.overlays.recordFailed)
       return
     }
     
@@ -201,8 +202,8 @@ export default function RecordModal() {
   }
 
   const handleTextRecord = () => {
-    if (!recordText.trim()) return
-    if (recordVisibility === 'public' && looksUnrelatedToCategory(recordText, recordCategory)) {
+    if (!recordText.trim() && !imageFile) return
+    if (recordText.trim() && recordVisibility === 'public' && looksUnrelatedToCategory(recordText, recordCategory)) {
       setShowGuidelineWarning(true)
       return
     }
@@ -231,7 +232,7 @@ export default function RecordModal() {
       showAppToast(M.overlays.recordDoneWithLabel(btn.label))
       setTimeout(() => closeRecordModal(), 400)
     } else {
-      showToast(M.overlays.recordFailed)
+      showAppToast(M.overlays.recordFailed)
     }
   }
 
@@ -298,7 +299,6 @@ export default function RecordModal() {
   }
 
   const joinedCommunities = communities.filter((c) => c.joined)
-  const selectedComm = joinedCommunities.find((c) => c.id === recordCommunityId)
 
   return (
     <div data-testid="record-modal" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -326,12 +326,6 @@ export default function RecordModal() {
         </div>
       )}
 
-      {toast && (
-        <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', background: '#111111', color: '#fff', padding: '10px 20px', borderRadius: 30, fontSize: 13, fontWeight: 600, zIndex: 999, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-          {toast}
-        </div>
-      )}
-
       <div onClick={() => closeRecordModal()} style={{ flex: 1, cursor: 'pointer', background: 'rgba(0,0,0,.5)' }} />
       <div style={{ background: '#FFFFFF', borderRadius: '24px 24px 0 0', paddingTop: 20, paddingBottom: 'calc(20px + env(safe-area-inset-bottom))', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '0 20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -343,11 +337,20 @@ export default function RecordModal() {
           </button>
         </div>
 
+        {joinedCommunities.length > 0 && (
+          <div style={{ padding: '0 20px 16px' }}>
+            <label htmlFor="record-target-group" style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 700, color: '#666666' }}>{M.overlays.selectGroup}</label>
+            <select id="record-target-group" value={recordCommunityId} onChange={(e) => setRecordCommunityId(e.target.value)} disabled={Boolean(activeTimer)} style={{ width: '100%', padding: '12px 14px', border: '1px solid #D8D8D8', borderRadius: 10, background: activeTimer ? '#F4F4F4' : '#FFFFFF', color: '#111111', fontSize: 14, fontWeight: 700 }}>
+              {joinedCommunities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}
+            </select>
+          </div>
+        )}
+
         {/* L1 Mode: Big [먹었어]/[운동했어] buttons */}
-        <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
+        <div style={{ marginBottom: 24, padding: '0 20px', display: 'flex', gap: 12, position: 'relative', zIndex: 1, pointerEvents: 'auto' }}>
           <button
             onClick={() => handleQuickPost('diet')}
-            data-testid="record-quick-button"
+            data-testid="record-quick-diet"
             style={{
               flex: 1,
               padding: '20px 16px',
@@ -369,7 +372,7 @@ export default function RecordModal() {
           </button>
           <button
             onClick={() => handleQuickPost('exercise')}
-            data-testid="record-quick-button"
+            data-testid="record-quick-exercise"
             style={{
               flex: 1,
               padding: '20px 16px',
@@ -391,13 +394,6 @@ export default function RecordModal() {
           </button>
         </div>
 
-
-        {/* Target group display */}
-        {selectedComm && (
-          <div style={{ padding: '0 20px 8px', fontSize: 13, color: '#666666' }}>
-            {M.overlays.recordingTo(selectedComm.name)}
-          </div>
-        )}
 
         {/* Optional photo & text */}
         <div style={{ padding: '0 20px 16px' }}>
@@ -435,7 +431,7 @@ export default function RecordModal() {
             >
               {M.overlays.photo}
             </button>
-            {recordText.trim() && (
+            {(recordText.trim() || imageFile) && (
               <button
                 onClick={handleTextRecord}
                 disabled={uploading}
@@ -733,6 +729,7 @@ export default function RecordModal() {
                 <select
                   value={recordCommunityId}
                   onChange={(e) => setRecordCommunityId(e.target.value)}
+                  disabled={Boolean(activeTimer)}
                   style={{
                     width: '100%',
                     padding: '10px 12px',

@@ -51,10 +51,11 @@ export async function callRpc<T = Record<string, unknown>>(
   
   // Supabase 에러 (네트워크, 권한, SQL 에러 등)
   if (error) {
+    console.error(`RPC ${rpcName} failed:`, error)
     return {
       ok: false,
       status: 'error',
-      message: error.message,
+      message: 'generic_failure',
     }
   }
   

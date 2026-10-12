@@ -467,6 +467,9 @@ let inviteCheckInFlight: Promise<void> | null = null
 
 // App-level toast auto-hide timer; cleared/reset on each new toast so rapid successive toasts don't fight each other
 let appToastTimer: ReturnType<typeof setTimeout> | null = null
+const FEED_POST_LIMIT = 50
+const POST_ENGAGEMENT_LIMIT = 1000
+const NOTIFICATION_LIMIT = 100
 
 const createAccountScopedState = (): Partial<AppState> => ({
   authMode: 'signup',
@@ -989,6 +992,15 @@ export const useAppStore = create<AppState>()(
     if (error || !data.user) {
       if (error) console.error('Sign-up failed:', error)
       set({ authLoading: false, authError: getMessages().store.signupFailed })
+      return
+    }
+    if (!data.session) {
+      set({
+        authLoading: false,
+        authMode: 'login',
+        authNotice: getMessages().store.signupConfirmationSent,
+        passwordInput: '',
+      })
       return
     }
     const { error: profileError } = await supabase.from('profiles').insert({ id: data.user.id, nickname: trimmed })
@@ -1544,27 +1556,27 @@ export const useAppStore = create<AppState>()(
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
     set({ feedLoading: true, feedError: null })
-    const [communitiesResult, membersResult, postsResult, likesResult, joinRequestsResult] = await Promise.all([
+    const [communitiesResult, membersResult, postsResult, joinRequestsResult] = await Promise.all([
       supabase.from('communities').select('*'),
       supabase.from('community_members').select('community_id, user_id'),
-      supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').order('created_at', { ascending: false }),
-      supabase.from('post_likes').select('post_id').eq('user_id', userId),
+      // Initial feed is intentionally capped; pagination UI can be added later.
+      supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').order('created_at', { ascending: false }).limit(FEED_POST_LIMIT),
       supabase.from('community_join_requests').select('community_id, status').eq('user_id', userId).eq('status', 'pending'),
     ])
     // 쿼리 하나가 실패해도 나머지 결과로 화면을 구성한다. 핵심 데이터(그룹/게시글) 실패만 오류 화면으로 알린다.
-    for (const result of [communitiesResult, membersResult, postsResult, likesResult, joinRequestsResult]) {
+    for (const result of [communitiesResult, membersResult, postsResult, joinRequestsResult]) {
       if (result.error) console.error('Failed to load feed query:', result.error)
     }
     const coreError = postsResult.error ?? communitiesResult.error ?? null
     const communityRows = communitiesResult.data
     const memberRows = membersResult.data
     const postRows = postsResult.data
-    const likeRows = likesResult.data
     const joinRequestRows = joinRequestsResult.data
     const postIds = (postRows ?? []).map((p) => p.id)
-    const [{ data: reactionRows }, { data: commentRows }] = await Promise.all([
-      postIds.length ? supabase.from('post_reactions').select('post_id, user_id, reaction_type').in('post_id', postIds) : Promise.resolve({ data: [] }),
-      postIds.length ? supabase.from('post_comments').select('post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }) : Promise.resolve({ data: [] as { post_id: string; user_id: string; text: string; created_at: string }[] }),
+    const [{ data: likeRows }, { data: reactionRows }, { data: commentRows }] = await Promise.all([
+      postIds.length ? supabase.from('post_likes').select('post_id').eq('user_id', userId).in('post_id', postIds).limit(POST_ENGAGEMENT_LIMIT) : Promise.resolve({ data: [] }),
+      postIds.length ? supabase.from('post_reactions').select('post_id, user_id, reaction_type').in('post_id', postIds).limit(POST_ENGAGEMENT_LIMIT) : Promise.resolve({ data: [] }),
+      postIds.length ? supabase.from('post_comments').select('post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(POST_ENGAGEMENT_LIMIT) : Promise.resolve({ data: [] as { post_id: string; user_id: string; text: string; created_at: string }[] }),
     ])
     const commentAuthorIds = [...new Set((commentRows ?? []).map((c) => c.user_id))]
     const { data: commentAuthorRows } = commentAuthorIds.length
@@ -1757,6 +1769,8 @@ export const useAppStore = create<AppState>()(
       .select('*, profiles!notifications_actor_id_fkey(nickname)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
+      // Initial notification history is intentionally capped; pagination UI can be added later.
+      .limit(NOTIFICATION_LIMIT)
     if (error) {
       console.error('Failed to load notifications:', error)
       set({ notificationsLoading: false, notificationsError: true })

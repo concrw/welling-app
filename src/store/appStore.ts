@@ -465,6 +465,24 @@ async function replaceCurrentRoutineGroups(userId: string, groups: RoutineGroupD
 // In-flight invite preview check; restoreSession awaits it so a logged-in user's invite isn't dropped
 let inviteCheckInFlight: Promise<void> | null = null
 
+type ProfileRow = { nickname: string; is_admin: boolean | null; profile_visibility: string | null }
+
+// 이메일 확인 후 첫 로그인: 프로필 행이 없으면 가입 시 user_metadata에 저장해 둔 닉네임으로 생성한다.
+// 닉네임이 없거나 생성에 실패하면 null → 호출부가 기존 social-nickname 화면으로 보낸다.
+async function loadOrCreateProfile(user: { id: string; user_metadata?: Record<string, unknown> }): Promise<ProfileRow | null> {
+  const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', user.id).single()
+  if (profile) return profile as ProfileRow
+  const meta = user.user_metadata?.nickname
+  const nickname = typeof meta === 'string' ? meta.trim() : ''
+  if (nickname.length < 2) return null
+  const { error } = await supabase.from('profiles').insert({ id: user.id, nickname })
+  if (error) {
+    console.error('Profile creation failed:', error)
+    return null
+  }
+  return { nickname, is_admin: false, profile_visibility: 'public' }
+}
+
 // App-level toast auto-hide timer; cleared/reset on each new toast so rapid successive toasts don't fight each other
 let appToastTimer: ReturnType<typeof setTimeout> | null = null
 const FEED_POST_LIMIT = 50
@@ -991,7 +1009,7 @@ export const useAppStore = create<AppState>()(
     const trimmed = nicknameInput.trim()
     if (trimmed.length < 2) return
     set({ authLoading: true, authError: '' })
-    const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput })
+    const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput, options: { data: { nickname: trimmed } } })
     if (error || !data.user) {
       if (error) console.error('Sign-up failed:', error)
       set({ authLoading: false, authError: getMessages().store.signupFailed })
@@ -1046,7 +1064,11 @@ export const useAppStore = create<AppState>()(
       set({ authLoading: false, authError: getMessages().store.loginFailed })
       return
     }
-    const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', data.user.id).single()
+    const profile = await loadOrCreateProfile(data.user)
+    if (!profile) {
+      set({ userId: data.user.id, isDemo: false, authLoading: false, screen: 'social-nickname', navTab: 'feed' })
+      return
+    }
     set({
       nickname: profile?.nickname ?? '',
       userId: data.user.id,
@@ -1082,7 +1104,7 @@ export const useAppStore = create<AppState>()(
       set({ authInitializing: false })
       return
     }
-    const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', user.id).single()
+    const profile = await loadOrCreateProfile(user)
     // 비밀번호 복구 링크로 진입한 세션이면 피드 대신 재설정 화면을 유지한다
     const recovering = get().isPasswordRecovery
     // 소셜 로그인 첫 진입: 세션은 있지만 프로필이 없음 → 닉네임 설정 화면으로

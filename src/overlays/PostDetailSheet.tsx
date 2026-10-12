@@ -246,23 +246,21 @@ export default function PostDetailSheet() {
           <input
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            onKeyDown={(e) => {
+            onKeyDown={async (e) => {
               if (e.key === 'Enter') {
                 const trimmed = comment.trim()
                 if (!trimmed) return
-                addComment(selectedPost.id, trimmed)
-                setComment('')
+                if (await addComment(selectedPost.id, trimmed)) setComment('')
               }
             }}
             placeholder={M.overlays.commentPlaceholder}
             style={{ flex: 1, padding: '9px 14px', borderRadius: 20, border: '1px solid #EBEBEB', fontSize: 13, background: '#FAFAFA', color: '#111111', outline: 'none' }}
           />
           <button
-            onClick={() => {
+            onClick={async () => {
               const trimmed = comment.trim()
               if (!trimmed) return
-              addComment(selectedPost.id, trimmed)
-              setComment('')
+              if (await addComment(selectedPost.id, trimmed)) setComment('')
             }}
             style={{ width: 34, height: 34, borderRadius: '50%', background: '#111111', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
           >

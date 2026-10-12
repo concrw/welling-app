@@ -52,10 +52,11 @@ export function computeAchievementForRange(
   posts: Post[],
   userName: string,
   startDate: number,
-  endDate: number
+  endDate: number,
+  userId?: string | null
 ): AchievementResult {
   const periodDays = Math.max(1, Math.round((endDate - startDate) / DAY_MS))
-  const userPosts = posts.filter((p) => p.user === userName && p.createdAt >= startDate && p.createdAt <= endDate)
+  const userPosts = posts.filter((p) => (userId ? p.userId === userId : p.user === userName) && p.createdAt >= startDate && p.createdAt <= endDate)
 
   const groups: GroupAchievement[] = routineGoals.map((group) => {
     const items: ItemAchievement[] = group.items.map((item) => {
@@ -92,12 +93,13 @@ export function computeAchievement(
   routineGoals: RoutineGroupData[],
   posts: Post[],
   userName: string,
-  periodDays: number
+  periodDays: number,
+  userId?: string | null
 ): AchievementResult {
   const now = Date.now()
   const windowStart = now - periodDays * DAY_MS
   const firstPostInWindow = posts
-    .filter((post) => post.user === userName && post.createdAt >= windowStart && post.createdAt <= now)
+    .filter((post) => (userId ? post.userId === userId : post.user === userName) && post.createdAt >= windowStart && post.createdAt <= now)
     .reduce<number | null>((earliest, post) => earliest === null ? post.createdAt : Math.min(earliest, post.createdAt), null)
 
   // A current routine should not be scored against days before the user began recording.
@@ -105,7 +107,7 @@ export function computeAchievement(
   const effectiveStart = firstPostInWindow === null
     ? windowStart
     : Math.max(windowStart, new Date(firstPostInWindow).setHours(0, 0, 0, 0))
-  return computeAchievementForRange(routineGoals, posts, userName, effectiveStart, now)
+  return computeAchievementForRange(routineGoals, posts, userName, effectiveStart, now, userId)
 }
 
 // 해당 유저의 마지막 게시물로부터 며칠이 지났는지. 게시물이 전혀 없으면 Infinity.

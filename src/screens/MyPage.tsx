@@ -17,6 +17,7 @@ export default function MyPage() {
   const mypageTab = useAppStore((s) => s.mypageTab)
   const setMypageTab = useAppStore((s) => s.setMypageTab)
   const nickname = useAppStore((s) => s.nickname)
+  const userId = useAppStore((s) => s.userId)
   const dashboardPeriod = useAppStore((s) => s.dashboardPeriod)
   const setDashboardPeriod = useAppStore((s) => s.setDashboardPeriod)
   const expandedPrev = useAppStore((s) => s.expandedPrev)
@@ -45,17 +46,17 @@ export default function MyPage() {
   const toggleSection = (key: keyof AccordionState) => setOpen((s) => ({ ...s, [key]: !s[key] }))
 
   const windowDays = PERIOD_TO_DAYS[dashboardPeriod] ?? 30
-  const achievement = computeAchievement(routineGroups, posts, nickname || 'Min', windowDays)
+  const achievement = computeAchievement(routineGroups, posts, nickname || 'Min', windowDays, userId)
 
   const DAY_MS = 86400000
   const weeklyNow = Date.now()
-  const thisWeek = computeAchievementForRange(routineGroups, posts, nickname || 'Min', weeklyNow - 7 * DAY_MS, weeklyNow)
-  const lastWeek = computeAchievementForRange(routineGroups, posts, nickname || 'Min', weeklyNow - 14 * DAY_MS, weeklyNow - 7 * DAY_MS)
+  const thisWeek = computeAchievementForRange(routineGroups, posts, nickname || 'Min', weeklyNow - 7 * DAY_MS, weeklyNow, userId)
+  const lastWeek = computeAchievementForRange(routineGroups, posts, nickname || 'Min', weeklyNow - 14 * DAY_MS, weeklyNow - 7 * DAY_MS, userId)
   const weeklyDelta = thisWeek.overall - lastWeek.overall
   const pastRoutines = routineHistory.map((entry) => ({
     id: entry.id,
     period: M.myPage.periodRange(entry.startDate, entry.endDate),
-    achievement: computeAchievementForRange(entry.groups, posts, nickname || 'Min', entry.startDate, entry.endDate).overall,
+    achievement: computeAchievementForRange(entry.groups, posts, nickname || 'Min', entry.startDate, entry.endDate, userId).overall,
   }))
 
   const togglePrivacyGroup = (gi: number) => saveRoutinePrivacy(routinePrivacy.map((g, i) => i === gi ? { ...g, on: !g.on } : g))
@@ -67,7 +68,7 @@ export default function MyPage() {
   const hasUnread = notifications.some((n) => !n.read)
   const unreadCount = notifications.filter((n) => !n.read).length
   const latestNotif = notifications.find((n) => !n.read)
-  const hasOwnData = routineGroups.some((group) => group.items.length > 0) || posts.some((post) => post.user === nickname)
+  const hasOwnData = routineGroups.some((group) => group.items.length > 0) || posts.some((post) => userId ? post.userId === userId : post.user === nickname)
 
   return (
     <div data-testid="mypage-screen">

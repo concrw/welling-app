@@ -93,7 +93,7 @@ export default function Ranking() {
   // Rank by actual habit achievement rate, computed from each user's real routine goals + posted records
   const ranked = filteredUsers
     .map((u) => {
-      const { overall, streak } = computeAchievement(u.routineGoals, posts, u.name, RANKING_PERIOD_DAYS)
+      const { overall, streak } = computeAchievement(u.routineGoals, posts, u.name, RANKING_PERIOD_DAYS, u.id)
       return { user: u.name, initials: u.initials, color: u.color, completion: overall, streak }
     })
     .sort((a, b) => b.completion - a.completion || b.streak - a.streak)

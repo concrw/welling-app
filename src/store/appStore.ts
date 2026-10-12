@@ -359,7 +359,7 @@ interface AppState {
   toggleJoinCommunity: (communityId: string) => Promise<void>
   toggleLikePost: (postId: string) => Promise<void>
   toggleReaction: (postId: string, reactionType: string) => Promise<void>
-  addComment: (postId: string, text: string) => Promise<void>
+  addComment: (postId: string, text: string) => Promise<boolean>
   addPost: (content: string, imgUrl?: string, category?: PostCategory, visibility?: PostVisibility, communityId?: string | null, instaUrl?: string) => Promise<boolean>
   deletePost: (postId: string) => Promise<boolean>
   loadFeedData: () => Promise<void>
@@ -397,7 +397,7 @@ interface AppState {
   setProfileVisibility: (v: 'public' | 'followers' | 'private') => Promise<void>
   setNicknameEditInput: (v: string) => void
   submitNicknameEdit: () => Promise<void>
-  signOut: () => void
+  signOut: () => Promise<void>
 
   saveRoutineGroups: (groups: RoutineGroupData[]) => Promise<void>
   startNewRoutinePeriod: (groups: RoutineGroupData[]) => Promise<void>
@@ -435,10 +435,10 @@ async function insertRoutineGroups(userId: string, groups: RoutineGroupData[]): 
       .insert({ user_id: userId, name: group.name, sort_order: gi, is_current: true, is_public: false })
       .select()
       .single()
-    if (error || !groupRow) continue
+    if (error || !groupRow) throw error ?? new Error('Routine group insert returned no row')
     newIds.push(groupRow.id)
     if (group.items.length > 0) {
-      await supabase.from('routine_items').insert(
+      const { error: itemError } = await supabase.from('routine_items').insert(
         group.items.map((item, ii) => ({
           group_id: groupRow.id,
           name: item.name,
@@ -448,6 +448,7 @@ async function insertRoutineGroups(userId: string, groups: RoutineGroupData[]): 
           sort_order: ii,
         }))
       )
+      if (itemError) throw itemError
     }
   }
   return newIds
@@ -455,7 +456,8 @@ async function insertRoutineGroups(userId: string, groups: RoutineGroupData[]): 
 
 async function replaceCurrentRoutineGroups(userId: string, groups: RoutineGroupData[], previousGroupIds: string[]): Promise<string[]> {
   if (previousGroupIds.length > 0) {
-    await supabase.from('routine_groups').delete().in('id', previousGroupIds)
+    const { error } = await supabase.from('routine_groups').delete().in('id', previousGroupIds)
+    if (error) throw error
   }
   return insertRoutineGroups(userId, groups)
 }
@@ -1314,10 +1316,12 @@ export const useAppStore = create<AppState>()(
       ),
     }))
     if (isDemo || !userId) return
-    if (nextLiked) {
-      await supabase.from('post_likes').insert({ user_id: userId, post_id: postId })
-    } else {
-      await supabase.from('post_likes').delete().eq('user_id', userId).eq('post_id', postId)
+    const { error } = nextLiked
+      ? await supabase.from('post_likes').insert({ user_id: userId, post_id: postId })
+      : await supabase.from('post_likes').delete().eq('user_id', userId).eq('post_id', postId)
+    if (error) {
+      set((s) => ({ posts: s.posts.map((p) => p.id === postId ? { ...p, liked: !nextLiked } : p) }))
+      get().showAppToast(getMessages().communityEdit.saveFailed)
     }
   },
 
@@ -1374,19 +1378,23 @@ export const useAppStore = create<AppState>()(
         posts: s.posts.map((p) => p.id === postId ? { ...p, comments: [...(p.comments ?? []), newComment] } : p),
         selectedPost: s.selectedPost?.id === postId ? { ...s.selectedPost, comments: [...(s.selectedPost.comments ?? []), newComment] } : s.selectedPost,
       }))
-      return
+      return true
     }
     const { data, error } = await supabase
       .from('post_comments')
       .insert({ post_id: postId, user_id: userId, text })
       .select()
       .single()
-    if (error || !data) return
+    if (error || !data) {
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+      return false
+    }
     const newComment = { user: displayName, text: data.text, userId }
     set((s) => ({
       posts: s.posts.map((p) => p.id === postId ? { ...p, comments: [...(p.comments ?? []), newComment] } : p),
       selectedPost: s.selectedPost?.id === postId ? { ...s.selectedPost, comments: [...(s.selectedPost.comments ?? []), newComment] } : s.selectedPost,
     }))
+    return true
   },
 
   addPost: async (content, imgUrl, category, visibility, communityId, instaUrl) => {
@@ -1719,17 +1727,25 @@ export const useAppStore = create<AppState>()(
     set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),
 
   markAllRead: async () => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, notifications } = get()
     set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) }))
     if (isDemo || !userId) return
-    await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+    if (error) {
+      set({ notifications })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
 
   markSingleRead: async (id) => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, notifications } = get()
     set((s) => ({ notifications: s.notifications.map((n) => n.id === id ? { ...n, read: true } : n) }))
     if (isDemo || !userId) return
-    await supabase.from('notifications').update({ read: true }).eq('id', id)
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id)
+    if (error) {
+      set({ notifications })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
 
   loadNotifications: async () => {
@@ -1896,7 +1912,10 @@ export const useAppStore = create<AppState>()(
     set({ profileVisibility: v })
     if (isDemo || !userId) return
     const { error } = await supabase.from('profiles').update({ profile_visibility: v }).eq('id', userId)
-    if (error) set({ profileVisibility: prev })
+    if (error) {
+      set({ profileVisibility: prev })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
   setNicknameEditInput: (v) => set({ nicknameEditInput: v }),
   submitNicknameEdit: async () => {
@@ -1907,18 +1926,27 @@ export const useAppStore = create<AppState>()(
     if (isDemo || !userId) return
     // 로컬만 바꾸면 restoreSession()이 DB의 옛 닉네임으로 되돌리므로 profiles까지 갱신한다
     const { error } = await supabase.from('profiles').update({ nickname: trimmed }).eq('id', userId)
-    if (error) set({ nickname: prevNickname })
+    if (error) {
+      set({ nickname: prevNickname, nicknameEditInput: trimmed })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
   saveRoutineGroups: async (groups) => {
-    const { userId, isDemo, currentRoutineGroupIds } = get()
+    const { userId, isDemo, currentRoutineGroupIds, routineGroups: previousGroups } = get()
     set({ routineGroups: groups })
     if (isDemo || !userId) return
-    const newIds = await replaceCurrentRoutineGroups(userId, groups, currentRoutineGroupIds)
-    set({ currentRoutineGroupIds: newIds })
+    try {
+      const newIds = await replaceCurrentRoutineGroups(userId, groups, currentRoutineGroupIds)
+      set({ currentRoutineGroupIds: newIds })
+    } catch (error) {
+      console.error('Routine save failed:', error)
+      set({ routineGroups: previousGroups })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
 
   startNewRoutinePeriod: async (groups) => {
-    const { userId, isDemo, currentRoutineGroupIds } = get()
+    const { userId, isDemo, currentRoutineGroupIds, routineGroups, routineHistory, currentRoutineStartDate } = get()
     set((s) => ({
       routineHistory: [
         { id: `rh${Date.now()}`, startDate: s.currentRoutineStartDate, endDate: Date.now(), groups: s.routineGroups },
@@ -1928,15 +1956,22 @@ export const useAppStore = create<AppState>()(
       currentRoutineStartDate: Date.now(),
     }))
     if (isDemo || !userId) return
-    if (currentRoutineGroupIds.length > 0) {
-      await supabase.from('routine_groups').update({ period_end: new Date().toISOString(), is_current: false }).in('id', currentRoutineGroupIds)
+    try {
+      if (currentRoutineGroupIds.length > 0) {
+        const { error } = await supabase.from('routine_groups').update({ period_end: new Date().toISOString(), is_current: false }).in('id', currentRoutineGroupIds)
+        if (error) throw error
+      }
+      const newIds = await insertRoutineGroups(userId, groups)
+      set({ currentRoutineGroupIds: newIds })
+    } catch (error) {
+      console.error('Routine period save failed:', error)
+      set({ routineGroups, routineHistory, currentRoutineStartDate })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
     }
-    const newIds = await insertRoutineGroups(userId, groups)
-    set({ currentRoutineGroupIds: newIds })
   },
 
   saveRoutinePrivacy: async (privacy) => {
-    const { userId, isDemo, routineItemIdByName } = get()
+    const { userId, isDemo, routineItemIdByName, routinePrivacy: previousPrivacy } = get()
     set({ routinePrivacy: privacy })
     if (isDemo || !userId) return
     const rows: { item_id: string; is_public: boolean }[] = []
@@ -1947,7 +1982,11 @@ export const useAppStore = create<AppState>()(
       }
     }
     if (rows.length > 0) {
-      await supabase.from('routine_privacy').upsert(rows)
+      const { error } = await supabase.from('routine_privacy').upsert(rows)
+      if (error) {
+        set({ routinePrivacy: previousPrivacy })
+        get().showAppToast(getMessages().communityEdit.saveFailed)
+      }
     }
   },
 
@@ -2021,16 +2060,20 @@ export const useAppStore = create<AppState>()(
   },
 
   saveEveningReflection: async (entry) => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, eveningReflections } = get()
     set((s) => {
       const existing = s.eveningReflections.filter((e) => e.date !== entry.date)
       return { eveningReflections: [entry, ...existing] }
     })
     if (isDemo || !userId) return
-    await supabase.from('evening_reflections').upsert(
+    const { error } = await supabase.from('evening_reflections').upsert(
       { user_id: userId, date: entry.date, answers: entry.answers },
       { onConflict: 'user_id,date' }
     )
+    if (error) {
+      set({ eveningReflections })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
 
   loadEveningReflections: async () => {
@@ -2074,7 +2117,7 @@ export const useAppStore = create<AppState>()(
   },
 
   saveCommNotifSettings: async (settings) => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, commNotifSettings } = get()
     set({ commNotifSettings: settings })
     if (isDemo || !userId) return
     const rows = settings.map((s) => ({
@@ -2083,18 +2126,30 @@ export const useAppStore = create<AppState>()(
       enabled: s.master,
       extra: { options: s.options },
     }))
-    if (rows.length > 0) await supabase.from('notification_settings').upsert(rows, { onConflict: 'user_id,setting_key' })
+    if (rows.length > 0) {
+      const { error } = await supabase.from('notification_settings').upsert(rows, { onConflict: 'user_id,setting_key' })
+      if (error) {
+        set({ commNotifSettings })
+        get().showAppToast(getMessages().communityEdit.saveFailed)
+      }
+    }
   },
 
   saveAlarmSettings: async (synced, comms) => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, alarmSyncedSettings, alarmCommSettings } = get()
     set({ alarmSyncedSettings: synced, alarmCommSettings: comms })
     if (isDemo || !userId) return
     const rows = [
       ...synced.map((s) => ({ user_id: userId, setting_key: `synced:${s.id}`, enabled: s.on, extra: null })),
       ...comms.map((c) => ({ user_id: userId, setting_key: `comm_alarm:${c.id}`, enabled: c.on, extra: null })),
     ]
-    if (rows.length > 0) await supabase.from('notification_settings').upsert(rows, { onConflict: 'user_id,setting_key' })
+    if (rows.length > 0) {
+      const { error } = await supabase.from('notification_settings').upsert(rows, { onConflict: 'user_id,setting_key' })
+      if (error) {
+        set({ alarmSyncedSettings, alarmCommSettings })
+        get().showAppToast(getMessages().communityEdit.saveFailed)
+      }
+    }
   },
 
   loadNotificationSettings: async () => {
@@ -2239,16 +2294,22 @@ export const useAppStore = create<AppState>()(
     set({ customQuickButtons })
   },
 
-  signOut: () => {
+  signOut: async () => {
     const wasDemo = get().isDemo
-    void (async () => {
-      try {
-        const { error } = await supabase.auth.signOut(wasDemo ? { scope: 'local' } : undefined)
-        if (error) console.error(error)
-      } catch (error) {
-        console.error(error)
+    try {
+      const { error } = await supabase.auth.signOut(wasDemo ? { scope: 'local' } : undefined)
+      if (error) {
+        console.error('Remote sign-out failed; clearing local session:', error)
+        await supabase.auth.signOut({ scope: 'local' })
       }
-    })()
+    } catch (error) {
+      console.error('Remote sign-out failed; clearing local session:', error)
+      try {
+        await supabase.auth.signOut({ scope: 'local' })
+      } catch (localError) {
+        console.error('Local sign-out failed:', localError)
+      }
+    }
     set({
       ...createAccountScopedState(),
       nickname: '',

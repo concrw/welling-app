@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAppStore, type PostCategory, type PostVisibility } from '../store/appStore'
 import { looksUnrelatedToCategory } from '../lib/contentGuideline'
-import { uploadPostImage } from '../lib/supabaseClient'
+import { supabase, uploadPostImage } from '../lib/supabaseClient'
 import { useMessages } from '../i18n'
 import { getActivityLabel } from '../lib/date'
 
@@ -167,14 +167,17 @@ export default function RecordModal() {
     const trimmedInsta = recordInstaUrl.trim()
     const validInsta = trimmedInsta.startsWith('https://') ? trimmedInsta : undefined
     let finalImgUrl: string | undefined = isDemo ? (imagePreview ?? undefined) : undefined
+    let uploadedImagePath: string | undefined
     if (!isDemo && imageFile && userId) {
       setUploading(true)
-      finalImgUrl = (await uploadPostImage(imageFile, userId)) ?? undefined
+      const uploadedImage = await uploadPostImage(imageFile, userId)
       setUploading(false)
-      if (!finalImgUrl) {
+      if (!uploadedImage) {
         showAppToast(M.overlays.imageUploadFailed)
         return
       }
+      finalImgUrl = uploadedImage.url
+      uploadedImagePath = uploadedImage.path
     }
     
     const communityId = recordCommunityId || null
@@ -188,6 +191,10 @@ export default function RecordModal() {
     
     const success = await addPost(recordText.trim(), finalImgUrl, recordCategory, finalVisibility, communityId, validInsta)
     if (!success) {
+      if (uploadedImagePath) {
+        const { error } = await supabase.storage.from('post-images').remove([uploadedImagePath])
+        if (error) console.error('Failed to remove orphaned post image:', error)
+      }
       showAppToast(M.overlays.recordFailed)
       return
     }
@@ -213,6 +220,11 @@ export default function RecordModal() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) {
+      e.target.value = ''
+      showAppToast(M.overlays.imageUploadFailed)
+      return
+    }
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
   }

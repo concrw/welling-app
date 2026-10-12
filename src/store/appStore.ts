@@ -1572,20 +1572,7 @@ export const useAppStore = create<AppState>()(
     const post = posts.find((p) => p.id === postId)
     if (!post || post.userId !== userId) return false
     
-    // Delete from database with .select('id') to check affected rows
-    const { data, error } = await supabase
-      .from('posts')
-      .delete()
-      .eq('id', postId)
-      .eq('user_id', userId)
-      .select('id')
-    
-    if (error || !data || data.length === 0) {
-      console.error('Failed to delete post (RLS or error):', error)
-      return false
-    }
-    
-    // Delete Storage image if exists
+    // Remove the Storage image first so a failure leaves the post intact and retryable
     if (post.hasImg && post.imgUrl) {
       try {
         const urlParts = post.imgUrl.split('/')
@@ -1594,12 +1581,27 @@ export const useAppStore = create<AppState>()(
         const { error: storageError } = await supabase.storage.from('post-images').remove([path])
         if (storageError) {
           console.warn('Failed to remove post image from storage:', storageError)
+          return false
         }
       } catch (err) {
         console.error('Failed to delete post image:', err)
+        return false
       }
     }
-    
+
+    // Delete from database with .select('id') to check affected rows
+    const { data, error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId)
+      .eq('user_id', userId)
+      .select('id')
+
+    if (error || !data || data.length === 0) {
+      console.error('Failed to delete post (RLS or error):', error)
+      return false
+    }
+
     // Update local state
     set((s) => ({
       posts: s.posts.filter((p) => p.id !== postId),

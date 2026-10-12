@@ -467,20 +467,36 @@ let inviteCheckInFlight: Promise<void> | null = null
 
 type ProfileRow = { nickname: string; is_admin: boolean | null; profile_visibility: string | null }
 
-// 이메일 확인 후 첫 로그인: 프로필 행이 없으면 가입 시 user_metadata에 저장해 둔 닉네임으로 생성한다.
-// 닉네임이 없거나 생성에 실패하면 null → 호출부가 기존 social-nickname 화면으로 보낸다.
-async function loadOrCreateProfile(user: { id: string; user_metadata?: Record<string, unknown> }): Promise<ProfileRow | null> {
-  const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', user.id).single()
-  if (profile) return profile as ProfileRow
-  const meta = user.user_metadata?.nickname
+// 이메일 확인 후 첫 로그인: 프로필 행이 없으면 가입 시 welling_signup_nickname에 저장해 둔 닉네임으로 생성한다.
+// 행이 정말 없을 때만 생성한다(missing). 닉네임이 없으면 missing → 호출부가 기존 social-nickname 화면으로 보낸다.
+// 읽기/생성 오류는 error로 구분해 호출부가 로그인 실패 경로로 처리한다(생성 시도·닉네임 화면 이동 없음).
+type ProfileLoadResult = { kind: 'ok'; profile: ProfileRow } | { kind: 'missing' } | { kind: 'error' }
+
+async function readProfile(userId: string) {
+  return supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', userId).maybeSingle()
+}
+
+async function loadOrCreateProfile(user: { id: string; user_metadata?: Record<string, unknown> }): Promise<ProfileLoadResult> {
+  const { data: profile, error: readError } = await readProfile(user.id)
+  if (readError) {
+    console.error('Profile load failed:', readError)
+    return { kind: 'error' }
+  }
+  if (profile) return { kind: 'ok', profile: profile as ProfileRow }
+  const meta = user.user_metadata?.welling_signup_nickname
   const nickname = typeof meta === 'string' ? meta.trim() : ''
-  if (nickname.length < 2) return null
+  if (nickname.length < 2) return { kind: 'missing' }
   const { error } = await supabase.from('profiles').insert({ id: user.id, nickname })
   if (error) {
+    // 동시 첫 로드(다중 탭) 등으로 이미 생성된 경우: 다시 읽어서 사용한다
+    if (error.code === '23505') {
+      const { data: existing, error: rereadError } = await readProfile(user.id)
+      if (!rereadError && existing) return { kind: 'ok', profile: existing as ProfileRow }
+    }
     console.error('Profile creation failed:', error)
-    return null
+    return { kind: 'error' }
   }
-  return { nickname, is_admin: false, profile_visibility: 'public' }
+  return { kind: 'ok', profile: { nickname, is_admin: false, profile_visibility: 'public' } }
 }
 
 // App-level toast auto-hide timer; cleared/reset on each new toast so rapid successive toasts don't fight each other
@@ -963,13 +979,19 @@ export const useAppStore = create<AppState>()(
     if (trimmed.length < 2 || !userId) return
     set({ authLoading: true, authError: '' })
     const { error } = await supabase.from('profiles').insert({ id: userId, nickname: trimmed })
+    let finalNickname = trimmed
     if (error) {
-      console.error('Profile creation failed:', error)
-      set({ authLoading: false, authError: getMessages().store.signupFailed })
-      return
+      // 이미 프로필이 있는 경우(23505): 다시 읽어서 기존 프로필로 계속 진행한다
+      const { data: existing } = error.code === '23505' ? await readProfile(userId) : { data: null }
+      if (!existing) {
+        console.error('Profile creation failed:', error)
+        set({ authLoading: false, authError: getMessages().store.signupFailed })
+        return
+      }
+      finalNickname = existing.nickname
     }
     set({
-      nickname: trimmed,
+      nickname: finalNickname,
       authLoading: false,
     })
     get().loadFeedData()
@@ -1009,7 +1031,7 @@ export const useAppStore = create<AppState>()(
     const trimmed = nicknameInput.trim()
     if (trimmed.length < 2) return
     set({ authLoading: true, authError: '' })
-    const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput, options: { data: { nickname: trimmed } } })
+    const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput, options: { data: { welling_signup_nickname: trimmed } } })
     if (error || !data.user) {
       if (error) console.error('Sign-up failed:', error)
       set({ authLoading: false, authError: getMessages().store.signupFailed })
@@ -1064,7 +1086,12 @@ export const useAppStore = create<AppState>()(
       set({ authLoading: false, authError: getMessages().store.loginFailed })
       return
     }
-    const profile = await loadOrCreateProfile(data.user)
+    const result = await loadOrCreateProfile(data.user)
+    if (result.kind === 'error') {
+      set({ authLoading: false, authError: getMessages().store.loginFailed })
+      return
+    }
+    const profile = result.kind === 'ok' ? result.profile : null
     if (!profile) {
       set({ userId: data.user.id, isDemo: false, authLoading: false, screen: 'social-nickname', navTab: 'feed' })
       return
@@ -1104,7 +1131,12 @@ export const useAppStore = create<AppState>()(
       set({ authInitializing: false })
       return
     }
-    const profile = await loadOrCreateProfile(user)
+    const result = await loadOrCreateProfile(user)
+    if (result.kind === 'error') {
+      set({ authInitializing: false, authError: getMessages().store.loginFailed })
+      return
+    }
+    const profile = result.kind === 'ok' ? result.profile : null
     // 비밀번호 복구 링크로 진입한 세션이면 피드 대신 재설정 화면을 유지한다
     const recovering = get().isPasswordRecovery
     // 소셜 로그인 첫 진입: 세션은 있지만 프로필이 없음 → 닉네임 설정 화면으로

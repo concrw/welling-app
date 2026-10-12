@@ -1062,7 +1062,7 @@ export const useAppStore = create<AppState>()(
     const [{ data: communityRows }, { data: memberRows }, { data: postRows }, { data: likeRows }] = await Promise.all([
       supabase.from('communities').select('*'),
       supabase.from('community_members').select('community_id, user_id'),
-      supabase.from('posts').select('*, profiles(nickname)').order('created_at', { ascending: false }),
+      supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').order('created_at', { ascending: false }),
       supabase.from('post_likes').select('post_id').eq('user_id', userId),
     ])
     const postIds = (postRows ?? []).map((p) => p.id)

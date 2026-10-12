@@ -125,7 +125,7 @@ export function FeedHeader({
         </div>
       </div>
       <div style={{ padding: '0 20px 14px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {joinedCount && joinedCount > 1 && (
+        {(joinedCount ?? 0) > 1 && (
           <div onClick={() => setActiveCommunityTab('all')} style={{ padding: '6px 14px', borderRadius: 22, background: activeCommunityTab === 'all' ? '#111111' : 'transparent', color: activeCommunityTab === 'all' ? '#FFFFFF' : '#AAAAAA', fontSize: 13, fontWeight: 600, border: activeCommunityTab === 'all' ? 'none' : '1px solid #EBEBEB', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>{M.feed.allTab}</div>
         )}
 

@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
 import { useAppStore } from '../store/appStore'
+import type { User } from '../store/appStore'
 import { computeAchievement } from '../lib/achievement'
 import { RankingTabs } from '../components/ranking/RankingTabs'
 import { RankingPodium } from '../components/ranking/RankingPodium'
@@ -15,27 +18,74 @@ export default function Ranking() {
   const suggestedUsers = useAppStore((s) => s.suggestedUsers)
   const communities = useAppStore((s) => s.communities)
   const posts = useAppStore((s) => s.posts)
+  const userId = useAppStore((s) => s.userId)
+  const nickname = useAppStore((s) => s.nickname)
+  const routineGroups = useAppStore((s) => s.routineGroups)
+  const [groupMembers, setGroupMembers] = useState<{ communityId: string; users: User[] } | null>(null)
 
   // 피드와 같은 그룹 칩을 쓴다: 가입한 커뮤니티만.
   const joinedCommunities = communities.filter((c) => c.joined)
   const RANKING_TABS = ['All', ...joinedCommunities.map((c) => c.name)]
 
-  // Derive which community ids each user has posted in
-  const userCommunityMap = new Map<string, Set<string>>()
-  for (const post of posts) {
-    if (!userCommunityMap.has(post.user)) userCommunityMap.set(post.user, new Set())
-    userCommunityMap.get(post.user)!.add(post.community)
-  }
+  const activeCommunity = rankingTab === 'All' ? undefined : communities.find((c) => c.name === rankingTab)
+  const activeCommunityId = activeCommunity?.id
 
-  // Filter suggestedUsers by active tab
-  const filteredUsers = rankingTab === 'All'
-    ? suggestedUsers
-    : suggestedUsers.filter((u) => {
-        const community = communities.find((c) => c.name === rankingTab)
-        if (!community) return false
-        const commIds = userCommunityMap.get(u.name)
-        return commIds ? commIds.has(community.id) : false
+  // 본인은 suggestedUsers(neq userId)에 없으므로 직접 만든다.
+  const viewer: User | null = userId
+    ? { id: userId, name: nickname, handle: nickname, initials: nickname[0]?.toUpperCase() ?? '?', color: AVATAR_COLORS[0], bio: '', followers: 0, following: 0, followed: false, synced: false, routines: [], routineGoals: routineGroups }
+    : null
+
+  // 그룹 탭: 해당 커뮤니티의 community_members + profiles로 목록을 만든다.
+  useEffect(() => {
+    if (!activeCommunityId) return
+    let cancelled = false
+    const load = async () => {
+      const { data: memberRows, error: memberError } = await supabase
+        .from('community_members')
+        .select('user_id')
+        .eq('community_id', activeCommunityId)
+      if (memberError) {
+        console.error('Failed to load ranking members:', memberError)
+        return
+      }
+      const memberIds = (memberRows ?? []).map((m) => m.user_id)
+      const { data: profileRows, error: profileError } = memberIds.length
+        ? await supabase.from('profiles').select('id, nickname, bio').in('id', memberIds)
+        : { data: [] as { id: string; nickname: string; bio: string | null }[], error: null }
+      if (profileError) {
+        console.error('Failed to load ranking profiles:', profileError)
+        return
+      }
+      const known = new Map(suggestedUsers.map((u) => [u.id, u]))
+      const users: User[] = (profileRows ?? []).map((p, i) => known.get(p.id) ?? {
+        id: p.id,
+        name: p.nickname,
+        handle: p.nickname,
+        initials: p.nickname[0]?.toUpperCase() ?? '?',
+        color: AVATAR_COLORS[i % AVATAR_COLORS.length],
+        bio: p.bio ?? '',
+        followers: 0,
+        following: 0,
+        followed: false,
+        synced: false,
+        routines: [],
+        routineGoals: [],
       })
+      if (!cancelled) setGroupMembers({ communityId: activeCommunityId, users })
+    }
+    load()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCommunityId])
+
+  const withViewer = (list: User[]) =>
+    viewer && !list.some((u) => u.id === viewer.id) ? [...list, viewer] : list.map((u) => (viewer && u.id === viewer.id ? viewer : u))
+
+  const filteredUsers = rankingTab === 'All'
+    ? withViewer(suggestedUsers)
+    : groupMembers && groupMembers.communityId === activeCommunityId
+      ? withViewer(groupMembers.users)
+      : []
 
   // Rank by actual habit achievement rate, computed from each user's real routine goals + posted records
   const ranked = filteredUsers
@@ -50,7 +100,7 @@ export default function Ranking() {
   const REST = ranked.slice(3)
 
   const handleTapProfile = (userName: string) => {
-    const user = suggestedUsers.find((u) => u.name === userName)
+    const user = filteredUsers.find((u) => u.name === userName)
     if (user) selectUser(user)
   }
 

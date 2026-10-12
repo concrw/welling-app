@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { useAppStore } from '../store/appStore'
+import { useAppStore, fetchPublicRoutinesByUser } from '../store/appStore'
 import type { User } from '../store/appStore'
 import { computeAchievement } from '../lib/achievement'
 import { RankingTabs } from '../components/ranking/RankingTabs'
@@ -57,6 +57,9 @@ export default function Ranking() {
         return
       }
       const known = new Map(suggestedUsers.map((u) => [u.id, u]))
+      // suggestedUsers에 없는 멤버도 같은 로직(공개 루틴 + 게시글)으로 달성률을 계산하도록 루틴을 가져온다.
+      const unknownIds = (profileRows ?? []).map((p) => p.id).filter((id) => !known.has(id) && id !== userId)
+      const { groupsByUser, routinesByUser } = await fetchPublicRoutinesByUser(unknownIds)
       const users: User[] = (profileRows ?? []).map((p, i) => known.get(p.id) ?? {
         id: p.id,
         name: p.nickname,
@@ -68,8 +71,8 @@ export default function Ranking() {
         following: 0,
         followed: false,
         synced: false,
-        routines: [],
-        routineGoals: [],
+        routines: routinesByUser.get(p.id) ?? [],
+        routineGoals: groupsByUser.get(p.id) ?? [],
       })
       if (!cancelled) setGroupMembers({ communityId: activeCommunityId, users })
     }

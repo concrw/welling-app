@@ -6,6 +6,8 @@ import type { Messages } from '../i18n'
 export function getNotificationText(n: Notification, M: Messages): string {
   if (n.kind === 'newPosts') return M.notifications.newPostsText(n.count ?? 0)
   if (n.kind === 'joinApproved') return M.notifications.joinApprovedText
+  if (n.type === 'join_approved') return M.notifications.joinApprovedGroupText
+  if (n.type === 'join_rejected') return M.notifications.joinRejectedGroupText
   if (n.type === 'reaction') return M.notifications.reactionText(n.count ?? 1)
   if (n.type === 'like') return M.notifications.likeText(n.count ?? 1)
   if (n.type === 'follow') return M.notifications.followText

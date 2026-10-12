@@ -19,6 +19,8 @@ export default function Notifications() {
   const notifications = useAppStore((s) => s.notifications)
   const markAllRead = useAppStore((s) => s.markAllRead)
   const markSingleRead = useAppStore((s) => s.markSingleRead)
+  const communities = useAppStore((s) => s.communities)
+  const selectCommunity = useAppStore((s) => s.selectCommunity)
   const loadNotifications = useAppStore((s) => s.loadNotifications)
   const isDemo = useAppStore((s) => s.isDemo)
   const loading = useAppStore((s) => s.notificationsLoading)
@@ -72,7 +74,11 @@ export default function Notifications() {
           </div>
         )}
         {!hasError && notifications.map((n) => (
-          <div key={n.id} onClick={() => markSingleRead(n.id)} style={{ padding: '13px 20px', display: 'flex', gap: 12, alignItems: 'flex-start', background: n.read ? '#FFFFFF' : (n.bgColor ?? '#FFFDF5'), borderBottom: '1px solid #F5F5F5', cursor: 'pointer' }}>
+          <div key={n.id} onClick={() => {
+            markSingleRead(n.id)
+            const community = n.type === 'join_approved' ? communities.find((c) => c.id === n.communityId) : undefined
+            if (community) selectCommunity(community)
+          }} style={{ padding: '13px 20px', display: 'flex', gap: 12, alignItems: 'flex-start', background: n.read ? '#FFFFFF' : (n.bgColor ?? '#FFFDF5'), borderBottom: '1px solid #F5F5F5', cursor: 'pointer' }}>
             <div style={{ width: 38, height: 38, borderRadius: '50%', background: getColor(n.user), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{getInitials(n.user)}</span>
             </div>

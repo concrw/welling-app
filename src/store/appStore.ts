@@ -105,12 +105,14 @@ export interface User {
 export interface Notification {
   id: string
   user: string
-  type: 'like' | 'follow' | 'comment' | 'reaction' | 'copy' | 'report' | 'group_join'
+  type: 'like' | 'follow' | 'comment' | 'reaction' | 'copy' | 'report' | 'group_join' | 'join_approved' | 'join_rejected'
   // 'comment' 타입을 커뮤니티 레벨 알림(새 글 N개 / 가입 승인)과 구분하기 위한 보조 필드.
   // 지정하지 않으면 type 기반 i18n 문구를 사용한다.
   kind?: 'newPosts' | 'joinApproved'
   text: string
   count?: number
+  // join_approved / join_rejected 알림이 가리키는 커뮤니티 id.
+  communityId?: string
   read: boolean
   time: string
   bgColor?: string
@@ -578,6 +580,40 @@ const createAccountScopedState = (): Partial<AppState> => ({
   syncAlarmGroupLabel: '',
   syncAlarmContent: '',
 })
+
+// 다른 사용자들의 공개 루틴(그룹/항목)을 RLS 허용 범위(is_public=true, is_current=true, 비공개 항목 제외)에서 읽는다.
+// 추천 사용자 목록과 그룹 랭킹이 같은 데이터/로직을 쓰도록 공유한다.
+export async function fetchPublicRoutinesByUser(profileIds: string[]) {
+  const { data: groupRows } = profileIds.length
+    ? await supabase.from('routine_groups').select('id, user_id, name, is_public, is_current').in('user_id', profileIds).eq('is_public', true).eq('is_current', true)
+    : { data: [] as { id: string; user_id: string; name: string; is_public: boolean; is_current: boolean }[] }
+  const groupIds = (groupRows ?? []).map((g) => g.id)
+  const [{ data: itemRows }, { data: privacyRows }] = await Promise.all([
+    groupIds.length ? supabase.from('routine_items').select('id, group_id, name, sort_order').in('group_id', groupIds).order('sort_order', { ascending: true }) : Promise.resolve({ data: [] as { id: string; group_id: string; name: string; sort_order: number }[] }),
+    groupIds.length ? supabase.from('routine_privacy').select('item_id, is_public') : Promise.resolve({ data: [] as { item_id: string; is_public: boolean }[] }),
+  ])
+  const privateItemIds = new Set((privacyRows ?? []).filter((p) => !p.is_public).map((p) => p.item_id))
+  const itemsByGroup = new Map<string, string[]>()
+  for (const item of itemRows ?? []) {
+    if (privateItemIds.has(item.id)) continue
+    const list = itemsByGroup.get(item.group_id) ?? []
+    list.push(item.name)
+    itemsByGroup.set(item.group_id, list)
+  }
+  const groupsByUser = new Map<string, RoutineGroupData[]>()
+  const routinesByUser = new Map<string, { group: string; items: string }[]>()
+  for (const g of groupRows ?? []) {
+    const itemNames = itemsByGroup.get(g.id) ?? []
+    if (!itemNames.length) continue
+    const groupsList = groupsByUser.get(g.user_id) ?? []
+    groupsList.push({ id: g.id, name: g.name, items: itemNames.map((name) => ({ id: name, name, time: '', desc: '' })) })
+    groupsByUser.set(g.user_id, groupsList)
+    const routinesList = routinesByUser.get(g.user_id) ?? []
+    routinesList.push({ group: g.name, items: itemNames.join(' · ') })
+    routinesByUser.set(g.user_id, routinesList)
+  }
+  return { groupsByUser, routinesByUser }
+}
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -1190,34 +1226,7 @@ export const useAppStore = create<AppState>()(
     const countsById = new Map((countRows ?? []).map((c) => [c.user_id, c]))
     const profileIds = (profileRows ?? []).map((p) => p.id)
 
-    const { data: groupRows } = profileIds.length
-      ? await supabase.from('routine_groups').select('id, user_id, name, is_public, is_current').in('user_id', profileIds).eq('is_public', true).eq('is_current', true)
-      : { data: [] as { id: string; user_id: string; name: string; is_public: boolean; is_current: boolean }[] }
-    const groupIds = (groupRows ?? []).map((g) => g.id)
-    const [{ data: itemRows }, { data: privacyRows }] = await Promise.all([
-      groupIds.length ? supabase.from('routine_items').select('id, group_id, name, sort_order').in('group_id', groupIds).order('sort_order', { ascending: true }) : Promise.resolve({ data: [] as { id: string; group_id: string; name: string; sort_order: number }[] }),
-      groupIds.length ? supabase.from('routine_privacy').select('item_id, is_public') : Promise.resolve({ data: [] as { item_id: string; is_public: boolean }[] }),
-    ])
-    const privateItemIds = new Set((privacyRows ?? []).filter((p) => !p.is_public).map((p) => p.item_id))
-    const itemsByGroup = new Map<string, string[]>()
-    for (const item of itemRows ?? []) {
-      if (privateItemIds.has(item.id)) continue
-      const list = itemsByGroup.get(item.group_id) ?? []
-      list.push(item.name)
-      itemsByGroup.set(item.group_id, list)
-    }
-    const groupsByUser = new Map<string, RoutineGroupData[]>()
-    const routinesByUser = new Map<string, { group: string; items: string }[]>()
-    for (const g of groupRows ?? []) {
-      const itemNames = itemsByGroup.get(g.id) ?? []
-      if (!itemNames.length) continue
-      const groupsList = groupsByUser.get(g.user_id) ?? []
-      groupsList.push({ id: g.id, name: g.name, items: itemNames.map((name) => ({ id: name, name, time: '', desc: '' })) })
-      groupsByUser.set(g.user_id, groupsList)
-      const routinesList = routinesByUser.get(g.user_id) ?? []
-      routinesList.push({ group: g.name, items: itemNames.join(' · ') })
-      routinesByUser.set(g.user_id, routinesList)
-    }
+    const { groupsByUser, routinesByUser } = await fetchPublicRoutinesByUser(profileIds)
 
     const palette = ['#0984E3', '#00A389', '#7C3AED', '#B45309', '#1A6B4A', '#C2600A']
     const suggestedUsers: User[] = (profileRows ?? []).map((p, i) => ({
@@ -1738,7 +1747,9 @@ export const useAppStore = create<AppState>()(
       return
     }
     const notifications: Notification[] = (data ?? []).map((n) => {
-      const actorNickname = (n as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.someone
+      const isJoinResult = n.type === 'join_approved' || n.type === 'join_rejected'
+      // 가입 결과 알림은 text에 저장된 그룹 이름을 행의 굵은 이름 자리에 보여준다.
+      const actorNickname = isJoinResult ? n.text : (n as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.someone
       const M = getMessages()
       const type = n.type as Notification['type']
       const text =
@@ -1753,6 +1764,7 @@ export const useAppStore = create<AppState>()(
         type,
         text,
         count: n.actor_count ?? 1,
+        communityId: isJoinResult ? n.related_id ?? undefined : undefined,
         read: n.read,
         time: '',
       }

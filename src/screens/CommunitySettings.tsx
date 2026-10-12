@@ -99,28 +99,47 @@ export default function CommunitySettings() {
     setLoading(true)
     
     // Load community details
-    const { data: commData } = await supabase
+    let failed = false
+    const { data: commData, error: commError } = await supabase
       .from('communities')
       .select('invite_code, requires_approval')
       .eq('id', selectedCommunity.id)
       .single()
-    
+    if (commError) {
+      console.error('Failed to load group settings:', commError)
+      failed = true
+    }
+
     if (commData) {
       setInviteUrl(`${window.location.origin}/?invite=${commData.invite_code}`)
       setRequiresApproval(commData.requires_approval ?? false)
     }
     
     // Load members
-    const { data: memberData } = await supabase
+    // community_members.user_id는 auth.users를 참조해 profiles 임베드가 불가능하므로 닉네임은 따로 조회한다.
+    const { data: memberData, error: memberError } = await supabase
       .from('community_members')
-      .select('user_id, role, joined_at, profiles(nickname)')
+      .select('user_id, role, joined_at')
       .eq('community_id', selectedCommunity.id)
       .order('joined_at', { ascending: true })
-    
+    if (memberError) {
+      console.error('Failed to load group members:', memberError)
+      failed = true
+    }
+
     if (memberData) {
+      const memberIds = memberData.map((m) => m.user_id)
+      const { data: profileRows, error: profileError } = memberIds.length
+        ? await supabase.from('profiles').select('id, nickname').in('id', memberIds)
+        : { data: [] as { id: string; nickname: string }[], error: null }
+      if (profileError) {
+        console.error('Failed to load member profiles:', profileError)
+        failed = true
+      }
+      const nicknameById = new Map((profileRows ?? []).map((p) => [p.id, p.nickname]))
       const membersList: Member[] = memberData.map((m: any) => ({
         id: m.user_id,
-        nickname: m.profiles?.nickname ?? M.groupSettings.unknownMember,
+        nickname: nicknameById.get(m.user_id) ?? M.groupSettings.unknownMember,
         role: m.role,
         joined_at: m.joined_at,
       }))
@@ -136,13 +155,17 @@ export default function CommunitySettings() {
     
     // Load pending requests if approval required
     if (commData?.requires_approval) {
-      const { data: requestData } = await supabase
+      const { data: requestData, error: requestError } = await supabase
         .from('community_join_requests')
-        .select('id, user_id, requested_at, profiles(nickname)')
+        .select('id, user_id, requested_at, profiles!community_join_requests_user_id_fkey(nickname)')
         .eq('community_id', selectedCommunity.id)
         .eq('status', 'pending')
         .order('requested_at', { ascending: true })
-      
+      if (requestError) {
+        console.error('Failed to load join requests:', requestError)
+        failed = true
+      }
+
       if (requestData) {
         const requestsList: JoinRequest[] = requestData.map((r: any) => ({
           id: r.id,
@@ -153,7 +176,8 @@ export default function CommunitySettings() {
         setPendingRequests(requestsList)
       }
     }
-    
+
+    if (failed) useAppStore.getState().showAppToast(M.groupSettings.loadFailed)
     setLoading(false)
   }
 

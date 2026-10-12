@@ -1530,16 +1530,15 @@ export const useAppStore = create<AppState>()(
     const [communitiesResult, membersResult, postsResult, likesResult, joinRequestsResult] = await Promise.all([
       supabase.from('communities').select('*'),
       supabase.from('community_members').select('community_id, user_id'),
-      supabase.from('posts').select('*, profiles(nickname)').order('created_at', { ascending: false }),
+      supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').order('created_at', { ascending: false }),
       supabase.from('post_likes').select('post_id').eq('user_id', userId),
       supabase.from('community_join_requests').select('community_id, status').eq('user_id', userId).eq('status', 'pending'),
     ])
-    const firstError = [communitiesResult.error, membersResult.error, postsResult.error, likesResult.error, joinRequestsResult.error].find(Boolean)
-    if (firstError) {
-      console.error('Failed to load feed:', firstError)
-      set({ feedLoading: false, feedError: firstError.message })
-      return
+    // 쿼리 하나가 실패해도 나머지 결과로 화면을 구성한다. 핵심 데이터(그룹/게시글) 실패만 오류 화면으로 알린다.
+    for (const result of [communitiesResult, membersResult, postsResult, likesResult, joinRequestsResult]) {
+      if (result.error) console.error('Failed to load feed query:', result.error)
     }
+    const coreError = postsResult.error ?? communitiesResult.error ?? null
     const communityRows = communitiesResult.data
     const memberRows = membersResult.data
     const postRows = postsResult.data
@@ -1620,7 +1619,7 @@ export const useAppStore = create<AppState>()(
       communityId: r.community_id,
       communityName: communityNameById.get(r.community_id) ?? pendingNames[r.community_id] ?? getMessages().store.groupFallback,
     }))
-    set({ communities, posts, pendingJoinRequests, feedLoading: false, feedError: null })
+    set({ communities, posts, pendingJoinRequests, feedLoading: false, feedError: coreError ? coreError.message : null })
   },
 
   selectCommunity: (c) => set((s) => ({ selectedCommunity: c, prevScreen: s.screen, screen: 'community-detail' })),

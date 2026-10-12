@@ -47,6 +47,7 @@ const ko = {
   leave: '나가기',
   transfer: '위임하기',
   unknownMember: '알 수 없음',
+  loadFailed: '그룹 정보를 불러오지 못했어요. 다시 시도해주세요.',
 }
 
 const en: typeof ko = {
@@ -55,6 +56,7 @@ const en: typeof ko = {
   inviteShareText: (groupName: string) => `Join my ${groupName} group!\n\nLet's build healthy habits together 💪\n\n`, inviteShareTitle: (groupName: string) => `${groupName} group invitation`, muteTitle: 'Mute notifications', muteDesc: 'Do not receive notifications from this group',
   approvalTitle: 'Approve new members', approvalDesc: 'Review new members before they join', memberMe: ' (you)', roleOwner: '👑 Owner', roleAdmin: '⭐ Admin', roleMember: 'Member', actionPromote: 'Make admin', actionDemote: 'Make member', actionTransfer: 'Transfer ownership', actionKick: 'Remove', leaveGroup: 'Leave group', leaveGroupOwner: 'Leave group (transfer ownership)',
   noRequests: 'No pending requests', approve: 'Approve', reject: 'Reject', leaveConfirmOwner: 'If you leave, ownership will automatically transfer to another member. Continue?', leaveConfirm: 'Leave this group?', transferConfirm: (nickname: string) => `Transfer ownership to ${nickname}? This cannot be undone.`, cancel: 'Cancel', leave: 'Leave', transfer: 'Transfer', unknownMember: 'Unknown',
+  loadFailed: 'Could not load group info. Please try again.',
 }
 
 export const groupSettings = { ko, en }

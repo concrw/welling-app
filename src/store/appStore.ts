@@ -468,6 +468,9 @@ let inviteCheckInFlight: Promise<void> | null = null
 // App-level toast auto-hide timer; cleared/reset on each new toast so rapid successive toasts don't fight each other
 let appToastTimer: ReturnType<typeof setTimeout> | null = null
 const FEED_POST_LIMIT = 50
+// Achievement/streak/ranking are derived from `posts`, so the viewer's own recent posts are always loaded alongside the capped feed.
+const OWN_POST_LIMIT = 200
+const OWN_ENGAGEMENT_POST_LIMIT = 50
 const POST_ENGAGEMENT_LIMIT = 1000
 const NOTIFICATION_LIMIT = 100
 
@@ -1556,23 +1559,27 @@ export const useAppStore = create<AppState>()(
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
     set({ feedLoading: true, feedError: null })
-    const [communitiesResult, membersResult, postsResult, joinRequestsResult] = await Promise.all([
+    const [communitiesResult, membersResult, feedPostsResult, ownPostsResult, joinRequestsResult] = await Promise.all([
       supabase.from('communities').select('*'),
       supabase.from('community_members').select('community_id, user_id'),
       // Initial feed is intentionally capped; pagination UI can be added later.
       supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').order('created_at', { ascending: false }).limit(FEED_POST_LIMIT),
+      supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').eq('user_id', userId).order('created_at', { ascending: false }).limit(OWN_POST_LIMIT),
       supabase.from('community_join_requests').select('community_id, status').eq('user_id', userId).eq('status', 'pending'),
     ])
     // 쿼리 하나가 실패해도 나머지 결과로 화면을 구성한다. 핵심 데이터(그룹/게시글) 실패만 오류 화면으로 알린다.
-    for (const result of [communitiesResult, membersResult, postsResult, joinRequestsResult]) {
+    for (const result of [communitiesResult, membersResult, feedPostsResult, ownPostsResult, joinRequestsResult]) {
       if (result.error) console.error('Failed to load feed query:', result.error)
     }
-    const coreError = postsResult.error ?? communitiesResult.error ?? null
+    const coreError = feedPostsResult.error ?? communitiesResult.error ?? null
     const communityRows = communitiesResult.data
     const memberRows = membersResult.data
-    const postRows = postsResult.data
+    const feedRows = feedPostsResult.data ?? []
+    const feedIdSet = new Set(feedRows.map((p) => p.id))
+    const ownRows = (ownPostsResult.data ?? []).filter((p) => !feedIdSet.has(p.id))
+    const postRows = [...feedRows, ...ownRows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     const joinRequestRows = joinRequestsResult.data
-    const postIds = (postRows ?? []).map((p) => p.id)
+    const postIds = [...feedRows.map((p) => p.id), ...ownRows.slice(0, OWN_ENGAGEMENT_POST_LIMIT).map((p) => p.id)]
     const [{ data: likeRows }, { data: reactionRows }, { data: commentRows }] = await Promise.all([
       postIds.length ? supabase.from('post_likes').select('post_id').eq('user_id', userId).in('post_id', postIds).limit(POST_ENGAGEMENT_LIMIT) : Promise.resolve({ data: [] }),
       postIds.length ? supabase.from('post_reactions').select('post_id, user_id, reaction_type').in('post_id', postIds).limit(POST_ENGAGEMENT_LIMIT) : Promise.resolve({ data: [] }),

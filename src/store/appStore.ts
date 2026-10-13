@@ -251,6 +251,7 @@ interface AppState {
 
   isAdmin: boolean
   showRecordModal: boolean
+  toastMessage: string | null
 
   syncedList: Set<string>
   showSyncSheet: boolean
@@ -359,6 +360,7 @@ interface AppState {
   loadNotifications: () => Promise<void>
   openRecordModal: () => void
   closeRecordModal: () => void
+  showAppToast: (msg: string) => void
   openSyncSheet: (user: User) => void
   closeSyncSheet: () => void
   confirmSync: () => void
@@ -444,6 +446,9 @@ async function replaceCurrentRoutineGroups(userId: string, groups: RoutineGroupD
 // In-flight invite preview check; restoreSession awaits it so a logged-in user's invite isn't dropped
 let inviteCheckInFlight: Promise<void> | null = null
 
+// App-level toast auto-hide timer; cleared/reset on each new toast so rapid successive toasts don't fight each other
+let appToastTimer: ReturnType<typeof setTimeout> | null = null
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -491,7 +496,8 @@ export const useAppStore = create<AppState>()(
 
   isAdmin: false,
   showRecordModal: false,
-  
+  toastMessage: null,
+
   pendingInviteCode: null,
   pendingInviteSavedAt: null,
   invitePreview: null,
@@ -1503,6 +1509,15 @@ export const useAppStore = create<AppState>()(
 
   openRecordModal: () => set((s) => ({ showRecordModal: true, recordUseCount: s.recordUseCount + 1 })),
   closeRecordModal: () => set({ showRecordModal: false }),
+
+  showAppToast: (msg) => {
+    if (appToastTimer) clearTimeout(appToastTimer)
+    set({ toastMessage: msg })
+    appToastTimer = setTimeout(() => {
+      appToastTimer = null
+      useAppStore.setState({ toastMessage: null })
+    }, 2000)
+  },
 
   openSyncSheet: (user) => {
     const alarms = user.routines.map((r) => ({ time: r.group, items: r.items, group: r.group }))

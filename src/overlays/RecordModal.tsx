@@ -26,6 +26,7 @@ export default function RecordModal() {
   const updateCustomQuickButton = useAppStore((s) => s.updateCustomQuickButton)
   const removeCustomQuickButton = useAppStore((s) => s.removeCustomQuickButton)
   const routineGroups = useAppStore((s) => s.routineGroups)
+  const showAppToast = useAppStore((s) => s.showAppToast)
 
   const [toast, setToast] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -157,7 +158,7 @@ export default function RecordModal() {
       return
     }
     
-    showToast(content)
+    showAppToast(content)
     setTimeout(() => closeRecordModal(), 400)
   }
 
@@ -190,7 +191,7 @@ export default function RecordModal() {
       return
     }
     
-    showToast(M.overlays.recordDone)
+    showAppToast(M.overlays.recordDone)
     setRecordText('')
     setImagePreview(null)
     setImageFile(null)
@@ -227,7 +228,7 @@ export default function RecordModal() {
     }
     const success = await addPost(btn.label, undefined, 'habit', vis, communityId)
     if (success) {
-      showToast(M.overlays.recordDoneWithLabel(btn.label))
+      showAppToast(M.overlays.recordDoneWithLabel(btn.label))
       setTimeout(() => closeRecordModal(), 400)
     } else {
       showToast(M.overlays.recordFailed)

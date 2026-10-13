@@ -37,6 +37,17 @@ export function getLocalDateFromTimestamp(timestamp: number, timezone: string = 
   return `${year}-${month}-${day}`
 }
 
+export function formatClockTime(time: string, lang: 'ko' | 'en'): string {
+  const [hour, minute] = time.split(':').map(Number)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return time
+  return new Intl.DateTimeFormat(lang === 'ko' ? 'ko-KR' : 'en-US', {
+    timeZone: 'UTC',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(Date.UTC(2000, 0, 1, hour, minute)))
+}
+
 /**
  * Asia/Seoul 시간대 기준 현재 시각에 따른 시간대 레이블 키 반환
  * @returns 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'snack'

@@ -8,6 +8,7 @@ export default function SettingsDeleteAccount() {
   const goBack = useAppStore((s) => s.goBack)
   const nickname = useAppStore((s) => s.nickname)
   const signOut = useAppStore((s) => s.signOut)
+  const isDemo = useAppStore((s) => s.isDemo)
   
   const [showConfirm, setShowConfirm] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -23,18 +24,41 @@ export default function SettingsDeleteAccount() {
     setDeleting(true)
     setError('')
 
+    if (isDemo) {
+      signOut()
+      return
+    }
+
     try {
+      const userId = useAppStore.getState().userId
+      if (userId) {
+        try {
+          const { data: files, error: listError } = await supabase.storage.from('post-images').list(userId, { limit: 1000 })
+          if (listError) {
+            console.error('Account image listing failed; continuing deletion:', listError)
+          } else if (files?.length) {
+            const paths = files.filter((file) => file.id).map((file) => `${userId}/${file.name}`)
+            if (paths.length) {
+              const { error: removeError } = await supabase.storage.from('post-images').remove(paths)
+              if (removeError) console.error('Account image cleanup failed; continuing deletion:', removeError)
+            }
+          }
+        } catch (storageError) {
+          console.error('Account image cleanup failed; continuing deletion:', storageError)
+        }
+      }
+
       const { error: rpcError } = await supabase.rpc('delete_account')
       if (rpcError) {
-        setError(rpcError.message || M.deleteAccount.errorGeneric)
+        console.error('Account deletion failed:', rpcError)
+        setError(M.deleteAccount.errorGeneric)
         setDeleting(false)
         return
       }
 
-      // Sign out after successful deletion
-      await supabase.auth.signOut()
-      signOut()
+      await signOut()
     } catch (err) {
+      console.error('Account deletion failed:', err)
       setError(M.deleteAccount.errorGeneric)
       setDeleting(false)
     }

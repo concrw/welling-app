@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useMessages } from '../i18n'
 import { computeAchievement, computeAchievementForRange } from '../lib/achievement'
+import { getNotificationText } from '../lib/notificationText'
 import { ProfileHeader } from '../components/mypage/ProfileHeader'
 import { TabBar } from '../components/mypage/TabBar'
 import { RoutineTab } from '../components/mypage/RoutineTab'
@@ -16,6 +17,7 @@ export default function MyPage() {
   const mypageTab = useAppStore((s) => s.mypageTab)
   const setMypageTab = useAppStore((s) => s.setMypageTab)
   const nickname = useAppStore((s) => s.nickname)
+  const userId = useAppStore((s) => s.userId)
   const dashboardPeriod = useAppStore((s) => s.dashboardPeriod)
   const setDashboardPeriod = useAppStore((s) => s.setDashboardPeriod)
   const expandedPrev = useAppStore((s) => s.expandedPrev)
@@ -28,6 +30,7 @@ export default function MyPage() {
   const routinePrivacy = useAppStore((s) => s.routinePrivacy)
   const saveRoutinePrivacy = useAppStore((s) => s.saveRoutinePrivacy)
   const signOut = useAppStore((s) => s.signOut)
+  const openRecordModal = useAppStore((s) => s.openRecordModal)
 
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
@@ -43,17 +46,17 @@ export default function MyPage() {
   const toggleSection = (key: keyof AccordionState) => setOpen((s) => ({ ...s, [key]: !s[key] }))
 
   const windowDays = PERIOD_TO_DAYS[dashboardPeriod] ?? 30
-  const achievement = computeAchievement(routineGroups, posts, nickname || 'Min', windowDays)
+  const achievement = computeAchievement(routineGroups, posts, nickname || 'Min', windowDays, userId)
 
   const DAY_MS = 86400000
   const weeklyNow = Date.now()
-  const thisWeek = computeAchievementForRange(routineGroups, posts, nickname || 'Min', weeklyNow - 7 * DAY_MS, weeklyNow)
-  const lastWeek = computeAchievementForRange(routineGroups, posts, nickname || 'Min', weeklyNow - 14 * DAY_MS, weeklyNow - 7 * DAY_MS)
+  const thisWeek = computeAchievementForRange(routineGroups, posts, nickname || 'Min', weeklyNow - 7 * DAY_MS, weeklyNow, userId)
+  const lastWeek = computeAchievementForRange(routineGroups, posts, nickname || 'Min', weeklyNow - 14 * DAY_MS, weeklyNow - 7 * DAY_MS, userId)
   const weeklyDelta = thisWeek.overall - lastWeek.overall
   const pastRoutines = routineHistory.map((entry) => ({
     id: entry.id,
     period: M.myPage.periodRange(entry.startDate, entry.endDate),
-    achievement: computeAchievementForRange(entry.groups, posts, nickname || 'Min', entry.startDate, entry.endDate).overall,
+    achievement: computeAchievementForRange(entry.groups, posts, nickname || 'Min', entry.startDate, entry.endDate, userId).overall,
   }))
 
   const togglePrivacyGroup = (gi: number) => saveRoutinePrivacy(routinePrivacy.map((g, i) => i === gi ? { ...g, on: !g.on } : g))
@@ -65,6 +68,7 @@ export default function MyPage() {
   const hasUnread = notifications.some((n) => !n.read)
   const unreadCount = notifications.filter((n) => !n.read).length
   const latestNotif = notifications.find((n) => !n.read)
+  const hasOwnData = routineGroups.some((group) => group.items.length > 0) || posts.some((post) => userId ? post.userId === userId : post.user === nickname)
 
   return (
     <div data-testid="mypage-screen">
@@ -78,17 +82,24 @@ export default function MyPage() {
         followingCount={followingCount}
         hasUnread={hasUnread}
         unreadCount={unreadCount}
-        latestNotifText={latestNotif?.text}
-        mypageTab={mypageTab}
+        latestNotifText={latestNotif ? getNotificationText(latestNotif, M) : undefined}
         onNavigate={navigate}
-        onDashToggle={() => setMypageTab(mypageTab === 'routine' ? 'dashboard' : 'routine')}
       />
 
       <TabBar active={mypageTab} onChange={setMypageTab} />
 
-      {mypageTab === 'routine' && <RoutineTab />}
+      {!hasOwnData ? (
+        <div style={{ padding: '64px 24px', textAlign: 'center' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#111111' }}>{M.myPage.emptyTitle}</h2>
+          <p style={{ margin: '0 auto 20px', maxWidth: 300, color: '#777777', fontSize: 14, lineHeight: 1.55 }}>{M.myPage.emptyBody}</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+            <button onClick={() => navigate('routine-edit')} style={{ padding: '11px 16px', border: 0, borderRadius: 10, background: '#111111', color: '#FFFFFF', fontWeight: 700, cursor: 'pointer' }}>{M.myPage.emptyRoutineCta}</button>
+            <button onClick={openRecordModal} style={{ padding: '11px 16px', border: '1px solid #D8D8D8', borderRadius: 10, background: '#FFFFFF', color: '#333333', fontWeight: 700, cursor: 'pointer' }}>{M.myPage.emptyRecordCta}</button>
+          </div>
+        </div>
+      ) : mypageTab === 'routine' ? <RoutineTab /> : null}
 
-      {mypageTab === 'dashboard' && (
+      {hasOwnData && mypageTab === 'dashboard' && (
         <DashboardTab
           isAdmin={isAdmin}
           thisWeek={thisWeek}

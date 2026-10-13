@@ -79,6 +79,12 @@ export interface Community {
   joined: boolean
   ownerId?: string | null
   visibility?: 'public' | 'private'
+  inviteCode?: string
+}
+
+export interface PendingJoinRequest {
+  communityId: string
+  communityName: string
 }
 
 export interface User {
@@ -99,8 +105,14 @@ export interface User {
 export interface Notification {
   id: string
   user: string
-  type: 'like' | 'follow' | 'comment'
+  type: 'like' | 'follow' | 'comment' | 'reaction' | 'copy' | 'report' | 'group_join' | 'join_approved' | 'join_rejected'
+  // 'comment' 타입을 커뮤니티 레벨 알림(새 글 N개 / 가입 승인)과 구분하기 위한 보조 필드.
+  // 지정하지 않으면 type 기반 i18n 문구를 사용한다.
+  kind?: 'newPosts' | 'joinApproved'
   text: string
+  count?: number
+  // join_approved / join_rejected 알림이 가리키는 커뮤니티 id.
+  communityId?: string
   read: boolean
   time: string
   bgColor?: string
@@ -244,13 +256,19 @@ interface AppState {
   // 초대 링크 처리
   pendingInviteCode: string | null
   pendingInviteSavedAt: number | null
-  invitePreview: { communityId: string; name: string; memberCount: number } | null
+  invitePreview: { communityId: string; name: string; memberCount: number; ownerNickname?: string } | null
+  pendingJoinRequests: PendingJoinRequest[]
 
   selectedCommunity: Community | null
   selectedUser: User | null
 
   isAdmin: boolean
   showRecordModal: boolean
+  toastMessage: string | null
+  feedLoading: boolean
+  feedError: string | null
+  notificationsLoading: boolean
+  notificationsError: boolean
 
   syncedList: Set<string>
   showSyncSheet: boolean
@@ -337,11 +355,11 @@ interface AppState {
   toggleFollowUser: (userId: string) => Promise<void>
   toggleFollowOnboard: (userId: string) => void
   loadSuggestedUsers: () => Promise<void>
-  searchProfiles: (query: string) => Promise<void>
+  searchProfiles: (query: string) => Promise<User[] | null>
   toggleJoinCommunity: (communityId: string) => Promise<void>
   toggleLikePost: (postId: string) => Promise<void>
   toggleReaction: (postId: string, reactionType: string) => Promise<void>
-  addComment: (postId: string, text: string) => Promise<void>
+  addComment: (postId: string, text: string) => Promise<boolean>
   addPost: (content: string, imgUrl?: string, category?: PostCategory, visibility?: PostVisibility, communityId?: string | null, instaUrl?: string) => Promise<boolean>
   deletePost: (postId: string) => Promise<boolean>
   loadFeedData: () => Promise<void>
@@ -359,6 +377,7 @@ interface AppState {
   loadNotifications: () => Promise<void>
   openRecordModal: () => void
   closeRecordModal: () => void
+  showAppToast: (msg: string) => void
   openSyncSheet: (user: User) => void
   closeSyncSheet: () => void
   confirmSync: () => void
@@ -378,7 +397,7 @@ interface AppState {
   setProfileVisibility: (v: 'public' | 'followers' | 'private') => Promise<void>
   setNicknameEditInput: (v: string) => void
   submitNicknameEdit: () => Promise<void>
-  signOut: () => void
+  signOut: () => Promise<void>
 
   saveRoutineGroups: (groups: RoutineGroupData[]) => Promise<void>
   startNewRoutinePeriod: (groups: RoutineGroupData[]) => Promise<void>
@@ -416,10 +435,10 @@ async function insertRoutineGroups(userId: string, groups: RoutineGroupData[]): 
       .insert({ user_id: userId, name: group.name, sort_order: gi, is_current: true, is_public: false })
       .select()
       .single()
-    if (error || !groupRow) continue
+    if (error || !groupRow) throw error ?? new Error('Routine group insert returned no row')
     newIds.push(groupRow.id)
     if (group.items.length > 0) {
-      await supabase.from('routine_items').insert(
+      const { error: itemError } = await supabase.from('routine_items').insert(
         group.items.map((item, ii) => ({
           group_id: groupRow.id,
           name: item.name,
@@ -429,6 +448,7 @@ async function insertRoutineGroups(userId: string, groups: RoutineGroupData[]): 
           sort_order: ii,
         }))
       )
+      if (itemError) throw itemError
     }
   }
   return newIds
@@ -436,13 +456,206 @@ async function insertRoutineGroups(userId: string, groups: RoutineGroupData[]): 
 
 async function replaceCurrentRoutineGroups(userId: string, groups: RoutineGroupData[], previousGroupIds: string[]): Promise<string[]> {
   if (previousGroupIds.length > 0) {
-    await supabase.from('routine_groups').delete().in('id', previousGroupIds)
+    const { error } = await supabase.from('routine_groups').delete().in('id', previousGroupIds)
+    if (error) throw error
   }
   return insertRoutineGroups(userId, groups)
 }
 
 // In-flight invite preview check; restoreSession awaits it so a logged-in user's invite isn't dropped
 let inviteCheckInFlight: Promise<void> | null = null
+
+type ProfileRow = { nickname: string; is_admin: boolean | null; profile_visibility: string | null }
+
+// 이메일 확인 후 첫 로그인: 프로필 행이 없으면 가입 시 welling_signup_nickname에 저장해 둔 닉네임으로 생성한다.
+// 행이 정말 없을 때만 생성한다(missing). 닉네임이 없으면 missing → 호출부가 기존 social-nickname 화면으로 보낸다.
+// 읽기/생성 오류는 error로 구분해 호출부가 로그인 실패 경로로 처리한다(생성 시도·닉네임 화면 이동 없음).
+type ProfileLoadResult = { kind: 'ok'; profile: ProfileRow } | { kind: 'missing' } | { kind: 'error' }
+
+async function readProfile(userId: string) {
+  return supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', userId).maybeSingle()
+}
+
+async function loadOrCreateProfile(user: { id: string; user_metadata?: Record<string, unknown> }): Promise<ProfileLoadResult> {
+  const { data: profile, error: readError } = await readProfile(user.id)
+  if (readError) {
+    console.error('Profile load failed:', readError)
+    return { kind: 'error' }
+  }
+  if (profile) return { kind: 'ok', profile: profile as ProfileRow }
+  const meta = user.user_metadata?.welling_signup_nickname
+  const nickname = typeof meta === 'string' ? meta.trim() : ''
+  if (nickname.length < 2) return { kind: 'missing' }
+  const { error } = await supabase.from('profiles').insert({ id: user.id, nickname })
+  if (error) {
+    // 동시 첫 로드(다중 탭) 등으로 이미 생성된 경우: 다시 읽어서 사용한다
+    if (error.code === '23505') {
+      const { data: existing, error: rereadError } = await readProfile(user.id)
+      if (!rereadError && existing) return { kind: 'ok', profile: existing as ProfileRow }
+    }
+    console.error('Profile creation failed:', error)
+    return { kind: 'error' }
+  }
+  return { kind: 'ok', profile: { nickname, is_admin: false, profile_visibility: 'public' } }
+}
+
+// App-level toast auto-hide timer; cleared/reset on each new toast so rapid successive toasts don't fight each other
+let appToastTimer: ReturnType<typeof setTimeout> | null = null
+const FEED_POST_LIMIT = 50
+// Achievement/streak/ranking are derived from `posts`, so the viewer's own recent posts are always loaded alongside the capped feed.
+const OWN_POST_LIMIT = 200
+const OWN_ENGAGEMENT_POST_LIMIT = 50
+const POST_ENGAGEMENT_LIMIT = 1000
+const NOTIFICATION_LIMIT = 100
+
+const createAccountScopedState = (): Partial<AppState> => ({
+  authMode: 'signup',
+  authNotice: '',
+  isPasswordRecovery: false,
+  authError: '',
+  authLoading: false,
+  followedUsers: new Set(),
+  onboardingFollowed: new Set(),
+  posts: [...SAMPLE_POSTS, ...generateHistoricalPosts()],
+  communities: SAMPLE_COMMUNITIES,
+  suggestedUsers: SAMPLE_USERS,
+  notifications: SAMPLE_NOTIFS,
+  myFollowersCount: 0,
+  myFollowingCount: 0,
+  activeCommunityTab: 'all',
+  communityTabOrder: ['morning-runners', 'clean-eaters', 'book-club', 'office-workout'],
+  mypageTab: 'dashboard',
+  rankingTab: 'All',
+  dashboardPeriod: 'All time',
+  expandedPrev: true,
+  pendingRecordCommunityId: null,
+  pendingInviteCode: null,
+  pendingInviteSavedAt: null,
+  invitePreview: null,
+  pendingJoinRequests: [],
+  selectedCommunity: null,
+  selectedUser: null,
+  syncedList: new Set(),
+  selectedSyncUser: null,
+  selectedPost: null,
+  showRecordModal: false,
+  showPostDetail: false,
+  showSyncSheet: false,
+  showSyncConfirm: false,
+  showSyncAlarm: false,
+  showHomePrompt: false,
+  hasPromptedHome: false,
+  homeScreenIsRecord: false,
+  feedVisitCount: 0,
+  recordUseCount: 0,
+  showWelcomeAnimation: false,
+  pendingRecordAfterWelcome: false,
+  onboardingAnimating: false,
+  defaultVisibility: 'group',
+  profileVisibility: 'public',
+  nicknameEditInput: '',
+  feedLoading: false,
+  feedError: null,
+  notificationsLoading: false,
+  notificationsError: false,
+  toastMessage: null,
+  newCommName: '',
+  newCommDesc: '',
+  commVisibility: 'public',
+  searchQuery: '',
+  routineGroups: DEMO_ROUTINE_GROUPS,
+  routineHistory: [],
+  currentRoutineStartDate: daysAgo(20, 0, 0),
+  currentRoutineGroupIds: [],
+  routineItemIdByName: new Map(),
+  routinePrivacy: [
+    {
+      name: 'Morning Routine',
+      on: true,
+      items: [{ name: 'Morning Walk', on: true }, { name: 'Cold Shower', on: true }, { name: 'Meditation', on: false }, { name: 'Journaling', on: false }],
+    },
+    {
+      name: 'Evening Routine',
+      on: true,
+      items: [{ name: 'Running 5km', on: true }, { name: 'Stretching', on: true }, { name: 'Reading', on: true }],
+    },
+  ],
+  eveningReflections: [],
+  calendarSnapshots: [],
+  commNotifSettings: [],
+  alarmSyncedSettings: [
+    { id: 's1', on: true },
+    { id: 's2', on: false },
+  ],
+  alarmCommSettings: [
+    { id: 'c1', on: true },
+    { id: 'c2', on: true },
+    { id: 'c3', on: false },
+  ],
+  adminUsers: [
+    { id: 'u1', name: 'Jay', followers: 1243, suspended: false },
+    { id: 'u2', name: 'Sora', followers: 892, suspended: false },
+    { id: 'u3', name: 'Tom', followers: 231, suspended: true },
+    { id: 'u4', name: 'Mina', followers: 567, suspended: false },
+    { id: 'u5', name: 'Kevin', followers: 412, suspended: false },
+    { id: 'u6', name: 'Dana', followers: 334, suspended: false },
+    { id: 'u7', name: 'Ryan', followers: 789, suspended: false },
+    { id: 'u8', name: 'Lily', followers: 102, suspended: true },
+    { id: 'u9', name: 'Eric', followers: 1501, suspended: false },
+    { id: 'u10', name: 'Nina', followers: 655, suspended: false },
+  ],
+  adminReports: DEMO_ADMIN_REPORTS,
+  adminPostReports: [],
+  customQuickButtons: [],
+  chatUser: '',
+  syncSheetUserName: '',
+  syncSheetAlarms: [],
+  syncAlarmHasImg: false,
+  syncAlarmBgImg: '',
+  syncAlarmFallbackGrad: 'linear-gradient(160deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)',
+  syncAlarmStatusTime: '9:41',
+  syncAlarmClockDisplay: '09:41',
+  syncAlarmDate: DEMO_SYNC_ALARM_DATE,
+  syncAlarmUserColor: '#6366F1',
+  syncAlarmUserInitial: 'W',
+  syncAlarmUserDisplay: '',
+  syncAlarmGroupLabel: '',
+  syncAlarmContent: '',
+})
+
+// 다른 사용자들의 공개 루틴(그룹/항목)을 RLS 허용 범위(is_public=true, is_current=true, 비공개 항목 제외)에서 읽는다.
+// 추천 사용자 목록과 그룹 랭킹이 같은 데이터/로직을 쓰도록 공유한다.
+export async function fetchPublicRoutinesByUser(profileIds: string[]) {
+  const { data: groupRows } = profileIds.length
+    ? await supabase.from('routine_groups').select('id, user_id, name, is_public, is_current').in('user_id', profileIds).eq('is_public', true).eq('is_current', true)
+    : { data: [] as { id: string; user_id: string; name: string; is_public: boolean; is_current: boolean }[] }
+  const groupIds = (groupRows ?? []).map((g) => g.id)
+  const [{ data: itemRows }, { data: privacyRows }] = await Promise.all([
+    groupIds.length ? supabase.from('routine_items').select('id, group_id, name, sort_order').in('group_id', groupIds).order('sort_order', { ascending: true }) : Promise.resolve({ data: [] as { id: string; group_id: string; name: string; sort_order: number }[] }),
+    groupIds.length ? supabase.from('routine_privacy').select('item_id, is_public') : Promise.resolve({ data: [] as { item_id: string; is_public: boolean }[] }),
+  ])
+  const privateItemIds = new Set((privacyRows ?? []).filter((p) => !p.is_public).map((p) => p.item_id))
+  const itemsByGroup = new Map<string, string[]>()
+  for (const item of itemRows ?? []) {
+    if (privateItemIds.has(item.id)) continue
+    const list = itemsByGroup.get(item.group_id) ?? []
+    list.push(item.name)
+    itemsByGroup.set(item.group_id, list)
+  }
+  const groupsByUser = new Map<string, RoutineGroupData[]>()
+  const routinesByUser = new Map<string, { group: string; items: string }[]>()
+  for (const g of groupRows ?? []) {
+    const itemNames = itemsByGroup.get(g.id) ?? []
+    if (!itemNames.length) continue
+    const groupsList = groupsByUser.get(g.user_id) ?? []
+    groupsList.push({ id: g.id, name: g.name, items: itemNames.map((name) => ({ id: name, name, time: '', desc: '' })) })
+    groupsByUser.set(g.user_id, groupsList)
+    const routinesList = routinesByUser.get(g.user_id) ?? []
+    routinesList.push({ group: g.name, items: itemNames.join(' · ') })
+    routinesByUser.set(g.user_id, routinesList)
+  }
+  return { groupsByUser, routinesByUser }
+}
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -491,10 +704,16 @@ export const useAppStore = create<AppState>()(
 
   isAdmin: false,
   showRecordModal: false,
-  
+  toastMessage: null,
+  feedLoading: false,
+  feedError: null,
+  notificationsLoading: false,
+  notificationsError: false,
+
   pendingInviteCode: null,
   pendingInviteSavedAt: null,
   invitePreview: null,
+  pendingJoinRequests: [],
 
   syncedList: new Set(),
   showSyncSheet: false,
@@ -602,6 +821,7 @@ export const useAppStore = create<AppState>()(
       const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
       if (Date.now() - savedAt > sevenDaysMs) {
         localStorage.removeItem('welling_pending_invite')
+        get().showAppToast(getMessages().store.inviteExpired)
         return
       }
       
@@ -609,6 +829,7 @@ export const useAppStore = create<AppState>()(
       const { data, error } = await supabase.rpc('get_invite_preview', { p_code: code })
       if (error || !data) {
         localStorage.removeItem('welling_pending_invite')
+        get().showAppToast(getMessages().store.inviteInvalid)
         return
       }
       
@@ -621,30 +842,33 @@ export const useAppStore = create<AppState>()(
             communityId: result.community_id,
             name: result.name,
             memberCount: result.member_count,
+            ...(result.owner_nickname ? { ownerNickname: result.owner_nickname } : {}),
           },
         })
+      } else {
+        localStorage.removeItem('welling_pending_invite')
+        get().showAppToast(result.status === 'expired' ? getMessages().store.inviteExpired : getMessages().store.inviteInvalid)
       }
     } catch {
       localStorage.removeItem('welling_pending_invite')
+      get().showAppToast(getMessages().store.inviteInvalid)
     }
     })()
     inviteCheckInFlight = run
     try { await run } finally { if (inviteCheckInFlight === run) inviteCheckInFlight = null }
   },
   
-  consumePendingInvite: async (options?: { isNewSignup?: boolean }) => {
+  consumePendingInvite: async (_options?: { isNewSignup?: boolean }) => {
     const { pendingInviteCode, userId } = get()
     if (!pendingInviteCode || !userId) return
-    
-    const isNewSignup = options?.isNewSignup ?? false
     
     const { data, error } = await supabase.rpc('join_by_invite', { p_code: pendingInviteCode })
     if (error) {
       console.error('Failed to join by invite:', error)
-      alert(getMessages().store.inviteUnknownError(error.message))
+      alert(getMessages().store.inviteUnexpectedError)
       localStorage.removeItem('welling_pending_invite')
       set({ pendingInviteCode: null, pendingInviteSavedAt: null, invitePreview: null })
-      get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
+      get().navigate('feed')
       return
     }
     
@@ -681,14 +905,18 @@ export const useAppStore = create<AppState>()(
     }
     
     if (result.status === 'pending') {
+      const pendingNames = JSON.parse(localStorage.getItem('welling_pending_join_names') || '{}') as Record<string, string>
+      pendingNames[result.community_id] = result.name
+      localStorage.setItem('welling_pending_join_names', JSON.stringify(pendingNames))
       localStorage.removeItem('welling_pending_invite')
       set({
         pendingInviteCode: null,
         pendingInviteSavedAt: null,
         invitePreview: null,
+        pendingJoinRequests: [{ communityId: result.community_id, communityName: result.name }, ...get().pendingJoinRequests.filter((r) => r.communityId !== result.community_id)],
       })
       alert(M.store.invitePending)
-      get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
+      get().navigate('feed')
       return
     }
     
@@ -705,8 +933,8 @@ export const useAppStore = create<AppState>()(
       invalid_code: M.store.inviteInvalid,
     }
     
-    alert(statusMessages[result.status] || M.store.inviteUnknownError(result.status))
-    get().navigate(isNewSignup ? 'onboarding-preview' : 'feed')
+    alert(statusMessages[result.status] || M.store.inviteUnexpectedError)
+    get().navigate('feed')
   },
   
   clearPendingInvite: () => {
@@ -726,7 +954,8 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: true, authError: '', authNotice: '' })
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
     if (error) {
-      set({ authLoading: false, authError: error.message })
+      console.error('Password reset request failed:', error)
+      set({ authLoading: false, authError: getMessages().store.resetFailed })
       return
     }
     set({ authLoading: false, authNotice: getMessages().store.resetEmailSent })
@@ -736,9 +965,12 @@ export const useAppStore = create<AppState>()(
     set({ authError: '', authNotice: '' })
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: window.location.href },
     })
-    if (error) set({ authError: error.message })
+    if (error) {
+      console.error('Social sign-in failed:', error)
+      set({ authError: getMessages().store.socialLoginFailed })
+    }
   },
 
   submitSocialNickname: async () => {
@@ -747,12 +979,19 @@ export const useAppStore = create<AppState>()(
     if (trimmed.length < 2 || !userId) return
     set({ authLoading: true, authError: '' })
     const { error } = await supabase.from('profiles').insert({ id: userId, nickname: trimmed })
+    let finalNickname = trimmed
     if (error) {
-      set({ authLoading: false, authError: error.message })
-      return
+      // 이미 프로필이 있는 경우(23505): 다시 읽어서 기존 프로필로 계속 진행한다
+      const { data: existing } = error.code === '23505' ? await readProfile(userId) : { data: null }
+      if (!existing) {
+        console.error('Profile creation failed:', error)
+        set({ authLoading: false, authError: getMessages().store.signupFailed })
+        return
+      }
+      finalNickname = existing.nickname
     }
     set({
-      nickname: trimmed,
+      nickname: finalNickname,
       authLoading: false,
     })
     get().loadFeedData()
@@ -770,7 +1009,7 @@ export const useAppStore = create<AppState>()(
     if (pendingInviteCode) {
       await get().consumePendingInvite({ isNewSignup: true })
     } else {
-      set({ screen: 'onboarding-preview', prevScreen: 'social-nickname' })
+      set({ screen: 'feed', navTab: 'feed', prevScreen: null })
     }
   },
 
@@ -778,7 +1017,8 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: true, authError: '' })
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) {
-      set({ authLoading: false, authError: error.message })
+      console.error('Password update failed:', error)
+      set({ authLoading: false, authError: getMessages().store.passwordUpdateFailed })
       return false
     }
     set({ authLoading: false, isPasswordRecovery: false, authMode: 'login', emailInput: '', passwordInput: '' })
@@ -791,14 +1031,25 @@ export const useAppStore = create<AppState>()(
     const trimmed = nicknameInput.trim()
     if (trimmed.length < 2) return
     set({ authLoading: true, authError: '' })
-    const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput })
+    const { data, error } = await supabase.auth.signUp({ email: emailInput, password: passwordInput, options: { data: { welling_signup_nickname: trimmed } } })
     if (error || !data.user) {
-      set({ authLoading: false, authError: error?.message ?? getMessages().store.signupFailed })
+      if (error) console.error('Sign-up failed:', error)
+      set({ authLoading: false, authError: getMessages().store.signupFailed })
+      return
+    }
+    if (!data.session) {
+      set({
+        authLoading: false,
+        authMode: 'login',
+        authNotice: getMessages().store.signupConfirmationSent,
+        passwordInput: '',
+      })
       return
     }
     const { error: profileError } = await supabase.from('profiles').insert({ id: data.user.id, nickname: trimmed })
     if (profileError) {
-      set({ authLoading: false, authError: profileError.message })
+      console.error('Profile creation failed:', profileError)
+      set({ authLoading: false, authError: getMessages().store.signupFailed })
       return
     }
     set({
@@ -822,7 +1073,7 @@ export const useAppStore = create<AppState>()(
     if (pendingInviteCode) {
       await get().consumePendingInvite({ isNewSignup: true })
     } else {
-      set({ screen: 'onboarding-preview', prevScreen: 'onboarding-username' })
+      set({ screen: 'feed', navTab: 'feed', prevScreen: null })
     }
   },
 
@@ -831,10 +1082,20 @@ export const useAppStore = create<AppState>()(
     set({ authLoading: true, authError: '' })
     const { data, error } = await supabase.auth.signInWithPassword({ email: emailInput, password: passwordInput })
     if (error || !data.user) {
-      set({ authLoading: false, authError: error?.message ?? getMessages().store.loginFailed })
+      if (error) console.error('Login failed:', error)
+      set({ authLoading: false, authError: getMessages().store.loginFailed })
       return
     }
-    const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', data.user.id).single()
+    const result = await loadOrCreateProfile(data.user)
+    if (result.kind === 'error') {
+      set({ authLoading: false, authError: getMessages().store.loginFailed })
+      return
+    }
+    const profile = result.kind === 'ok' ? result.profile : null
+    if (!profile) {
+      set({ userId: data.user.id, isDemo: false, authLoading: false, screen: 'social-nickname', navTab: 'feed' })
+      return
+    }
     set({
       nickname: profile?.nickname ?? '',
       userId: data.user.id,
@@ -870,7 +1131,12 @@ export const useAppStore = create<AppState>()(
       set({ authInitializing: false })
       return
     }
-    const { data: profile } = await supabase.from('profiles').select('nickname, is_admin, profile_visibility').eq('id', user.id).single()
+    const result = await loadOrCreateProfile(user)
+    if (result.kind === 'error') {
+      set({ authInitializing: false, authError: getMessages().store.loginFailed })
+      return
+    }
+    const profile = result.kind === 'ok' ? result.profile : null
     // 비밀번호 복구 링크로 진입한 세션이면 피드 대신 재설정 화면을 유지한다
     const recovering = get().isPasswordRecovery
     // 소셜 로그인 첫 진입: 세션은 있지만 프로필이 없음 → 닉네임 설정 화면으로
@@ -909,7 +1175,24 @@ export const useAppStore = create<AppState>()(
     }
   },
 
-  goFeedDemo: () => set({ nickname: 'Min', isDemo: true, userId: null, screen: 'feed', navTab: 'feed', prevScreen: null }),
+  goFeedDemo: () => {
+    localStorage.removeItem('welling_pending_invite')
+    localStorage.removeItem('welling_pending_join_names')
+    localStorage.removeItem('welling_last_record_community')
+    set({
+      ...createAccountScopedState(),
+      nickname: 'Min',
+      nicknameInput: '',
+      emailInput: '',
+      passwordInput: '',
+      isDemo: true,
+      userId: null,
+      isAdmin: false,
+      screen: 'feed',
+      navTab: 'feed',
+      prevScreen: null,
+    })
+  },
 
   goToMain: () => {
     set({ screen: 'feed', navTab: 'feed', prevScreen: null, showWelcomeAnimation: true })
@@ -971,34 +1254,36 @@ export const useAppStore = create<AppState>()(
       return { onboardingFollowed: next }
     }),
 
+  // Server-side people search. Returns results without touching suggestedUsers;
+  // null means "unavailable" (demo/logged-out/RPC error/no data) so callers fall back to local filtering.
   searchProfiles: async (query) => {
     const { userId, isDemo } = get()
-    if (isDemo || !userId) return
-    if (!query.trim()) {
-      set({ suggestedUsers: [] })
-      return
-    }
+    if (isDemo || !userId || !query.trim()) return null
     const { data, error } = await supabase.rpc('search_profiles', { p_query: query, p_limit: 20 })
-    if (error || !data) {
-      set({ suggestedUsers: [] })
-      return
-    }
+    if (error || !Array.isArray(data)) return null
+    const { suggestedUsers, followedUsers } = get()
+    const known = new Map(suggestedUsers.map((u) => [u.id, u]))
     const palette = ['#0984E3', '#00A389', '#7C3AED', '#B45309', '#1A6B4A', '#C2600A']
-    const suggestedUsers: User[] = data.map((p: any, i: number) => ({
-      id: p.id,
-      name: p.nickname,
-      handle: p.nickname,
-      initials: p.nickname[0]?.toUpperCase() ?? '?',
-      color: palette[i % palette.length],
-      bio: p.bio ?? '',
-      followers: 0,
-      following: 0,
-      followed: false,
-      synced: false,
-      routines: [],
-      routineGoals: [],
-    }))
-    set({ suggestedUsers })
+    return data
+      .filter((p: any) => p.id !== userId && p.nickname)
+      .map((p: any, i: number): User => {
+        const existing = known.get(p.id)
+        if (existing) return { ...existing, followed: followedUsers.has(p.id) }
+        return {
+          id: p.id,
+          name: p.nickname,
+          handle: p.nickname,
+          initials: p.nickname[0]?.toUpperCase() ?? '?',
+          color: palette[i % palette.length],
+          bio: p.bio ?? '',
+          followers: 0,
+          following: 0,
+          followed: followedUsers.has(p.id) || !!p.followed,
+          synced: false,
+          routines: [],
+          routineGoals: [],
+        }
+      })
   },
 
   loadSuggestedUsers: async () => {
@@ -1014,34 +1299,7 @@ export const useAppStore = create<AppState>()(
     const countsById = new Map((countRows ?? []).map((c) => [c.user_id, c]))
     const profileIds = (profileRows ?? []).map((p) => p.id)
 
-    const { data: groupRows } = profileIds.length
-      ? await supabase.from('routine_groups').select('id, user_id, name, is_public, is_current').in('user_id', profileIds).eq('is_public', true).eq('is_current', true)
-      : { data: [] as { id: string; user_id: string; name: string; is_public: boolean; is_current: boolean }[] }
-    const groupIds = (groupRows ?? []).map((g) => g.id)
-    const [{ data: itemRows }, { data: privacyRows }] = await Promise.all([
-      groupIds.length ? supabase.from('routine_items').select('id, group_id, name, sort_order').in('group_id', groupIds).order('sort_order', { ascending: true }) : Promise.resolve({ data: [] as { id: string; group_id: string; name: string; sort_order: number }[] }),
-      groupIds.length ? supabase.from('routine_privacy').select('item_id, is_public') : Promise.resolve({ data: [] as { item_id: string; is_public: boolean }[] }),
-    ])
-    const privateItemIds = new Set((privacyRows ?? []).filter((p) => !p.is_public).map((p) => p.item_id))
-    const itemsByGroup = new Map<string, string[]>()
-    for (const item of itemRows ?? []) {
-      if (privateItemIds.has(item.id)) continue
-      const list = itemsByGroup.get(item.group_id) ?? []
-      list.push(item.name)
-      itemsByGroup.set(item.group_id, list)
-    }
-    const groupsByUser = new Map<string, RoutineGroupData[]>()
-    const routinesByUser = new Map<string, { group: string; items: string }[]>()
-    for (const g of groupRows ?? []) {
-      const itemNames = itemsByGroup.get(g.id) ?? []
-      if (!itemNames.length) continue
-      const groupsList = groupsByUser.get(g.user_id) ?? []
-      groupsList.push({ id: g.id, name: g.name, items: itemNames.map((name) => ({ id: name, name, time: '', desc: '' })) })
-      groupsByUser.set(g.user_id, groupsList)
-      const routinesList = routinesByUser.get(g.user_id) ?? []
-      routinesList.push({ group: g.name, items: itemNames.join(' · ') })
-      routinesByUser.set(g.user_id, routinesList)
-    }
+    const { groupsByUser, routinesByUser } = await fetchPublicRoutinesByUser(profileIds)
 
     const palette = ['#0984E3', '#00A389', '#7C3AED', '#B45309', '#1A6B4A', '#C2600A']
     const suggestedUsers: User[] = (profileRows ?? []).map((p, i) => ({
@@ -1068,21 +1326,55 @@ export const useAppStore = create<AppState>()(
 
   toggleJoinCommunity: async (communityId) => {
     const { userId, isDemo, communities } = get()
-    const nextJoined = !communities.find((c) => c.id === communityId)?.joined
+    const community = communities.find((c) => c.id === communityId)
+    if (!community) return
+    const nextJoined = !community.joined
+    const memberDelta = nextJoined ? 1 : -1
     set((s) => ({
       communities: s.communities.map((c) =>
-        c.id === communityId ? { ...c, joined: !c.joined } : c
+        c.id === communityId ? { ...c, joined: nextJoined, members: Math.max(0, c.members + memberDelta) } : c
       ),
       selectedCommunity:
         s.selectedCommunity?.id === communityId
-          ? { ...s.selectedCommunity, joined: !s.selectedCommunity.joined }
+          ? { ...s.selectedCommunity, joined: nextJoined, members: Math.max(0, s.selectedCommunity.members + memberDelta) }
           : s.selectedCommunity,
     }))
     if (isDemo || !userId) return
     if (nextJoined) {
-      await supabase.from('community_members').insert({ user_id: userId, community_id: communityId })
+      if (!community.inviteCode) {
+        set((s) => ({
+          communities: s.communities.map((c) => c.id === communityId ? { ...c, joined: false, members: community.members } : c),
+          selectedCommunity: s.selectedCommunity?.id === communityId ? { ...s.selectedCommunity, joined: false, members: community.members } : s.selectedCommunity,
+        }))
+        get().showAppToast(getMessages().store.joinFailed)
+        return
+      }
+      const { data, error } = await supabase.rpc('join_by_invite', { p_code: community.inviteCode })
+      const result = !error && data ? (typeof data === 'string' ? JSON.parse(data) : data) : null
+      if (error || !result || !['success', 'already', 'already_member'].includes(result.status)) {
+        set((s) => ({
+          communities: s.communities.map((c) => c.id === communityId ? { ...c, joined: false, members: community.members } : c),
+          selectedCommunity: s.selectedCommunity?.id === communityId ? { ...s.selectedCommunity, joined: false, members: community.members } : s.selectedCommunity,
+        }))
+        if (result?.status === 'pending') {
+          const pendingNames = JSON.parse(localStorage.getItem('welling_pending_join_names') || '{}') as Record<string, string>
+          pendingNames[communityId] = result.name ?? community.name
+          localStorage.setItem('welling_pending_join_names', JSON.stringify(pendingNames))
+          set((s) => ({ pendingJoinRequests: [{ communityId, communityName: result.name ?? community.name }, ...s.pendingJoinRequests.filter((r) => r.communityId !== communityId)] }))
+          get().showAppToast(getMessages().store.invitePending)
+        } else {
+          get().showAppToast(getMessages().store.joinFailed)
+        }
+      }
     } else {
-      await supabase.from('community_members').delete().eq('user_id', userId).eq('community_id', communityId)
+      const { error } = await supabase.from('community_members').delete().eq('user_id', userId).eq('community_id', communityId)
+      if (error) {
+        set((s) => ({
+          communities: s.communities.map((c) => c.id === communityId ? { ...c, joined: true, members: community.members } : c),
+          selectedCommunity: s.selectedCommunity?.id === communityId ? { ...s.selectedCommunity, joined: true, members: community.members } : s.selectedCommunity,
+        }))
+        get().showAppToast(getMessages().store.leaveFailed)
+      }
     }
   },
 
@@ -1095,10 +1387,12 @@ export const useAppStore = create<AppState>()(
       ),
     }))
     if (isDemo || !userId) return
-    if (nextLiked) {
-      await supabase.from('post_likes').insert({ user_id: userId, post_id: postId })
-    } else {
-      await supabase.from('post_likes').delete().eq('user_id', userId).eq('post_id', postId)
+    const { error } = nextLiked
+      ? await supabase.from('post_likes').insert({ user_id: userId, post_id: postId })
+      : await supabase.from('post_likes').delete().eq('user_id', userId).eq('post_id', postId)
+    if (error) {
+      set((s) => ({ posts: s.posts.map((p) => p.id === postId ? { ...p, liked: !nextLiked } : p) }))
+      get().showAppToast(getMessages().communityEdit.saveFailed)
     }
   },
 
@@ -1138,9 +1432,11 @@ export const useAppStore = create<AppState>()(
     }))
     if (isDemo || !userId) return
     if (alreadyReacted) {
-      await supabase.from('post_reactions').delete().eq('user_id', userId).eq('post_id', postId).eq('reaction_type', reactionType)
+      const { error } = await supabase.from('post_reactions').delete().eq('user_id', userId).eq('post_id', postId).eq('reaction_type', reactionType)
+      if (error) await get().loadFeedData()
     } else {
-      await supabase.from('post_reactions').insert({ user_id: userId, post_id: postId, reaction_type: reactionType })
+      const { error } = await supabase.from('post_reactions').insert({ user_id: userId, post_id: postId, reaction_type: reactionType })
+      if (error) await get().loadFeedData()
     }
   },
 
@@ -1153,23 +1449,27 @@ export const useAppStore = create<AppState>()(
         posts: s.posts.map((p) => p.id === postId ? { ...p, comments: [...(p.comments ?? []), newComment] } : p),
         selectedPost: s.selectedPost?.id === postId ? { ...s.selectedPost, comments: [...(s.selectedPost.comments ?? []), newComment] } : s.selectedPost,
       }))
-      return
+      return true
     }
     const { data, error } = await supabase
       .from('post_comments')
       .insert({ post_id: postId, user_id: userId, text })
       .select()
       .single()
-    if (error || !data) return
+    if (error || !data) {
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+      return false
+    }
     const newComment = { user: displayName, text: data.text, userId }
     set((s) => ({
       posts: s.posts.map((p) => p.id === postId ? { ...p, comments: [...(p.comments ?? []), newComment] } : p),
       selectedPost: s.selectedPost?.id === postId ? { ...s.selectedPost, comments: [...(s.selectedPost.comments ?? []), newComment] } : s.selectedPost,
     }))
+    return true
   },
 
   addPost: async (content, imgUrl, category, visibility, communityId, instaUrl) => {
-    const { userId, isDemo, nickname, hasPromptedHome, defaultVisibility, feedVisitCount, recordUseCount } = get()
+    const { userId, isDemo, nickname, hasPromptedHome, defaultVisibility, recordUseCount } = get()
     const displayName = nickname || 'Min'
     const finalCategory: PostCategory = category ?? 'habit'
     let finalVisibility: PostVisibility = visibility ?? defaultVisibility
@@ -1179,7 +1479,8 @@ export const useAppStore = create<AppState>()(
       finalVisibility = 'private'
     }
     
-    const shouldPrompt = !hasPromptedHome && recordUseCount > feedVisitCount
+    const nextRecordUseCount = recordUseCount + 1
+    const shouldPromptLater = !hasPromptedHome && nextRecordUseCount >= 3
     if (isDemo || !userId) {
       const newPost: Post = {
         id: `p${Date.now()}`,
@@ -1199,8 +1500,13 @@ export const useAppStore = create<AppState>()(
       }
       set((s) => ({
         posts: [newPost, ...s.posts],
-        ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
+        recordUseCount: nextRecordUseCount,
       }))
+      if (communityId) localStorage.setItem('welling_last_record_community', communityId)
+      if (shouldPromptLater) setTimeout(() => {
+        const state = useAppStore.getState()
+        if (!state.showRecordModal && !state.toastMessage) useAppStore.setState({ showHomePrompt: true, hasPromptedHome: true })
+      }, 2600)
       return true
     }
     const { data, error } = await supabase
@@ -1241,15 +1547,19 @@ export const useAppStore = create<AppState>()(
     }
     set((s) => ({
       posts: [newPost, ...s.posts],
-      ...(shouldPrompt ? { showHomePrompt: true, hasPromptedHome: true } : {}),
+      recordUseCount: nextRecordUseCount,
     }))
+    if (communityId) localStorage.setItem('welling_last_record_community', communityId)
+    if (shouldPromptLater) setTimeout(() => {
+      const state = useAppStore.getState()
+      if (!state.showRecordModal && !state.toastMessage) useAppStore.setState({ showHomePrompt: true, hasPromptedHome: true })
+    }, 2600)
     return true
   },
 
   deletePost: async (postId) => {
     const { userId, isDemo, posts } = get()
-    if (!userId) return false
-    
+
     if (isDemo) {
       set((s) => ({
         posts: s.posts.filter((p) => p.id !== postId),
@@ -1257,25 +1567,14 @@ export const useAppStore = create<AppState>()(
       }))
       return true
     }
+
+    if (!userId) return false
     
     // Find the post to get image URL before deleting
     const post = posts.find((p) => p.id === postId)
     if (!post || post.userId !== userId) return false
     
-    // Delete from database with .select('id') to check affected rows
-    const { data, error } = await supabase
-      .from('posts')
-      .delete()
-      .eq('id', postId)
-      .eq('user_id', userId)
-      .select('id')
-    
-    if (error || !data || data.length === 0) {
-      console.error('Failed to delete post (RLS or error):', error)
-      return false
-    }
-    
-    // Delete Storage image if exists
+    // Remove the Storage image first so a failure leaves the post intact and retryable
     if (post.hasImg && post.imgUrl) {
       try {
         const urlParts = post.imgUrl.split('/')
@@ -1284,12 +1583,27 @@ export const useAppStore = create<AppState>()(
         const { error: storageError } = await supabase.storage.from('post-images').remove([path])
         if (storageError) {
           console.warn('Failed to remove post image from storage:', storageError)
+          return false
         }
       } catch (err) {
         console.error('Failed to delete post image:', err)
+        return false
       }
     }
-    
+
+    // Delete from database with .select('id') to check affected rows
+    const { data, error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId)
+      .eq('user_id', userId)
+      .select('id')
+
+    if (error || !data || data.length === 0) {
+      console.error('Failed to delete post (RLS or error):', error)
+      return false
+    }
+
     // Update local state
     set((s) => ({
       posts: s.posts.filter((p) => p.id !== postId),
@@ -1302,16 +1616,32 @@ export const useAppStore = create<AppState>()(
   loadFeedData: async () => {
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
-    const [{ data: communityRows }, { data: memberRows }, { data: postRows }, { data: likeRows }] = await Promise.all([
+    set({ feedLoading: true, feedError: null })
+    const [communitiesResult, membersResult, feedPostsResult, ownPostsResult, joinRequestsResult] = await Promise.all([
       supabase.from('communities').select('*'),
       supabase.from('community_members').select('community_id, user_id'),
-      supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').order('created_at', { ascending: false }),
-      supabase.from('post_likes').select('post_id').eq('user_id', userId),
+      // Initial feed is intentionally capped; pagination UI can be added later.
+      supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').order('created_at', { ascending: false }).limit(FEED_POST_LIMIT),
+      supabase.from('posts').select('*, profiles!posts_user_id_fkey(nickname)').eq('user_id', userId).order('created_at', { ascending: false }).limit(OWN_POST_LIMIT),
+      supabase.from('community_join_requests').select('community_id, status').eq('user_id', userId).eq('status', 'pending'),
     ])
-    const postIds = (postRows ?? []).map((p) => p.id)
-    const [{ data: reactionRows }, { data: commentRows }] = await Promise.all([
-      postIds.length ? supabase.from('post_reactions').select('post_id, user_id, reaction_type').in('post_id', postIds) : Promise.resolve({ data: [] }),
-      postIds.length ? supabase.from('post_comments').select('post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }) : Promise.resolve({ data: [] as { post_id: string; user_id: string; text: string; created_at: string }[] }),
+    // 쿼리 하나가 실패해도 나머지 결과로 화면을 구성한다. 핵심 데이터(그룹/게시글) 실패만 오류 화면으로 알린다.
+    for (const result of [communitiesResult, membersResult, feedPostsResult, ownPostsResult, joinRequestsResult]) {
+      if (result.error) console.error('Failed to load feed query:', result.error)
+    }
+    const coreError = feedPostsResult.error ?? communitiesResult.error ?? null
+    const communityRows = communitiesResult.data
+    const memberRows = membersResult.data
+    const feedRows = feedPostsResult.data ?? []
+    const feedIdSet = new Set(feedRows.map((p) => p.id))
+    const ownRows = (ownPostsResult.data ?? []).filter((p) => !feedIdSet.has(p.id))
+    const postRows = [...feedRows, ...ownRows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    const joinRequestRows = joinRequestsResult.data
+    const postIds = [...feedRows.map((p) => p.id), ...ownRows.slice(0, OWN_ENGAGEMENT_POST_LIMIT).map((p) => p.id)]
+    const [{ data: likeRows }, { data: reactionRows }, { data: commentRows }] = await Promise.all([
+      postIds.length ? supabase.from('post_likes').select('post_id').eq('user_id', userId).in('post_id', postIds).limit(POST_ENGAGEMENT_LIMIT) : Promise.resolve({ data: [] }),
+      postIds.length ? supabase.from('post_reactions').select('post_id, user_id, reaction_type').in('post_id', postIds).limit(POST_ENGAGEMENT_LIMIT) : Promise.resolve({ data: [] }),
+      postIds.length ? supabase.from('post_comments').select('post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(POST_ENGAGEMENT_LIMIT) : Promise.resolve({ data: [] as { post_id: string; user_id: string; text: string; created_at: string }[] }),
     ])
     const commentAuthorIds = [...new Set((commentRows ?? []).map((c) => c.user_id))]
     const { data: commentAuthorRows } = commentAuthorIds.length
@@ -1347,12 +1677,13 @@ export const useAppStore = create<AppState>()(
       name: c.name,
       initial: c.initial,
       color: c.color,
-      members: memberCountById.get(c.id) ?? c.members,
+      members: memberCountById.get(c.id) ?? c.member_count ?? c.members,
       focus: c.focus,
       desc: c.desc,
       joined: joinedIds.has(c.id),
       ownerId: c.owner_id ?? null,
       visibility: c.visibility ?? 'public',
+      inviteCode: c.invite_code,
     }))
     const posts: Post[] = (postRows ?? []).map((p) => {
       const authorNickname = (p as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.deletedUser
@@ -1376,7 +1707,13 @@ export const useAppStore = create<AppState>()(
         ...(p.has_insta ? { hasInsta: true, instaUrl: p.insta_url } : {}),
       }
     })
-    set({ communities, posts })
+    const pendingNames = JSON.parse(localStorage.getItem('welling_pending_join_names') || '{}') as Record<string, string>
+    const communityNameById = new Map(communities.map((c) => [c.id, c.name]))
+    const pendingJoinRequests: PendingJoinRequest[] = (joinRequestRows ?? []).map((r) => ({
+      communityId: r.community_id,
+      communityName: communityNameById.get(r.community_id) ?? pendingNames[r.community_id] ?? getMessages().store.groupFallback,
+    }))
+    set({ communities, posts, pendingJoinRequests, feedLoading: false, feedError: coreError ? coreError.message : null })
   },
 
   selectCommunity: (c) => set((s) => ({ selectedCommunity: c, prevScreen: s.screen, screen: 'community-detail' })),
@@ -1453,11 +1790,12 @@ export const useAppStore = create<AppState>()(
       ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
     }).eq('id', id)
     if (error) {
+      console.error('Community update failed:', error)
       set((s) => ({
         communities: s.communities.map((c) => (c.id === id ? prev : c)),
         selectedCommunity: s.selectedCommunity?.id === id ? prev : s.selectedCommunity,
       }))
-      return error.message
+      return getMessages().communityEdit.saveFailed
     }
     return null
   },
@@ -1466,43 +1804,80 @@ export const useAppStore = create<AppState>()(
     set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),
 
   markAllRead: async () => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, notifications } = get()
     set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) }))
     if (isDemo || !userId) return
-    await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+    if (error) {
+      set({ notifications })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
 
   markSingleRead: async (id) => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, notifications } = get()
     set((s) => ({ notifications: s.notifications.map((n) => n.id === id ? { ...n, read: true } : n) }))
     if (isDemo || !userId) return
-    await supabase.from('notifications').update({ read: true }).eq('id', id)
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id)
+    if (error) {
+      set({ notifications })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
 
   loadNotifications: async () => {
     const { userId, isDemo } = get()
     if (isDemo || !userId) return
-    const { data } = await supabase
+    set({ notificationsLoading: true, notificationsError: false })
+    const { data, error } = await supabase
       .from('notifications')
       .select('*, profiles!notifications_actor_id_fkey(nickname)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
+      // Initial notification history is intentionally capped; pagination UI can be added later.
+      .limit(NOTIFICATION_LIMIT)
+    if (error) {
+      console.error('Failed to load notifications:', error)
+      set({ notificationsLoading: false, notificationsError: true })
+      return
+    }
     const notifications: Notification[] = (data ?? []).map((n) => {
-      const actorNickname = (n as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.someone
+      const isJoinResult = n.type === 'join_approved' || n.type === 'join_rejected'
+      // 가입 결과 알림은 text에 저장된 그룹 이름을 행의 굵은 이름 자리에 보여준다.
+      const actorNickname = isJoinResult ? n.text : (n as { profiles?: { nickname?: string } }).profiles?.nickname ?? getMessages().store.someone
+      const M = getMessages()
+      const type = n.type as Notification['type']
+      const text =
+        type === 'reaction' ? M.notifications.reactionText(n.actor_count ?? 1)
+        : type === 'like' ? M.notifications.likeText(n.actor_count ?? 1)
+        : type === 'follow' ? M.notifications.followText
+        : type === 'comment' ? M.notifications.commentText
+        : n.text
       return {
         id: n.id,
         user: actorNickname,
-        type: n.type as Notification['type'],
-        text: n.text,
+        type,
+        text,
+        count: n.actor_count ?? 1,
+        communityId: isJoinResult ? n.related_id ?? undefined : undefined,
         read: n.read,
         time: '',
       }
     })
-    set({ notifications })
+    set({ notifications, notificationsLoading: false, notificationsError: false })
   },
 
-  openRecordModal: () => set((s) => ({ showRecordModal: true, recordUseCount: s.recordUseCount + 1 })),
+  openRecordModal: () => set({ showRecordModal: true }),
   closeRecordModal: () => set({ showRecordModal: false }),
+
+  showAppToast: (msg) => {
+    if (appToastTimer) clearTimeout(appToastTimer)
+    set({ toastMessage: msg })
+    appToastTimer = setTimeout(() => {
+      appToastTimer = null
+      useAppStore.setState({ toastMessage: null })
+    }, 2000)
+  },
 
   openSyncSheet: (user) => {
     const alarms = user.routines.map((r) => ({ time: r.group, items: r.items, group: r.group }))
@@ -1616,7 +1991,10 @@ export const useAppStore = create<AppState>()(
     set({ profileVisibility: v })
     if (isDemo || !userId) return
     const { error } = await supabase.from('profiles').update({ profile_visibility: v }).eq('id', userId)
-    if (error) set({ profileVisibility: prev })
+    if (error) {
+      set({ profileVisibility: prev })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
   setNicknameEditInput: (v) => set({ nicknameEditInput: v }),
   submitNicknameEdit: async () => {
@@ -1627,18 +2005,27 @@ export const useAppStore = create<AppState>()(
     if (isDemo || !userId) return
     // 로컬만 바꾸면 restoreSession()이 DB의 옛 닉네임으로 되돌리므로 profiles까지 갱신한다
     const { error } = await supabase.from('profiles').update({ nickname: trimmed }).eq('id', userId)
-    if (error) set({ nickname: prevNickname })
+    if (error) {
+      set({ nickname: prevNickname, nicknameEditInput: trimmed })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
   saveRoutineGroups: async (groups) => {
-    const { userId, isDemo, currentRoutineGroupIds } = get()
+    const { userId, isDemo, currentRoutineGroupIds, routineGroups: previousGroups } = get()
     set({ routineGroups: groups })
     if (isDemo || !userId) return
-    const newIds = await replaceCurrentRoutineGroups(userId, groups, currentRoutineGroupIds)
-    set({ currentRoutineGroupIds: newIds })
+    try {
+      const newIds = await replaceCurrentRoutineGroups(userId, groups, currentRoutineGroupIds)
+      set({ currentRoutineGroupIds: newIds })
+    } catch (error) {
+      console.error('Routine save failed:', error)
+      set({ routineGroups: previousGroups })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
 
   startNewRoutinePeriod: async (groups) => {
-    const { userId, isDemo, currentRoutineGroupIds } = get()
+    const { userId, isDemo, currentRoutineGroupIds, routineGroups, routineHistory, currentRoutineStartDate } = get()
     set((s) => ({
       routineHistory: [
         { id: `rh${Date.now()}`, startDate: s.currentRoutineStartDate, endDate: Date.now(), groups: s.routineGroups },
@@ -1648,15 +2035,22 @@ export const useAppStore = create<AppState>()(
       currentRoutineStartDate: Date.now(),
     }))
     if (isDemo || !userId) return
-    if (currentRoutineGroupIds.length > 0) {
-      await supabase.from('routine_groups').update({ period_end: new Date().toISOString(), is_current: false }).in('id', currentRoutineGroupIds)
+    try {
+      if (currentRoutineGroupIds.length > 0) {
+        const { error } = await supabase.from('routine_groups').update({ period_end: new Date().toISOString(), is_current: false }).in('id', currentRoutineGroupIds)
+        if (error) throw error
+      }
+      const newIds = await insertRoutineGroups(userId, groups)
+      set({ currentRoutineGroupIds: newIds })
+    } catch (error) {
+      console.error('Routine period save failed:', error)
+      set({ routineGroups, routineHistory, currentRoutineStartDate })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
     }
-    const newIds = await insertRoutineGroups(userId, groups)
-    set({ currentRoutineGroupIds: newIds })
   },
 
   saveRoutinePrivacy: async (privacy) => {
-    const { userId, isDemo, routineItemIdByName } = get()
+    const { userId, isDemo, routineItemIdByName, routinePrivacy: previousPrivacy } = get()
     set({ routinePrivacy: privacy })
     if (isDemo || !userId) return
     const rows: { item_id: string; is_public: boolean }[] = []
@@ -1667,7 +2061,11 @@ export const useAppStore = create<AppState>()(
       }
     }
     if (rows.length > 0) {
-      await supabase.from('routine_privacy').upsert(rows)
+      const { error } = await supabase.from('routine_privacy').upsert(rows)
+      if (error) {
+        set({ routinePrivacy: previousPrivacy })
+        get().showAppToast(getMessages().communityEdit.saveFailed)
+      }
     }
   },
 
@@ -1741,16 +2139,20 @@ export const useAppStore = create<AppState>()(
   },
 
   saveEveningReflection: async (entry) => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, eveningReflections } = get()
     set((s) => {
       const existing = s.eveningReflections.filter((e) => e.date !== entry.date)
       return { eveningReflections: [entry, ...existing] }
     })
     if (isDemo || !userId) return
-    await supabase.from('evening_reflections').upsert(
+    const { error } = await supabase.from('evening_reflections').upsert(
       { user_id: userId, date: entry.date, answers: entry.answers },
       { onConflict: 'user_id,date' }
     )
+    if (error) {
+      set({ eveningReflections })
+      get().showAppToast(getMessages().communityEdit.saveFailed)
+    }
   },
 
   loadEveningReflections: async () => {
@@ -1794,7 +2196,7 @@ export const useAppStore = create<AppState>()(
   },
 
   saveCommNotifSettings: async (settings) => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, commNotifSettings } = get()
     set({ commNotifSettings: settings })
     if (isDemo || !userId) return
     const rows = settings.map((s) => ({
@@ -1803,18 +2205,30 @@ export const useAppStore = create<AppState>()(
       enabled: s.master,
       extra: { options: s.options },
     }))
-    if (rows.length > 0) await supabase.from('notification_settings').upsert(rows, { onConflict: 'user_id,setting_key' })
+    if (rows.length > 0) {
+      const { error } = await supabase.from('notification_settings').upsert(rows, { onConflict: 'user_id,setting_key' })
+      if (error) {
+        set({ commNotifSettings })
+        get().showAppToast(getMessages().communityEdit.saveFailed)
+      }
+    }
   },
 
   saveAlarmSettings: async (synced, comms) => {
-    const { userId, isDemo } = get()
+    const { userId, isDemo, alarmSyncedSettings, alarmCommSettings } = get()
     set({ alarmSyncedSettings: synced, alarmCommSettings: comms })
     if (isDemo || !userId) return
     const rows = [
       ...synced.map((s) => ({ user_id: userId, setting_key: `synced:${s.id}`, enabled: s.on, extra: null })),
       ...comms.map((c) => ({ user_id: userId, setting_key: `comm_alarm:${c.id}`, enabled: c.on, extra: null })),
     ]
-    if (rows.length > 0) await supabase.from('notification_settings').upsert(rows, { onConflict: 'user_id,setting_key' })
+    if (rows.length > 0) {
+      const { error } = await supabase.from('notification_settings').upsert(rows, { onConflict: 'user_id,setting_key' })
+      if (error) {
+        set({ alarmSyncedSettings, alarmCommSettings })
+        get().showAppToast(getMessages().communityEdit.saveFailed)
+      }
+    }
   },
 
   loadNotificationSettings: async () => {
@@ -1959,9 +2373,24 @@ export const useAppStore = create<AppState>()(
     set({ customQuickButtons })
   },
 
-  signOut: () => {
-    supabase.auth.signOut()
+  signOut: async () => {
+    const wasDemo = get().isDemo
+    try {
+      const { error } = await supabase.auth.signOut(wasDemo ? { scope: 'local' } : undefined)
+      if (error) {
+        console.error('Remote sign-out failed; clearing local session:', error)
+        await supabase.auth.signOut({ scope: 'local' })
+      }
+    } catch (error) {
+      console.error('Remote sign-out failed; clearing local session:', error)
+      try {
+        await supabase.auth.signOut({ scope: 'local' })
+      } catch (localError) {
+        console.error('Local sign-out failed:', localError)
+      }
+    }
     set({
+      ...createAccountScopedState(),
       nickname: '',
       nicknameInput: '',
       emailInput: '',
@@ -1970,12 +2399,8 @@ export const useAppStore = create<AppState>()(
       isDemo: false,
       userId: null,
       isAdmin: false,
-      posts: [...SAMPLE_POSTS, ...generateHistoricalPosts()],
-      notifications: SAMPLE_NOTIFS,
-      followedUsers: new Set(),
-      onboardingFollowed: new Set(),
-      syncedList: new Set(),
       homeScreenIsRecord: false,
+      hasPromptedHome: false,
       feedVisitCount: 0,
       recordUseCount: 0,
       defaultVisibility: 'group',
@@ -1985,7 +2410,12 @@ export const useAppStore = create<AppState>()(
       prevScreen: null,
       navTab: 'feed',
     })
-    try { localStorage.removeItem('welling_v1') } catch (_) {}
+    try {
+      localStorage.removeItem('welling_v1')
+      localStorage.removeItem('welling_pending_invite')
+      localStorage.removeItem('welling_pending_join_names')
+      localStorage.removeItem('welling_last_record_community')
+    } catch {}
   },
     }),
     {
@@ -2025,6 +2455,7 @@ export const useAppStore = create<AppState>()(
         } else {
           updates.screen = 'onboarding-username'
         }
+        if (!state.hasPromptedHome && state.recordUseCount >= 3) updates.showHomePrompt = true
         // zustand 5.0.14: onRehydrateStorage 콜백 안에서 동기적으로 setState를 호출하면
         // hydrate()의 내부 Promise 체인이 currentVersion 불일치로 중단되어 hasHydrated가
         // 영원히 false로 남는 결함이 있음. 다음 tick으로 미뤄 우회.

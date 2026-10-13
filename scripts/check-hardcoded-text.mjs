@@ -6,8 +6,7 @@ import { join, relative } from 'node:path'
 
 const ROOT = join(import.meta.dirname, '..', 'src')
 const ALLOWED = ['i18n/', 'data/']
-// TODO: Remove these temp exceptions once i18n migration is complete (Phase 1 launch debt)
-const TEMP_EXCEPTIONS = ['screens/NewCommunity.tsx', 'screens/CommunitySettings.tsx']
+const TEMP_EXCEPTIONS = []
 const KOREAN = /[가-힣]/
 
 function walk(dir) {

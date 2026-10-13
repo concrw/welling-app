@@ -28,13 +28,13 @@ export function RoutinePrivacySection({
           {routinePrivacy.map((pg, gi) => (
             <div key={pg.name} style={{ borderRadius: 12, background: '#FAFAFA', border: '1px solid #EBEBEB', overflow: 'hidden' }}>
               <div style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #EBEBEB' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: pg.on ? '#111111' : '#AAAAAA' }}>{pg.name}</span>
-                <Toggle on={pg.on} onToggle={() => onToggleGroup(gi)} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: pg.on ? '#111111' : '#AAAAAA' }}>{M.myPage.routineLabel(pg.name)}</span>
+                <Toggle on={pg.on} onToggle={() => onToggleGroup(gi)} label={pg.name} />
               </div>
               {pg.items.map((pgi, ii) => (
                 <div key={pgi.name} style={{ padding: '9px 14px 9px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #F5F5F5' }}>
-                  <span style={{ fontSize: 11, color: pgi.on ? '#111111' : '#AAAAAA', fontWeight: 300 }}>· {pgi.name}</span>
-                  <Toggle on={pgi.on} onToggle={() => onToggleItem(gi, ii)} />
+                  <span style={{ fontSize: 11, color: pgi.on ? '#111111' : '#AAAAAA', fontWeight: 300 }}>· {M.myPage.routineLabel(pgi.name)}</span>
+                  <Toggle on={pgi.on} onToggle={() => onToggleItem(gi, ii)} label={pgi.name} />
                 </div>
               ))}
             </div>

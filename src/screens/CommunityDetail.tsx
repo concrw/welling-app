@@ -7,7 +7,7 @@ export default function CommunityDetail() {
   const selectedCommunity = useAppStore((s) => s.selectedCommunity)
   const toggleJoinCommunity = useAppStore((s) => s.toggleJoinCommunity)
   const posts = useAppStore((s) => s.posts)
-  const toggleLikePost = useAppStore((s) => s.toggleLikePost)
+  const toggleReaction = useAppStore((s) => s.toggleReaction)
   const openPostDetail = useAppStore((s) => s.openPostDetail)
   const selectUser = useAppStore((s) => s.selectUser)
   const suggestedUsers = useAppStore((s) => s.suggestedUsers)
@@ -17,6 +17,7 @@ export default function CommunityDetail() {
   const navigate = useAppStore((s) => s.navigate)
   const openRecordModal = useAppStore((s) => s.openRecordModal)
   const setPendingRecordCommunityId = useAppStore((s) => s.setPendingRecordCommunityId)
+  const showAppToast = useAppStore((s) => s.showAppToast)
 
   if (!selectedCommunity) {
     return (
@@ -42,6 +43,37 @@ export default function CommunityDetail() {
   const handleWrite = () => {
     setPendingRecordCommunityId(c.id)
     openRecordModal()
+  }
+
+  const handleInvite = async () => {
+    if (!c.inviteCode) return
+    const url = `${window.location.origin}/?invite=${c.inviteCode}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: M.communityDetail.inviteShareTitle(c.name), text: M.communityDetail.inviteShareText(c.name), url })
+        return
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+      }
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+      } else {
+        const textArea = document.createElement('textarea')
+        textArea.value = url
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        document.body.appendChild(textArea)
+        textArea.select()
+        const copied = document.execCommand('copy')
+        document.body.removeChild(textArea)
+        if (!copied) throw new Error('copy failed')
+      }
+      showAppToast(M.communityDetail.inviteCopied)
+    } catch {
+      showAppToast(M.communityDetail.inviteCopyFailed)
+    }
   }
 
   const joinBtnStyle: React.CSSProperties = c.joined
@@ -81,10 +113,15 @@ export default function CommunityDetail() {
       </div>
 
       {c.joined && (
-        <div style={{ padding: '12px 20px' }}>
+        <div style={{ padding: '12px 20px', display: 'flex', gap: 8 }}>
           <button data-testid="community-write" onClick={handleWrite} style={{ width: '100%', padding: 12, borderRadius: 10, background: '#111111', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
             {M.communityDetail.writePost}
           </button>
+          {c.inviteCode && (
+            <button onClick={handleInvite} style={{ width: '100%', padding: 12, borderRadius: 10, background: '#FEE500', color: '#191919', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+              {M.communityDetail.inviteFriends}
+            </button>
+          )}
         </div>
       )}
 
@@ -105,13 +142,13 @@ export default function CommunityDetail() {
             <div onClick={() => openPostDetail(post)} style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }}>
               <span style={{ fontSize: 13, color: '#555555' }}>{post.content}</span>
             </div>
+            {post.hasImg && post.imgUrl && <img src={post.imgUrl} alt="" onClick={() => openPostDetail(post)} style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }} />}
             <button
-              onClick={() => toggleLikePost(post.id)}
-              style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 13, margin: '-9px -9px -9px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => toggleReaction(post.id, 'cheer')}
+              style={{ flexShrink: 0, background: post.myReactions?.has('cheer') ? '#FFF4D6' : 'none', border: '1px solid #EBEBEB', borderRadius: 999, cursor: 'pointer', padding: '6px 9px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#555555', fontSize: 12, fontWeight: 700 }}
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill={post.liked ? '#E53535' : 'none'}>
-                <path d="M9 15S2 10.5 2 6A4 4 0 019 3.2 4 4 0 0116 6C16 10.5 9 15 9 15z" stroke={post.liked ? '#E53535' : '#CCCCCC'} strokeWidth="1.4" strokeLinejoin="round" />
-              </svg>
+              <span>{M.feed.cheer}</span>
+              <span>{post.reactions.cheer ?? 0}</span>
             </button>
           </div>
         ))

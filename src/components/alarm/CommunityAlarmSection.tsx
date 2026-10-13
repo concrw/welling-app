@@ -23,7 +23,7 @@ export function CommunityAlarmSection({ communities, onToggle }: { communities: 
             <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{comm.initial}</span>
           </div>
           <p style={{ flex: 1, margin: 0, fontSize: 13, fontWeight: 600, color: '#111111' }}>{comm.name}</p>
-          <Toggle on={comm.on} onToggle={() => onToggle(comm.id)} />
+          <Toggle on={comm.on} onToggle={() => onToggle(comm.id)} label={comm.name} />
         </div>
       ))}
     </>

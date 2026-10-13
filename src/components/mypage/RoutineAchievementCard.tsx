@@ -18,7 +18,7 @@ export function RoutineAchievementCard({ achievement, period }: { achievement: A
       {achievement.groups.map((group) => (
         <div key={group.name} style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#111111' }}>{group.name}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#111111' }}>{M.myPage.routineLabel(group.name)}</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#111111' }}>{group.achievement}%</span>
           </div>
           <div style={{ height: 3, borderRadius: 3, background: '#EBEBEB', marginBottom: 8, overflow: 'hidden' }}>
@@ -26,7 +26,7 @@ export function RoutineAchievementCard({ achievement, period }: { achievement: A
           </div>
           {group.items.map((item) => (
             <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0 2px 8px' }}>
-              <span style={{ fontSize: 11, color: '#AAAAAA', fontWeight: 300 }}>· {item.name}</span>
+              <span style={{ fontSize: 11, color: '#AAAAAA', fontWeight: 300 }}>· {M.myPage.routineLabel(item.name)}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{ width: 40, height: 2, borderRadius: 2, background: '#EBEBEB', overflow: 'hidden' }}>
                   <div style={{ width: `${item.rate}%`, height: '100%', background: '#111111' }} />

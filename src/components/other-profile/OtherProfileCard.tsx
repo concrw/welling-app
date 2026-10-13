@@ -1,5 +1,7 @@
 import type { User } from '../../store/appStore'
-import { useMessages } from '../../i18n'
+import { useLangStore, useMessages } from '../../i18n'
+
+const ROUTINE_SYNC_ENABLED = false
 
 interface OtherProfileCardProps {
   user: User
@@ -11,6 +13,8 @@ interface OtherProfileCardProps {
 
 export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, onOpenSync }: OtherProfileCardProps) {
   const M = useMessages()
+  const lang = useLangStore((s) => s.lang)
+  const locale = lang === 'ko' ? 'ko-KR' : 'en-US'
   return (
     <div data-testid="other-profile-card" style={{ background: '#FFFFFF', padding: '16px 20px 22px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 18 }}>
@@ -21,8 +25,8 @@ export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, o
           <p style={{ margin: '0 0 5px', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 20, fontWeight: 700, color: '#111111', letterSpacing: '-.3px', lineHeight: 1 }}>{user.name}</p>
           <p style={{ margin: '0 0 5px', fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 13, color: '#AAAAAA', fontWeight: 400 }}>{M.otherProfile.handleLine(user.handle)}</p>
           <p style={{ margin: 0, fontFamily: "'Plus Jakarta Sans','Noto Sans KR',sans-serif", fontSize: 13, color: '#333333', fontWeight: 400 }}>
-            <span style={{ fontWeight: 700 }}>{user.followers.toLocaleString()}</span> {M.otherProfile.followersLabel} &nbsp;
-            <span style={{ fontWeight: 700 }}>{user.following.toLocaleString()}</span> {M.otherProfile.followingLabel}
+            <span style={{ fontWeight: 700 }}>{user.followers.toLocaleString(locale)}</span> {M.otherProfile.followersLabel} &nbsp;
+            <span style={{ fontWeight: 700 }}>{user.following.toLocaleString(locale)}</span> {M.otherProfile.followingLabel}
           </p>
         </div>
       </div>
@@ -41,7 +45,7 @@ export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, o
         >
           {isFollowed ? M.otherProfile.following : M.otherProfile.follow}
         </button>
-        <button
+        {ROUTINE_SYNC_ENABLED && <button
           data-testid="other-profile-sync"
           aria-pressed={isSynced}
           onClick={onOpenSync}
@@ -54,7 +58,7 @@ export function OtherProfileCard({ user, isFollowed, isSynced, onToggleFollow, o
           }}
         >
           {isSynced ? M.otherProfile.synced : M.otherProfile.syncRoutine}
-        </button>
+        </button>}
       </div>
     </div>
   )

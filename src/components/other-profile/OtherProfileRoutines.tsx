@@ -1,14 +1,17 @@
+import { useMessages } from '../../i18n'
+
 interface OtherProfileRoutinesProps {
   routines: { group: string; items: string }[]
 }
 
 export function OtherProfileRoutines({ routines }: OtherProfileRoutinesProps) {
+  const M = useMessages()
   return (
     <div style={{ background: '#FAF8F4', padding: '24px 16px 32px' }}>
       {routines.map((r, i) => (
         <div key={i} style={{ display: 'flex', gap: 0, marginBottom: 0 }}>
           <div style={{ width: 54, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#AAAAAA', textTransform: 'uppercase', letterSpacing: '.04em' }}>{r.group}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#AAAAAA', textTransform: 'uppercase', letterSpacing: '.04em' }}>{M.myPage.routineLabel(r.group)}</span>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0984E3', margin: '6px 0 0', flexShrink: 0 }} />
             <div style={{ width: 1, flex: 1, background: '#DDDDDD', minHeight: 32 }} />
           </div>

@@ -100,7 +100,7 @@ export default function App() {
     return () => window.clearTimeout(id)
   }, [])
 
-  if (authInitializing && !isDemo) return <div style={{ minHeight: '100dvh', position: 'relative' }}><BrandedLoading />{toastMessage && <Toast message={toastMessage} />}</div>
+  if (authInitializing && !isDemo) return <div style={{ minHeight: '100dvh', width: '100%', position: 'relative' }}><BrandedLoading />{toastMessage && <Toast message={toastMessage} />}</div>
 
   const isOnboarding = ONBOARDING_SCREENS.includes(screen), showNav = NAV_SCREENS.includes(screen)
   const overlayKey = `${showRecordModal}-${showPostDetail}-${showSyncConfirm}-${showSyncAlarm}-${showHomePrompt}-${showWelcomeAnimation}`

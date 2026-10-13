@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { daysSinceLastPost } from '../lib/achievement'
 import { FeedHeader } from '../components/feed/FeedHeader'
@@ -7,14 +7,11 @@ import { FeedPostList } from '../components/feed/FeedPostList'
 
 const QUIET_DAY_THRESHOLD = 2
 
-
 export default function Feed() {
   const posts = useAppStore((s) => s.posts)
   const communities = useAppStore((s) => s.communities)
   const activeCommunityTab = useAppStore((s) => s.activeCommunityTab)
   const setActiveCommunityTab = useAppStore((s) => s.setActiveCommunityTab)
-  const communityTabOrder = useAppStore((s) => s.communityTabOrder)
-  const setCommunityTabOrder = useAppStore((s) => s.setCommunityTabOrder)
   const toggleLikePost = useAppStore((s) => s.toggleLikePost)
   const openPostDetail = useAppStore((s) => s.openPostDetail)
   const selectUser = useAppStore((s) => s.selectUser)
@@ -23,23 +20,58 @@ export default function Feed() {
   const notifications = useAppStore((s) => s.notifications)
   const nickname = useAppStore((s) => s.nickname)
   const openRecordModal = useAppStore((s) => s.openRecordModal)
+  const loadFeedData = useAppStore((s) => s.loadFeedData)
+  const selectCommunity = useAppStore((s) => s.selectCommunity)
+  
   const [quietBannerDismissed, setQuietBannerDismissed] = useState(false)
+  const [communityTabOrder, setCommunityTabOrder] = useState<string[]>([])
 
   const hasUnread = notifications.some((n) => !n.read)
   const quietDays = daysSinceLastPost(posts, nickname)
   const showQuietBanner = !quietBannerDismissed && quietDays >= QUIET_DAY_THRESHOLD && quietDays !== Infinity
 
-  // 순서대로 정렬된 커뮤니티 탭 목록
+  // Build tabs from joined communities
+  const joinedCommunities = communities.filter((c) => c.joined)
+  
+  useEffect(() => {
+    // Load custom order from localStorage
+    const stored = localStorage.getItem('welling_community_tab_order')
+    if (stored) {
+      try {
+        const order = JSON.parse(stored)
+        setCommunityTabOrder(order)
+      } catch {
+        // Fallback to joined order
+        setCommunityTabOrder(joinedCommunities.map((c) => c.id))
+      }
+    } else {
+      setCommunityTabOrder(joinedCommunities.map((c) => c.id))
+    }
+  }, [communities])
+
+  // Save order when changed
+  const handleTabOrderChange = (newOrder: string[]) => {
+    setCommunityTabOrder(newOrder)
+    localStorage.setItem('welling_community_tab_order', JSON.stringify(newOrder))
+  }
+
+  // Sort tabs by custom order
   const tabs = communityTabOrder
-    .map((id) => communities.find((c) => c.id === id))
-    .filter(Boolean) as typeof communities
+    .map((id) => joinedCommunities.find((c) => c.id === id))
+    .filter(Boolean) as typeof joinedCommunities
+  
+  // Add any new joined communities not in order
+  const missingTabs = joinedCommunities.filter((c) => !communityTabOrder.includes(c.id))
+  const allTabs = [...tabs, ...missingTabs]
 
-  // 맨 앞 탭의 focus 메세지를 항상 표시
-  const focusNote = tabs[0]?.focus || ''
+  // Focus note from active tab
+  const activeComm = allTabs.find((c) => c.id === activeCommunityTab)
+  const focusNote = activeComm?.desc || activeComm?.focus || ''
 
+  const joinedCommunityIds = communities.filter((c) => c.joined).map((c) => c.id)
   const myPosts = posts.filter((p) => p.user === nickname)
   const displayPosts = activeCommunityTab === 'all'
-    ? posts
+    ? [...myPosts, ...posts.filter((p) => p.user !== nickname && joinedCommunityIds.includes(p.community))]
     : [
         ...myPosts,
         ...posts.filter((p) => p.community === activeCommunityTab && p.user !== nickname),
@@ -68,16 +100,34 @@ export default function Feed() {
     }
   }
 
+  // Refetch on window focus
+  useEffect(() => {
+    const handleFocus = () => {
+      loadFeedData()
+    }
+    window.addEventListener('visibilitychange', handleFocus)
+    return () => window.removeEventListener('visibilitychange', handleFocus)
+  }, [loadFeedData])
+
   return (
     <div>
       <FeedHeader
         activeCommunityTab={activeCommunityTab}
         setActiveCommunityTab={setActiveCommunityTab}
         communityTabOrder={communityTabOrder}
-        setCommunityTabOrder={setCommunityTabOrder}
-        tabs={tabs}
+        setCommunityTabOrder={handleTabOrderChange}
+        tabs={allTabs}
         hasUnread={hasUnread}
         onNavigateNotifications={() => navigate('notifications')}
+        joinedCount={joinedCommunities.length}
+        onCreateGroup={() => navigate('new-community')}
+        onOpenGroupSettings={(groupId) => {
+          const group = allTabs.find((t) => t.id === groupId)
+          if (group) {
+            selectCommunity(group)
+            navigate('community-settings')
+          }
+        }}
       />
 
       {showQuietBanner && (

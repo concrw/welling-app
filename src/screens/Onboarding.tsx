@@ -23,6 +23,7 @@ export default function Onboarding() {
   const requestPasswordReset = useAppStore((s) => s.requestPasswordReset)
   const signInWithProvider = useAppStore((s) => s.signInWithProvider)
   const goFeedDemo = useAppStore((s) => s.goFeedDemo)
+  const invitePreview = useAppStore((s) => s.invitePreview)
   const navigate = useAppStore((s) => s.navigate)
   const toggleFollowOnboard = useAppStore((s) => s.toggleFollowOnboard)
   const onboardingFollowed = useAppStore((s) => s.onboardingFollowed)
@@ -51,6 +52,7 @@ export default function Onboarding() {
         requestPasswordReset={requestPasswordReset}
         signInWithProvider={signInWithProvider}
         goFeedDemo={goFeedDemo}
+        invitePreview={invitePreview}
       />
     )
   }

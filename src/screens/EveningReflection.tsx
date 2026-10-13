@@ -4,6 +4,7 @@ import { useMessages } from '../i18n'
 import { EveningReflectionHeader } from '../components/evening-reflection/EveningReflectionHeader'
 import { ReflectionPromptList } from '../components/evening-reflection/ReflectionPromptList'
 import { EveningReflectionSaveFooter } from '../components/evening-reflection/EveningReflectionSaveFooter'
+import { getLocalDate } from '../lib/date'
 
 export default function EveningReflection() {
   const M = useMessages()
@@ -12,7 +13,7 @@ export default function EveningReflection() {
   const saveEveningReflection = useAppStore((s) => s.saveEveningReflection)
   const eveningReflections = useAppStore((s) => s.eveningReflections)
   const addPost = useAppStore((s) => s.addPost)
-  const todayKey = new Date().toISOString().slice(0, 10)
+  const todayKey = getLocalDate()
 
   const [answers, setAnswers] = useState(() => {
     const existing = eveningReflections.find((e) => e.date === todayKey)
@@ -24,11 +25,35 @@ export default function EveningReflection() {
   const setAnswer = (i: number, val: string) =>
     setAnswers((prev) => prev.map((a, idx) => (idx === i ? val : a)))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     saveEveningReflection({ date: todayKey, answers })
     if (isPublic) {
       const content = prompts.map((p, i) => answers[i].trim() ? `${p}\n${answers[i].trim()}` : '').filter(Boolean).join('\n\n')
-      if (content) addPost(content, undefined, 'reflection', 'public', null)
+      if (content) {
+        // Post to ACTIVE group (fallback: first joined group; private if none or toggle off)
+        const state = useAppStore.getState()
+        const communities = state.communities
+        const activeCommunityTab = state.activeCommunityTab
+        const joinedCommunities = communities.filter(c => c.joined)
+        
+        // Try to use active tab, then first joined, then null
+        let currentCommunityId: string | null = null
+        if (activeCommunityTab && activeCommunityTab !== 'all') {
+          const activeComm = joinedCommunities.find(c => c.id === activeCommunityTab)
+          if (activeComm) currentCommunityId = activeCommunityTab
+        }
+        if (!currentCommunityId && joinedCommunities.length > 0) {
+          currentCommunityId = joinedCommunities[0].id
+        }
+        
+        const visibility: 'group' | 'private' = currentCommunityId ? 'group' : 'private'
+        
+        const success = await addPost(content, undefined, 'reflection', visibility, currentCommunityId)
+        if (!success) {
+          alert(M.eveningReflection.postFailed)
+          return
+        }
+      }
     }
     setSaved(true)
     setTimeout(() => navigate('mypage'), 1200)

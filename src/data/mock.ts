@@ -10,20 +10,7 @@ export const MOCK_ROUTINE_ITEMS = [
   { time: '21:00', name: 'Reading', desc: '취침 전 독서 30분. 스크린 없는 시간.', bg: '#FFF1F2', img: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=120&h=120&fit=crop', isPublic: false },
 ]
 
-export const MOCK_CHAT_MESSAGES = [
-  { id: 'm1', me: false, text: '오늘 루틴 어떻게 됐어?', time: '10:28', justify: 'flex-start', radius: '14px 14px 14px 4px', bg: '#F0F0F0', textColor: '#111111' },
-  { id: 'm2', me: true, text: '4/5 완료했어! Running만 못했네', time: '10:30', justify: 'flex-end', radius: '14px 14px 4px 14px', bg: '#111111', textColor: '#fff' },
-  { id: 'm3', me: false, text: '나도 비슷해. 내일은 같이 뛰자!', time: '10:31', justify: 'flex-start', radius: '14px 14px 14px 4px', bg: '#F0F0F0', textColor: '#111111' },
-  { id: 'm4', me: true, text: '좋아! 몇 시에?', time: '10:31', justify: 'flex-end', radius: '14px 14px 4px 14px', bg: '#111111', textColor: '#fff' },
-  { id: 'm5', me: false, text: '오전 7시 어때? 한강에서 만나자', time: '10:32', justify: 'flex-start', radius: '14px 14px 14px 4px', bg: '#F0F0F0', textColor: '#111111' },
-]
-
-export const MOCK_THREADS = [
-  { id: 't1', name: 'Jay', last: '오늘 루틴 어떻게 됐어?', time: '10:32', unread: true },
-  { id: 't2', name: 'Sora', last: 'Running 같이 해요!', time: '어제', unread: false },
-  { id: 't3', name: 'Tom', last: '잘 자요 :)', time: '월', unread: false },
-  { id: 't4', name: 'Mina', last: 'Morning Sync 참가해요?', time: '일', unread: true },
-]
+// Mock chat removed - group-first restructure
 
 export const MOCK_ONBOARDING_POSTS = [
   { id: 'op1', user: 'Sora', initials: 'SR', color: '#6366F1', time: '2m', category: 'MORNING', content: '오늘도 새벽 5시 기상 완료. 스트레칭 10분 후 명상 5분.', reactions: [{ key: 'Good', count: 4 }, { key: 'Strong', count: 2 }] },

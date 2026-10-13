@@ -2,7 +2,6 @@ import { useAppStore } from '../store/appStore'
 import { computeAchievement } from '../lib/achievement'
 import { RankingTabs } from '../components/ranking/RankingTabs'
 import { RankingPodium } from '../components/ranking/RankingPodium'
-import { RankingAdBanner } from '../components/ranking/RankingAdBanner'
 import { RankingList } from '../components/ranking/RankingList'
 
 const RANKING_PERIOD_DAYS = 14
@@ -18,12 +17,6 @@ export default function Ranking() {
   const posts = useAppStore((s) => s.posts)
 
   const RANKING_TABS = ['All', ...communities.map((c) => c.name)]
-
-  const navigate = useAppStore((s) => s.navigate)
-  const openAdModal = useAppStore((s) => s.openAdModal)
-  const setAdPageData = useAppStore((s) => s.setAdPageData)
-  const adSlots = useAppStore((s) => s.adSlots)
-  const rankingAd = adSlots.ranking
 
   // Derive which community ids each user has posted in
   const userCommunityMap = new Map<string, Set<string>>()
@@ -54,17 +47,6 @@ export default function Ranking() {
   const TOP3 = ranked.slice(0, 3)
   const REST = ranked.slice(3)
 
-  const handleRankingAdClick = () => {
-    if (rankingAd.clickAction === 'link') {
-      window.open(rankingAd.url, '_blank')
-    } else if (rankingAd.clickAction === 'modal') {
-      openAdModal({ brand: rankingAd.brand, desc: rankingAd.desc, modalTitle: rankingAd.modalTitle, modalBody: rankingAd.modalBody, ctaUrl: rankingAd.url })
-    } else {
-      setAdPageData({ brand: rankingAd.brand, desc: rankingAd.desc, slotKey: 'ranking' })
-      navigate('ad-page')
-    }
-  }
-
   const handleTapProfile = (userName: string) => {
     const user = suggestedUsers.find((u) => u.name === userName)
     if (user) selectUser(user)
@@ -75,8 +57,6 @@ export default function Ranking() {
       <RankingTabs tabs={RANKING_TABS} active={rankingTab} onChange={setRankingTab} />
 
       <RankingPodium top3={TOP3} onTapProfile={handleTapProfile} />
-
-      <RankingAdBanner brand={rankingAd.brand} desc={rankingAd.desc} onClick={handleRankingAdClick} />
 
       <RankingList items={REST} onTapProfile={handleTapProfile} />
 
